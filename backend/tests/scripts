@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Test API responses"""
+
+import requests
+import json
+
+def test_api():
+    base_url = "http://localhost:5000"
+    
+    # Test requirements table
+    print("Testing requirements table...")
+    try:
+        response = requests.post(
+            f"{base_url}/api/databases/sakura_db/query?environment=default",
+            headers={"Content-Type": "application/json"},
+            json={"query": "SELECT * FROM requirements LIMIT 10", "fetch_all": True}
+        )
+        print(f"Status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+        else:
+            print(f"Error: {response.text}")
+    except Exception as e:
+        print(f"Exception: {e}")
+    
+    print("\n" + "="*50 + "\n")
+    
+    # Test test_cases table
+    print("Testing test_cases table...")
+    try:
+        response = requests.post(
+            f"{base_url}/api/databases/sakura_db/query?environment=default",
+            headers={"Content-Type": "application/json"},
+            json={"query": "SELECT * FROM test_cases LIMIT 10", "fetch_all": True}
+        )
+        print(f"Status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+        else:
+            print(f"Error: {response.text}")
+    except Exception as e:
+        print(f"Exception: {e}")
+
+if __name__ == "__main__":
+    test_api()

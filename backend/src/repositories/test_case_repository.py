@@ -40,14 +40,15 @@ class ITestCaseRepository(ABC):
 class TestCaseRepository(ITestCaseRepository):
     """Concrete implementation of test case repository"""
     
-    def __init__(self, database_service):
+    def __init__(self, database_service, table_name: str = "test_cases"):
         self.database_service = database_service
+        self.table_name = table_name
     
     def find_all(self) -> List[Dict[str, Any]]:
         """Get all test cases from database"""
         try:
             result = self.database_service.execute_query(
-                "SELECT * FROM test_cases ORDER BY id",
+                f"SELECT * FROM {self.table_name} ORDER BY id",
                 "default"
             )
             return result.get('data', [])
@@ -58,7 +59,7 @@ class TestCaseRepository(ITestCaseRepository):
         """Get test case by ID"""
         try:
             result = self.database_service.execute_query(
-                f"SELECT * FROM test_cases WHERE test_case_id = '{test_case_id}'",
+                f"SELECT * FROM {self.table_name} WHERE test_case_id = '{test_case_id}'",
                 "default"
             )
             test_cases = result.get('data', [])
@@ -70,7 +71,7 @@ class TestCaseRepository(ITestCaseRepository):
         """Get test cases by feature"""
         try:
             result = self.database_service.execute_query(
-                f"SELECT * FROM test_cases WHERE feature LIKE '%{feature}%'",
+                f"SELECT * FROM {self.table_name} WHERE feature LIKE '%{feature}%'",
                 "default"
             )
             return result.get('data', [])
@@ -82,14 +83,29 @@ class TestCaseRepository(ITestCaseRepository):
         try:
             # Convert schema to dict and prepare SQL
             test_case_dict = test_case_data.dict()
-            columns = ', '.join(test_case_dict.keys())
-            values = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in test_case_dict.values()])
             
-            query = f"INSERT INTO test_cases ({columns}) VALUES ({values})"
+            # Filter out None values
+            filtered_dict = {k: v for k, v in test_case_dict.items() if v is not None}
+            
+            if not filtered_dict:
+                raise Exception("No valid data provided for test case creation")
+            
+            columns = ', '.join(filtered_dict.keys())
+            values = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in filtered_dict.values()])
+
+            query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({values})"
             result = self.database_service.execute_query(query, "default")
             
-            # Get the created test case
-            return self.find_by_id(test_case_data.test_case_id)
+            if not result.get("success"):
+                raise Exception(f"Insert failed: {result.get('error', 'Unknown error')}")
+            
+            # Return the created test case data with additional fields
+            created_test_case = test_case_dict.copy()
+            created_test_case['id'] = result.get('lastrowid', None)
+            created_test_case['created_at'] = result.get('created_at', None)
+            created_test_case['updated_at'] = result.get('updated_at', None)
+            
+            return created_test_case
         except Exception as e:
             raise Exception(f"Failed to create test case: {str(e)}")
     
@@ -102,8 +118,11 @@ class TestCaseRepository(ITestCaseRepository):
             set_clause = ', '.join([f"{k} = '{v}'" if isinstance(v, str) else f"{k} = {v}" 
                                   for k, v in test_case_data.items()])
             
-            query = f"UPDATE test_cases SET {set_clause} WHERE test_case_id = '{test_case_id}'"
-            self.database_service.execute_query(query, "default")
+            query = f"UPDATE {self.table_name} SET {set_clause} WHERE test_case_id = '{test_case_id}'"
+            result = self.database_service.execute_query(query, "default")
+            
+            if not result.get("success"):
+                raise Exception(f"Update failed: {result.get('error', 'Unknown error')}")
             
             return self.find_by_id(test_case_id)
         except Exception as e:
@@ -112,8 +131,8 @@ class TestCaseRepository(ITestCaseRepository):
     def delete(self, test_case_id: str) -> bool:
         """Delete test case"""
         try:
-            query = f"DELETE FROM test_cases WHERE test_case_id = '{test_case_id}'"
-            self.database_service.execute_query(query, "default")
-            return True
+            query = f"DELETE FROM {self.table_name} WHERE test_case_id = '{test_case_id}'"
+            result = self.database_service.execute_query(query, "default")
+            return result.get("success", False)
         except Exception as e:
             raise Exception(f"Failed to delete test case {test_case_id}: {str(e)}")

@@ -1,11 +1,12 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { DatabaseService } from '../services/database.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   template: `
     <div class="dashboard-container">
       <!-- Header -->
@@ -14,13 +15,25 @@ import { DatabaseService } from '../services/database.service';
           <i class="icon-database"></i>
           Sakura Database Tables
         </h1>
-        <button 
-          class="refresh-btn" 
-          (click)="loadTables()"
-          [disabled]="isLoading()">
-          <i class="icon-refresh"></i>
-          Refresh Tables
-        </button>
+        <div class="header-actions">
+          <nav class="nav-menu">
+            <a routerLink="/users" class="nav-link">
+              <i class="icon-users"></i>
+              User Management
+            </a>
+            <a routerLink="/test-cases" class="nav-link">
+              <i class="icon-test-cases"></i>
+              Test Case Management
+            </a>
+          </nav>
+          <button 
+            class="refresh-btn" 
+            (click)="loadTables()"
+            [disabled]="isLoading()">
+            <i class="icon-refresh"></i>
+            Refresh Tables
+          </button>
+        </div>
       </header>
 
       <!-- Loading State -->
@@ -91,6 +104,42 @@ import { DatabaseService } from '../services/database.service';
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-menu {
+      display: flex;
+      gap: 15px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .nav-link.router-link-active {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.4);
     }
 
     .app-title {
@@ -243,6 +292,8 @@ import { DatabaseService } from '../services/database.service';
     .icon-refresh::before { content: "🔄"; }
     .icon-error::before { content: "❌"; }
     .icon-empty::before { content: "📭"; }
+    .icon-users::before { content: "👥"; }
+    .icon-test-cases::before { content: "🧪"; }
   `]
 })
 export class DashboardComponent implements OnInit {

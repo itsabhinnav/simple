@@ -17,9 +17,9 @@ export class App implements OnInit {
   message = signal('Loading...');
   
   ngOnInit() {
-    this.http.get<any>('http://localhost:5000/').subscribe({
+    this.http.get<any>('http://localhost:5000/health').subscribe({
       next: (data) => this.message.set(data.message),
-      error: (err) => this.message.set('Backend connection established')
+      error: (err) => this.message.set('Backend connection failed')
     });
   }
 }

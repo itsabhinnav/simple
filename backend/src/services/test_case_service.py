@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from src.schemas.test_case_schema import TestCaseSchema, TestCaseCreateSchema
 from src.repositories.test_case_repository import ITestCaseRepository
+from src.infrastructure.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ITestCaseService(ABC):
@@ -41,8 +44,9 @@ class ITestCaseService(ABC):
 class TestCaseService(ITestCaseService):
     """Concrete implementation of test case service with business logic"""
     
-    def __init__(self, test_case_repository: ITestCaseRepository):
+    def __init__(self, test_case_repository: ITestCaseRepository, git_database_service=None):
         self.test_case_repository = test_case_repository
+        self.git_database_service = git_database_service
     
     def get_all_test_cases(self) -> List[Dict[str, Any]]:
         """Get all test cases with business logic"""
@@ -114,6 +118,13 @@ class TestCaseService(ITestCaseService):
                 test_case['is_high_priority'] = test_case.get('priority') == 'P1'
                 test_case['has_requirements'] = bool(test_case.get('associated_requirement_id'))
                 test_case['test_complexity'] = self._calculate_test_complexity(test_case)
+                
+                # Commit changes to git if service is available
+                if self.git_database_service:
+                    try:
+                        self.git_database_service.commit_changes(f"Create test case: {test_case_data.test_case_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to commit test case creation to git: {e}")
             
             return test_case
         except Exception as e:
@@ -141,6 +152,13 @@ class TestCaseService(ITestCaseService):
                 test_case['is_high_priority'] = test_case.get('priority') == 'P1'
                 test_case['has_requirements'] = bool(test_case.get('associated_requirement_id'))
                 test_case['test_complexity'] = self._calculate_test_complexity(test_case)
+                
+                # Commit changes to git if service is available
+                if self.git_database_service:
+                    try:
+                        self.git_database_service.commit_changes(f"Update test case: {test_case_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to commit test case update to git: {e}")
             
             return test_case
         except Exception as e:
@@ -161,7 +179,16 @@ class TestCaseService(ITestCaseService):
             # This could be expanded to check for dependencies
             
             # Delete test case
-            return self.test_case_repository.delete(test_case_id)
+            success = self.test_case_repository.delete(test_case_id)
+            
+            # Commit changes to git if service is available and deletion was successful
+            if success and self.git_database_service:
+                try:
+                    self.git_database_service.commit_changes(f"Delete test case: {test_case_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to commit test case deletion to git: {e}")
+            
+            return success
         except Exception as e:
             raise Exception(f"Service error: Failed to delete test case {test_case_id} - {str(e)}")
     
@@ -191,6 +218,8 @@ class TestCaseService(ITestCaseService):
     
     def _is_valid_test_case_id_format(self, test_case_id: str) -> bool:
         """Validate test case ID format: XX_FEATURE_XXX1"""
+        if not test_case_id:
+            return False
         import re
         pattern = r'^[A-Z]{2}_[A-Z_]+_\d+$'
         return bool(re.match(pattern, test_case_id))
@@ -200,24 +229,24 @@ class TestCaseService(ITestCaseService):
         complexity_score = 0
         
         # Factor in procedure length
-        procedure = test_case.get('procedure', '')
+        procedure = test_case.get('procedure') or ''
         if len(procedure) > 1000:
             complexity_score += 2
         elif len(procedure) > 500:
             complexity_score += 1
         
         # Factor in preconditions
-        preconditions = test_case.get('preconditions', '')
+        preconditions = test_case.get('preconditions') or ''
         if len(preconditions) > 500:
             complexity_score += 1
         
         # Factor in expected behavior
-        expected_behavior = test_case.get('expected_behavior', '')
+        expected_behavior = test_case.get('expected_behavior') or ''
         if len(expected_behavior) > 500:
             complexity_score += 1
         
         # Factor in priority
-        priority = test_case.get('priority', '')
+        priority = test_case.get('priority') or ''
         if priority == 'P1':
             complexity_score += 1
         

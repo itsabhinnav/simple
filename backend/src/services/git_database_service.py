@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from src.interfaces.git_file_storage import IGitFileStorage
+from src.infrastructure.configuration_manager import get_config_manager
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -13,8 +14,16 @@ class GitDatabaseService:
     
     def __init__(self, git_storage: IGitFileStorage):
         self.git_storage = git_storage
-        self.data_path = Path("data")
-        self.data_path.mkdir(exist_ok=True)
+        self.config_manager = get_config_manager()
+        
+        # Get configuration values
+        self.data_path = Path(self.config_manager.get_config("database.data_directory", "data"))
+        self.cache_path = Path(self.config_manager.get_config("database.cache_directory", "data/cache"))
+        self.database_name = self.config_manager.get_database_name()
+        
+        # Ensure directories exist
+        self.data_path.mkdir(parents=True, exist_ok=True)
+        self.cache_path.mkdir(parents=True, exist_ok=True)
         
         logger.info("Git database service initialized")
     
@@ -31,6 +40,9 @@ class GitDatabaseService:
             # Copy database files from git repo to data folder
             self._sync_databases_from_git()
             
+            # Ensure required tables exist
+            self.ensure_tables_exist()
+            
             logger.info("Git database service initialized successfully")
             return True
             
@@ -39,39 +51,211 @@ class GitDatabaseService:
             return False
     
     def _sync_databases_from_git(self) -> None:
-        """Sync database files from git repository to local data folder"""
+        """Sync database files from git repository to data folder"""
         try:
-            # List all .db files in the repository (including subdirectories)
-            db_files = self.git_storage.list_files("**/*.db")
+            # Get database file name from configuration
+            db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
             
-            for db_file in db_files:
-                # Copy to data folder with same name
-                dest_file = Path(db_file).name
-                if self.git_storage.copy_file_to_data(db_file, dest_file):
-                    logger.info(f"Synced database file: {db_file} -> {dest_file}")
+            # Copy main database file
+            if self.git_storage.file_exists(f"database/{db_filename}"):
+                # Copy directly to cache path instead of using copy_file_to_data
+                source_path = self.git_storage.local_repo_path / f"database/{db_filename}"
+                dest_path = self.cache_path / db_filename
+                
+                # Ensure destination directory exists
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Only copy if local file doesn't exist or git file is newer
+                if not dest_path.exists():
+                    import shutil
+                    shutil.copy2(source_path, dest_path)
+                    logger.info(f"Synced database file: {db_filename}")
                 else:
-                    logger.warning(f"Failed to sync database file: {db_file}")
-            
-            # If no .db files found, create a default one
-            if not db_files:
-                logger.info("No database files found in repository, creating default database")
-                self._create_default_database()
+                    # Check if git file is newer than local file
+                    import os
+                    git_mtime = os.path.getmtime(source_path)
+                    local_mtime = os.path.getmtime(dest_path)
+                    
+                    if git_mtime > local_mtime:
+                        import shutil
+                        shutil.copy2(source_path, dest_path)
+                        logger.info(f"Synced database file (git newer): {db_filename}")
+                    else:
+                        logger.info(f"Local database file is newer, skipping sync: {db_filename}")
+            else:
+                logger.warning(f"Database file not found in git repo: database/{db_filename}")
                 
         except Exception as e:
             logger.error(f"Failed to sync databases from git: {e}")
     
-    def _create_default_database(self) -> None:
-        """Create a default database if none exists"""
+    def _sync_databases_to_git(self) -> bool:
+        """Sync database files from data folder back to git repository"""
         try:
-            default_db_path = self.data_path / "enhanced_sample_db.db"
+            # Get database file name from configuration
+            db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
             
-            # Create database with basic tables
-            conn = sqlite3.connect(default_db_path)
+            # Copy database file back to git repo
+            source_path = self.cache_path / db_filename
+            dest_path = self.git_storage.local_repo_path / f"database/{db_filename}"
+            
+            logger.info(f"Syncing database file: {db_filename}")
+            logger.info(f"Source path: {source_path}")
+            logger.info(f"Destination path: {dest_path}")
+            logger.info(f"Source exists: {source_path.exists()}")
+            logger.info(f"Destination parent exists: {dest_path.parent.exists()}")
+            
+            if source_path.exists():
+                # Ensure destination directory exists
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Copy file
+                import shutil
+                shutil.copy2(source_path, dest_path)
+                logger.info(f"Synced database file back to git: {db_filename}")
+                return True
+            else:
+                logger.warning(f"Database file not found in cache: {source_path}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to sync databases to git: {e}")
+            return False
+    
+    def commit_changes(self, commit_message: str = "Update database") -> bool:
+        """Commit database changes to git repository"""
+        try:
+            # First sync database files back to git repo
+            if not self._sync_databases_to_git():
+                logger.warning("No database changes to commit")
+                return False
+            
+            # Commit and push changes
+            success = self.git_storage.push_changes(commit_message)
+            if success:
+                logger.info(f"Successfully committed database changes: {commit_message}")
+            else:
+                logger.error("Failed to commit database changes to git")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to commit changes: {e}")
+            return False
+    
+    def execute_query(self, query: str, database_name: str = "default") -> Dict[str, Any]:
+        """Execute a query on the database"""
+        try:
+            # Get database file path
+            db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
+            db_path = self.cache_path / db_filename
+            
+            if not db_path.exists():
+                logger.error(f"Database file not found: {db_path}")
+                return {"error": f"Database file not found: {db_path}", "data": []}
+            
+            # Connect to database
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row  # Enable column access by name
             cursor = conn.cursor()
             
-            # Create users table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
+            try:
+                # Execute query
+                cursor.execute(query)
+                
+                # Handle different query types
+                if query.strip().upper().startswith(('SELECT', 'PRAGMA')):
+                    # Fetch results for SELECT queries
+                    rows = cursor.fetchall()
+                    data = [dict(row) for row in rows]
+                    result = {"success": True, "data": data, "row_count": len(data)}
+                else:
+                    # For INSERT, UPDATE, DELETE queries
+                    conn.commit()
+                    result = {"success": True, "data": [], "row_count": cursor.rowcount, "lastrowid": cursor.lastrowid}
+                
+                return result
+                
+            finally:
+                cursor.close()
+                conn.close()
+                
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            return {"success": False, "error": str(e), "data": []}
+    
+    def get_database_info(self) -> Dict[str, Any]:
+        """Get database information"""
+        try:
+            db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
+            db_path = self.cache_path / db_filename
+            
+            if not db_path.exists():
+                return {"error": "Database file not found"}
+            
+            # Get file stats
+            stat = db_path.stat()
+            
+            # Get table information
+            tables_result = self.execute_query(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+            tables = [row["name"] for row in tables_result.get("data", [])]
+            
+            return {
+                "database_name": self.database_name,
+                "file_path": str(db_path),
+                "file_size": stat.st_size,
+                "last_modified": stat.st_mtime,
+                "tables": tables,
+                "table_count": len(tables)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get database info: {e}")
+            return {"error": str(e)}
+    
+    def list_databases(self, environment: str = "default") -> List[Dict[str, Any]]:
+        """List available databases"""
+        try:
+            databases = []
+            db_files = list(self.cache_path.glob("*.db"))
+            
+            for db_file in db_files:
+                stat = db_file.stat()
+                databases.append({
+                    "name": db_file.stem,
+                    "file_path": str(db_file),
+                    "size": stat.st_size,
+                    "last_modified": stat.st_mtime,
+                    "status": "available"
+                })
+            
+            return databases
+        except Exception as e:
+            logger.error(f"Failed to list databases: {e}")
+            return []
+    
+    def get_repo_status(self) -> Dict[str, Any]:
+        """Get repository status"""
+        try:
+            return self.git_storage.get_repo_status()
+        except Exception as e:
+            logger.error(f"Failed to get repo status: {e}")
+            return {"error": str(e)}
+    
+    def ensure_tables_exist(self) -> bool:
+        """Ensure required database tables exist"""
+        try:
+            logger.info("Ensuring database tables exist...")
+            
+            # Get table names from configuration
+            users_table = self.config_manager.get_table_name("users")
+            test_cases_table = self.config_manager.get_table_name("test_cases")
+            requirements_table = self.config_manager.get_table_name("requirements")
+            
+            # Create users table if it doesn't exist
+            create_users_table = f"""
+                CREATE TABLE IF NOT EXISTS {users_table} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
                     email TEXT UNIQUE NOT NULL,
@@ -81,211 +265,94 @@ class GitDatabaseService:
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """
             
-            # Create test_cases table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS test_cases (
+            # Create test_cases table if it doesn't exist
+            create_test_cases_table = f"""
+                CREATE TABLE IF NOT EXISTS {test_cases_table} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     test_case_id TEXT UNIQUE NOT NULL,
-                    reference_document TEXT,
-                    associated_requirement_id TEXT,
-                    screen_id TEXT,
+                    requirement_id TEXT,
+                    test_name TEXT NOT NULL,
                     feature TEXT,
-                    dr_applicable_screens TEXT,
-                    dr_id TEXT,
-                    test_objective TEXT,
-                    preconditions TEXT,
-                    procedure TEXT,
-                    expected_behavior TEXT,
                     test_type TEXT,
-                    region TEXT,
-                    brand TEXT,
-                    vehicle_variant TEXT,
-                    vehicle_specification TEXT,
-                    env_dependency TEXT,
-                    requirement_type TEXT,
-                    regulation TEXT,
-                    priority TEXT,
-                    testsuite_type TEXT,
+                    description TEXT,
+                    preconditions TEXT,
+                    test_steps TEXT,
+                    expected_result TEXT,
+                    test_category TEXT,
+                    test_level TEXT,
+                    test_environment TEXT,
+                    test_data TEXT,
+                    test_priority TEXT,
+                    test_status TEXT,
+                    test_execution_type TEXT,
+                    test_automation_status TEXT,
+                    test_priority_level TEXT,
+                    test_suite TEXT,
+                    created_by TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """
             
-            # Insert sample data
-            cursor.execute('''
-                INSERT OR IGNORE INTO users (username, email, first_name, last_name, role) VALUES
+            # Create requirements table if it doesn't exist
+            create_requirements_table = f"""
+                CREATE TABLE IF NOT EXISTS {requirements_table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    requirement_id TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    priority TEXT,
+                    status TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            
+            # Execute table creation queries
+            self.execute_query(create_users_table)
+            self.execute_query(create_test_cases_table)
+            self.execute_query(create_requirements_table)
+            
+            logger.info("Database tables ensured successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to ensure tables exist: {e}")
+            return False
+    
+    def create_sample_data(self) -> bool:
+        """Create sample data in the database"""
+        try:
+            logger.info("Creating sample data...")
+            
+            # First ensure tables exist
+            if not self.ensure_tables_exist():
+                logger.error("Failed to ensure tables exist")
+                return False
+            
+            # Get table names from configuration
+            users_table = self.config_manager.get_table_name("users")
+            test_cases_table = self.config_manager.get_table_name("test_cases")
+            
+            # Insert sample users
+            sample_users = [
                 ('admin', 'admin@sakura.com', 'Admin', 'User', 'admin'),
                 ('testuser1', 'test1@sakura.com', 'Test', 'User1', 'user'),
                 ('testuser2', 'test2@sakura.com', 'Test', 'User2', 'user')
-            ''')
+            ]
             
-            cursor.execute('''
-                INSERT OR IGNORE INTO test_cases (test_case_id, feature, test_objective, priority) VALUES
-                ('TC_AUTH_001', 'Authentication', 'Verify user login functionality', 'P1'),
-                ('TC_AUTH_002', 'Authentication', 'Verify user logout functionality', 'P2'),
-                ('TC_DASH_001', 'Dashboard', 'Verify dashboard data display', 'P1')
-            ''')
+            for user in sample_users:
+                insert_user = f"""
+                    INSERT OR IGNORE INTO {users_table} (username, email, first_name, last_name, role) VALUES
+                    ('{user[0]}', '{user[1]}', '{user[2]}', '{user[3]}', '{user[4]}')
+                """
+                self.execute_query(insert_user)
             
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Created default database: {default_db_path}")
+            logger.info("Sample data created successfully")
+            return True
             
         except Exception as e:
-            logger.error(f"Failed to create default database: {e}")
-    
-    def list_databases(self, environment: str = "default") -> List[str]:
-        """List available database files"""
-        try:
-            db_files = []
-            for file_path in self.data_path.glob("*.db"):
-                db_files.append(file_path.stem)
-            
-            logger.info(f"Found {len(db_files)} database files")
-            return db_files
-            
-        except Exception as e:
-            logger.error(f"Failed to list databases: {e}")
-            return []
-    
-    def get_database_info(self, database_name: str, environment: str = "default") -> Dict[str, Any]:
-        """Get information about a specific database"""
-        try:
-            db_path = self.data_path / f"{database_name}.db"
-            
-            if not db_path.exists():
-                raise FileNotFoundError(f"Database {database_name} not found")
-            
-            # Get file info
-            stat = db_path.stat()
-            
-            # Get database info
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Get table names
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [row[0] for row in cursor.fetchall()]
-            
-            # Get row counts for each table
-            row_counts = {}
-            for table in tables:
-                cursor.execute(f"SELECT COUNT(*) FROM {table}")
-                row_counts[table] = cursor.fetchone()[0]
-            
-            conn.close()
-            
-            return {
-                "name": database_name,
-                "size": stat.st_size,
-                "last_modified": stat.st_mtime,
-                "tables": tables,
-                "row_counts": row_counts
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get database info for {database_name}: {e}")
-            raise
-    
-    def sync_database(self, database_name: str, environment: str = "default") -> Dict[str, Any]:
-        """Sync database with git repository"""
-        try:
-            logger.info(f"Syncing database {database_name} with git repository")
-            
-            # Copy database file to git repo
-            db_file = f"{database_name}.db"
-            if self.git_storage.copy_file_from_data(db_file, db_file):
-                logger.info(f"Copied {db_file} to git repository")
-                
-                # Push changes to remote
-                if self.git_storage.push_changes(f"Update {db_file}"):
-                    logger.info(f"Pushed {db_file} to remote repository")
-                    return {
-                        "success": True,
-                        "message": f"Database {database_name} synced successfully"
-                    }
-                else:
-                    logger.error(f"Failed to push {db_file} to remote")
-                    return {
-                        "success": False,
-                        "message": f"Failed to push {db_file} to remote repository"
-                    }
-            else:
-                logger.error(f"Failed to copy {db_file} to git repository")
-                return {
-                    "success": False,
-                    "message": f"Failed to copy {db_file} to git repository"
-                }
-                
-        except Exception as e:
-            logger.error(f"Failed to sync database {database_name}: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to sync database {database_name}: {str(e)}"
-            }
-    
-    def execute_query(self, query: str, environment: str = "default") -> Dict[str, Any]:
-        """Execute a SQL query on the database"""
-        try:
-            # Use the first available database file
-            db_files = list(self.data_path.glob("*.db"))
-            if not db_files:
-                raise FileNotFoundError("No database files found in data directory")
-            
-            # Use the first database file
-            db_path = db_files[0]
-            
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Execute query
-            cursor.execute(query)
-            
-            # Get results
-            if query.strip().upper().startswith('SELECT'):
-                columns = [description[0] for description in cursor.description]
-                rows = cursor.fetchall()
-                
-                result = {
-                    "columns": columns,
-                    "data": [dict(zip(columns, row)) for row in rows],
-                    "row_count": len(rows)
-                }
-            else:
-                conn.commit()
-                result = {
-                    "message": "Query executed successfully",
-                    "affected_rows": cursor.rowcount
-                }
-            
-            conn.close()
-            
-            logger.info(f"Query executed successfully: {query[:50]}...")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Query execution failed: {e}")
-            raise
-    
-    def get_repo_status(self) -> Dict[str, Any]:
-        """Get git repository status"""
-        return self.git_storage.get_repo_status()
-    
-    def pull_latest_changes(self) -> bool:
-        """Pull latest changes from git repository"""
-        try:
-            logger.info("Pulling latest changes from git repository")
-            
-            if self.git_storage.clone_or_fetch_repo():
-                self._sync_databases_from_git()
-                logger.info("Successfully pulled latest changes")
-                return True
-            else:
-                logger.error("Failed to pull latest changes")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Failed to pull latest changes: {e}")
+            logger.error(f"Failed to create sample data: {e}")
             return False

@@ -1,8 +1,8 @@
 """
-Application Settings Configuration
+Legacy Application Settings Configuration
 
-This module handles application-wide settings and configuration management,
-following the Single Responsibility Principle (SRP) of SOLID.
+This module provides backward compatibility for the old settings system.
+New code should use the configuration manager from src.infrastructure.configuration_manager.
 """
 
 import os
@@ -70,6 +70,7 @@ class ApplicationSettings:
     @classmethod
     def from_environment(cls) -> 'ApplicationSettings':
         """Create settings from environment variables."""
+        # Use direct environment variable access to avoid circular imports
         environment = Environment(os.getenv("ENVIRONMENT", "development"))
         debug = os.getenv("DEBUG", "false").lower() == "true"
         mock_mode = os.getenv("MOCK_MODE", "true").lower() == "true"
@@ -156,5 +157,5 @@ class ApplicationSettings:
         }
 
 
-# Global settings instance
+# Global settings instance (for backward compatibility)
 settings = ApplicationSettings.from_environment()

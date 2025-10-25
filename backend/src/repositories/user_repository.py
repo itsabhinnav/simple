@@ -40,14 +40,15 @@ class IUserRepository(ABC):
 class UserRepository(IUserRepository):
     """Concrete implementation of user repository"""
     
-    def __init__(self, database_service):
+    def __init__(self, database_service, table_name: str = "users"):
         self.database_service = database_service
+        self.table_name = table_name
     
     def find_all(self) -> List[Dict[str, Any]]:
         """Get all users from database"""
         try:
             result = self.database_service.execute_query(
-                "SELECT * FROM users ORDER BY id",
+                f"SELECT * FROM {self.table_name} ORDER BY id",
                 "default"
             )
             return result.get('data', [])
@@ -57,8 +58,12 @@ class UserRepository(IUserRepository):
     def find_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Get user by ID"""
         try:
+            # Sanitize user_id to prevent SQL injection
+            if not isinstance(user_id, int) or user_id <= 0:
+                raise ValueError("Invalid user ID")
+            
             result = self.database_service.execute_query(
-                f"SELECT * FROM users WHERE id = {user_id}",
+                f"SELECT * FROM {self.table_name} WHERE id = {user_id}",
                 "default"
             )
             users = result.get('data', [])
@@ -69,8 +74,15 @@ class UserRepository(IUserRepository):
     def find_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Get user by username"""
         try:
+            # Sanitize username to prevent SQL injection
+            if not isinstance(username, str) or not username.strip():
+                raise ValueError("Invalid username")
+            
+            # Escape single quotes in username
+            escaped_username = username.replace("'", "''")
+            
             result = self.database_service.execute_query(
-                f"SELECT * FROM users WHERE username = '{username}'",
+                f"SELECT * FROM {self.table_name} WHERE username = '{escaped_username}'",
                 "default"
             )
             users = result.get('data', [])
@@ -83,31 +95,72 @@ class UserRepository(IUserRepository):
         try:
             # Convert schema to dict and prepare SQL
             user_dict = user_data.dict()
-            columns = ', '.join(user_dict.keys())
-            values = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in user_dict.values()])
             
-            query = f"INSERT INTO users ({columns}) VALUES ({values})"
+            # Filter out None values
+            filtered_dict = {k: v for k, v in user_dict.items() if v is not None}
+            
+            if not filtered_dict:
+                raise Exception("No valid data provided for user creation")
+            
+            # Sanitize string values to prevent SQL injection
+            sanitized_dict = {}
+            for key, value in filtered_dict.items():
+                if isinstance(value, str):
+                    # Escape single quotes
+                    sanitized_dict[key] = value.replace("'", "''")
+                else:
+                    sanitized_dict[key] = value
+            
+            columns = ', '.join(sanitized_dict.keys())
+            values = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in sanitized_dict.values()])
+
+            query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({values})"
             result = self.database_service.execute_query(query, "default")
             
-            # Get the created user
-            return self.find_by_username(user_data.username)
+            if not result.get("success"):
+                raise Exception(f"Insert failed: {result.get('error', 'Unknown error')}")
+            
+            # Return the created user data with additional fields
+            created_user = user_dict.copy()
+            created_user['id'] = result.get('lastrowid', None)
+            created_user['created_at'] = result.get('created_at', None)
+            created_user['updated_at'] = result.get('updated_at', None)
+            
+            return created_user
         except Exception as e:
             raise Exception(f"Failed to create user: {str(e)}")
     
     def update(self, user_id: int, user_data: UserUpdateSchema) -> Optional[Dict[str, Any]]:
         """Update user data"""
         try:
+            # Sanitize user_id to prevent SQL injection
+            if not isinstance(user_id, int) or user_id <= 0:
+                raise ValueError("Invalid user ID")
+            
             # Convert schema to dict and prepare SQL
             user_dict = user_data.dict(exclude_unset=True)
             if not user_dict:
                 return self.find_by_id(user_id)
             
+            # Sanitize string values to prevent SQL injection
+            sanitized_dict = {}
+            for key, value in user_dict.items():
+                if isinstance(value, str):
+                    # Escape single quotes
+                    sanitized_dict[key] = value.replace("'", "''")
+                else:
+                    sanitized_dict[key] = value
+            
             set_clause = ', '.join([f"{k} = '{v}'" if isinstance(v, str) else f"{k} = {v}" 
-                                  for k, v in user_dict.items()])
+                                  for k, v in sanitized_dict.items()])
             
-            query = f"UPDATE users SET {set_clause} WHERE id = {user_id}"
-            self.database_service.execute_query(query, "default")
+            query = f"UPDATE {self.table_name} SET {set_clause} WHERE id = {user_id}"
+            result = self.database_service.execute_query(query, "default")
             
+            if not result.get("success"):
+                raise Exception(f"Update failed: {result.get('error', 'Unknown error')}")
+            
+            # Get the updated user
             return self.find_by_id(user_id)
         except Exception as e:
             raise Exception(f"Failed to update user {user_id}: {str(e)}")
@@ -115,8 +168,12 @@ class UserRepository(IUserRepository):
     def delete(self, user_id: int) -> bool:
         """Delete user"""
         try:
-            query = f"DELETE FROM users WHERE id = {user_id}"
-            self.database_service.execute_query(query, "default")
-            return True
+            # Sanitize user_id to prevent SQL injection
+            if not isinstance(user_id, int) or user_id <= 0:
+                raise ValueError("Invalid user ID")
+            
+            query = f"DELETE FROM {self.table_name} WHERE id = {user_id}"
+            result = self.database_service.execute_query(query, "default")
+            return result.get("success", False)
         except Exception as e:
             raise Exception(f"Failed to delete user {user_id}: {str(e)}")

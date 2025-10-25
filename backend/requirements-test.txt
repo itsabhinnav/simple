@@ -1,0 +1,31 @@
+# Test Dependencies for Sakura Backend
+
+# Core testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Coverage reporting
+coverage>=7.0.0
+
+# Additional testing utilities
+pytest-html>=3.1.0
+pytest-xdist>=3.0.0
+
+# Mock and testing utilities
+responses>=0.23.0
+freezegun>=1.2.0
+
+# Flask testing
+flask-testing>=0.8.0
+
+# Data validation testing
+pydantic>=2.0.0
+
+# Database testing
+sqlite3  # Built-in with Python
+
+# Development dependencies
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0

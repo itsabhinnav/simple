@@ -1,0 +1,86 @@
+{
+  "environment": "production",
+  "database": {
+    "provider": "postgresql",
+    "name": "sakura_prod",
+    "host": "localhost",
+    "port": 5432,
+    "username": "sakura_user",
+    "password": "secure_password",
+    "schema": "public",
+    "connection_pool_size": 20,
+    "connection_timeout": 30,
+    "ssl_enabled": true,
+    "ssl_cert_path": "/etc/ssl/certs/sakura.crt",
+    "data_directory": "/var/lib/sakura/data",
+    "cache_directory": "/var/lib/sakura/cache",
+    "table_names": {
+      "users": "users",
+      "test_cases": "test_cases",
+      "requirements": "requirements"
+    }
+  },
+  "storage": {
+    "provider": "artifactory",
+    "base_url": "https://artifactory.company.com",
+    "username": "artifactory_user",
+    "password": "secure_password",
+    "repository": "sakura-configs",
+    "branch": "main",
+    "timeout": 60,
+    "retry_attempts": 5,
+    "retry_delay": 2.0,
+    "verify_ssl": true,
+    "api_version": "v1",
+    "local_repo_path": "/var/lib/sakura/remote",
+    "data_path": "/var/lib/sakura/data",
+    "git_username": null,
+    "git_token": null,
+    "artifactory_repo_type": "generic-local"
+  },
+  "authentication": {
+    "default_admin_username": "admin",
+    "default_admin_password": "secure_admin_password",
+    "default_admin_email": "admin@company.com",
+    "session_timeout": 1800,
+    "max_login_attempts": 3,
+    "lockout_duration": 1800,
+    "reserved_usernames": ["admin", "root", "system", "administrator", "sa"],
+    "min_password_length": 12,
+    "require_special_chars": true,
+    "require_numbers": true,
+    "require_uppercase": true
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false,
+    "mock_mode": false,
+    "mock_server_port": 8080,
+    "cors_origins": ["https://sakura.company.com"],
+    "cors_methods": ["GET", "POST", "PUT", "DELETE"],
+    "cors_headers": ["Content-Type", "Authorization"],
+    "rate_limit_enabled": true,
+    "rate_limit_requests": 50,
+    "rate_limit_window": 3600
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file_path": "/var/log/sakura/app.log",
+    "max_file_size": 52428800,
+    "backup_count": 10,
+    "enable_console": false,
+    "enable_file": true,
+    "structured_logging": true,
+    "log_json": true
+  },
+  "features": {
+    "user_management": true,
+    "test_case_management": true,
+    "requirement_management": true,
+    "git_integration": false,
+    "artifactory_integration": true,
+    "advanced_logging": true
+  }
+}

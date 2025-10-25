@@ -1,0 +1,86 @@
+{
+  "environment": "testing",
+  "database": {
+    "provider": "sqlite",
+    "name": "sakura_test.db",
+    "host": "localhost",
+    "port": 5432,
+    "username": "",
+    "password": "",
+    "schema": "public",
+    "connection_pool_size": 5,
+    "connection_timeout": 10,
+    "ssl_enabled": false,
+    "ssl_cert_path": null,
+    "data_directory": "data/test",
+    "cache_directory": "data/cache/test",
+    "table_names": {
+      "users": "users",
+      "test_cases": "test_cases",
+      "requirements": "requirements"
+    }
+  },
+  "storage": {
+    "provider": "local",
+    "base_url": "file:///tmp/sakura-test",
+    "username": "test",
+    "password": "test",
+    "repository": "test-repo",
+    "branch": "main",
+    "timeout": 10,
+    "retry_attempts": 2,
+    "retry_delay": 0.5,
+    "verify_ssl": false,
+    "api_version": "v1",
+    "local_repo_path": "remote/test",
+    "data_path": "data/test",
+    "git_username": null,
+    "git_token": null,
+    "artifactory_repo_type": "generic-local"
+  },
+  "authentication": {
+    "default_admin_username": "testadmin",
+    "default_admin_password": "testpass",
+    "default_admin_email": "testadmin@sakura.com",
+    "session_timeout": 1800,
+    "max_login_attempts": 10,
+    "lockout_duration": 300,
+    "reserved_usernames": ["admin", "root", "system", "administrator", "sa"],
+    "min_password_length": 6,
+    "require_special_chars": false,
+    "require_numbers": false,
+    "require_uppercase": false
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5001,
+    "debug": true,
+    "mock_mode": true,
+    "mock_server_port": 8081,
+    "cors_origins": ["*"],
+    "cors_methods": ["GET", "POST", "PUT", "DELETE"],
+    "cors_headers": ["Content-Type", "Authorization"],
+    "rate_limit_enabled": false,
+    "rate_limit_requests": 1000,
+    "rate_limit_window": 3600
+  },
+  "logging": {
+    "level": "DEBUG",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file_path": null,
+    "max_file_size": 10485760,
+    "backup_count": 3,
+    "enable_console": true,
+    "enable_file": false,
+    "structured_logging": false,
+    "log_json": false
+  },
+  "features": {
+    "user_management": true,
+    "test_case_management": true,
+    "requirement_management": true,
+    "git_integration": false,
+    "artifactory_integration": false,
+    "advanced_logging": false
+  }
+}

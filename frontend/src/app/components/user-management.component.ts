@@ -1,0 +1,968 @@
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../services/user.service';
+
+@Component({
+  selector: 'app-user-management',
+  standalone: true,
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule],
+  template: `
+    <div class="user-management-container">
+      <!-- Header -->
+      <header class="management-header">
+        <div class="header-left">
+          <nav class="breadcrumb">
+            <a routerLink="/" class="breadcrumb-link">
+              <i class="icon-database"></i>
+              Dashboard
+            </a>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current">User Management</span>
+          </nav>
+          <h1 class="page-title">
+            <i class="icon-users"></i>
+            User Management
+          </h1>
+        </div>
+        <button 
+          class="add-btn" 
+          (click)="openCreateModal()"
+          [disabled]="isLoading()">
+          <i class="icon-plus"></i>
+          Add New User
+        </button>
+      </header>
+
+      <!-- Loading State -->
+      <div *ngIf="isLoading()" class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading users...</p>
+      </div>
+
+      <!-- Error State -->
+      <div *ngIf="error()" class="error-container">
+        <i class="icon-error"></i>
+        <p>{{ error() }}</p>
+        <button (click)="loadUsers()" class="retry-btn">Retry</button>
+      </div>
+
+      <!-- Users Table -->
+      <div *ngIf="!isLoading() && !error()" class="table-container">
+        <div class="table-header">
+          <h3>Users ({{ users().length }})</h3>
+          <div class="search-box">
+            <input 
+              type="text" 
+              placeholder="Search users..." 
+              [(ngModel)]="searchTerm"
+              class="search-input">
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Full Name</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let user of filteredUsers()">
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email_masked || user.email }}</td>
+                <td>{{ user.full_name || 'N/A' }}</td>
+                <td>
+                  <span class="role-badge" [class]="'role-' + (user.role || 'user')">
+                    {{ user.role || 'user' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="status-badge" [class]="user.is_active ? 'active' : 'inactive'">
+                    {{ user.is_active ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                <td class="actions">
+                  <button 
+                    class="btn-edit" 
+                    (click)="openEditModal(user)"
+                    title="Edit User">
+                    <i class="icon-edit"></i>
+                  </button>
+                  <button 
+                    class="btn-delete" 
+                    (click)="confirmDelete(user)"
+                    title="Delete User"
+                    [disabled]="user.role === 'admin'">
+                    <i class="icon-delete"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="filteredUsers().length === 0" class="empty-state">
+          <i class="icon-empty"></i>
+          <h3>No Users Found</h3>
+          <p *ngIf="searchTerm">No users match your search criteria.</p>
+          <p *ngIf="!searchTerm">No users available. Create your first user!</p>
+        </div>
+      </div>
+
+      <!-- Create/Edit Modal -->
+      <div *ngIf="showModal()" class="modal-overlay" (click)="closeModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2>{{ isEditMode() ? 'Edit User' : 'Create New User' }}</h2>
+            <button class="close-btn" (click)="closeModal()">
+              <i class="icon-close"></i>
+            </button>
+          </div>
+
+          <form [formGroup]="userForm" (ngSubmit)="onSubmit()" class="modal-body">
+            <div class="form-group">
+              <label for="username">Username *</label>
+              <input 
+                type="text" 
+                id="username"
+                formControlName="username"
+                class="form-input"
+                [class.error]="userForm.get('username')?.invalid && userForm.get('username')?.touched">
+              <div *ngIf="userForm.get('username')?.invalid && userForm.get('username')?.touched" class="error-message">
+                <span *ngIf="userForm.get('username')?.errors?.['required']">Username is required</span>
+                <span *ngIf="userForm.get('username')?.errors?.['minlength']">Username must be at least 1 character</span>
+                <span *ngIf="userForm.get('username')?.errors?.['maxlength']">Username must be at most 50 characters</span>
+                <span *ngIf="userForm.get('username')?.errors?.['pattern']">Username can only contain letters, numbers, and underscores</span>
+                <span *ngIf="userForm.get('username')?.errors?.['usernameExists']">Username already exists</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email *</label>
+              <input 
+                type="email" 
+                id="email"
+                formControlName="email"
+                class="form-input"
+                [class.error]="userForm.get('email')?.invalid && userForm.get('email')?.touched">
+              <div *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched" class="error-message">
+                <span *ngIf="userForm.get('email')?.errors?.['required']">Email is required</span>
+                <span *ngIf="userForm.get('email')?.errors?.['email']">Please enter a valid email address</span>
+                <span *ngIf="userForm.get('email')?.errors?.['emailExists']">Email already exists</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="firstName">First Name</label>
+                <input 
+                  type="text" 
+                  id="firstName"
+                  formControlName="first_name"
+                  class="form-input">
+              </div>
+              <div class="form-group">
+                <label for="lastName">Last Name</label>
+                <input 
+                  type="text" 
+                  id="lastName"
+                  formControlName="last_name"
+                  class="form-input">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="role">Role</label>
+              <select 
+                id="role"
+                formControlName="role"
+                class="form-select">
+                <option value="">Select Role</option>
+                <option value="admin">Admin</option>
+                <option value="user">User</option>
+                <option value="tester">Tester</option>
+                <option value="developer">Developer</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div class="form-actions">
+              <button 
+                type="button" 
+                class="btn-cancel" 
+                (click)="closeModal()">
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                class="btn-submit"
+                [disabled]="userForm.invalid || isSubmitting()">
+                <span *ngIf="isSubmitting()" class="spinner-small"></span>
+                {{ isEditMode() ? 'Update User' : 'Create User' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Delete Confirmation Modal -->
+      <div *ngIf="showDeleteModalSignal()" class="modal-overlay" (click)="cancelDelete()">
+        <div class="modal-content delete-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Confirm Delete</h2>
+            <button class="close-btn" (click)="cancelDelete()">
+              <i class="icon-close"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to delete user <strong>{{ userToDelete()?.username }}</strong>?</p>
+            <p class="warning-text">This action cannot be undone.</p>
+            <div class="form-actions">
+              <button 
+                type="button" 
+                class="btn-cancel" 
+                (click)="cancelDelete()">
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                class="btn-delete-confirm"
+                (click)="deleteUser()"
+                [disabled]="isDeleting()">
+                <span *ngIf="isDeleting()" class="spinner-small"></span>
+                Delete User
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .user-management-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .management-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .breadcrumb-link {
+      color: rgba(255, 255, 255, 0.8);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.2s;
+    }
+
+    .breadcrumb-link:hover {
+      color: white;
+    }
+
+    .breadcrumb-separator {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .breadcrumb-current {
+      color: white;
+      font-weight: 500;
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .add-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .add-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .add-btn:disabled {
+      background: rgba(255, 255, 255, 0.1);
+      cursor: not-allowed;
+    }
+
+    .loading-container, .error-container {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #2196f3;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    .spinner-small {
+      width: 16px;
+      height: 16px;
+      border: 2px solid transparent;
+      border-top: 2px solid currentColor;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .table-header h3 {
+      margin: 0;
+      color: #333;
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-input {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      width: 250px;
+      font-size: 14px;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #2196f3;
+      box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .data-table th {
+      background: #f5f5f5;
+      color: #333;
+      font-weight: 600;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 2px solid #e0e0e0;
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: top;
+    }
+
+    .data-table tbody tr:hover {
+      background: #f9f9f9;
+    }
+
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .role-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .role-admin { background: #ffebee; color: #c62828; }
+    .role-user { background: #e3f2fd; color: #1976d2; }
+    .role-tester { background: #f3e5f5; color: #7b1fa2; }
+    .role-developer { background: #e8f5e8; color: #2e7d32; }
+    .role-inactive { background: #fafafa; color: #757575; }
+
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-badge.active { background: #e8f5e8; color: #2e7d32; }
+    .status-badge.inactive { background: #ffebee; color: #c62828; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-edit, .btn-delete {
+      padding: 6px 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .btn-edit {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+
+    .btn-edit:hover {
+      background: #bbdefb;
+    }
+
+    .btn-delete {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .btn-delete:hover:not(:disabled) {
+      background: #ffcdd2;
+    }
+
+    .btn-delete:disabled {
+      background: #f5f5f5;
+      color: #bdbdbd;
+      cursor: not-allowed;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #666;
+    }
+
+    .retry-btn {
+      background: #2196f3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      margin-top: 15px;
+    }
+
+    .retry-btn:hover {
+      background: #1976d2;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .delete-modal {
+      max-width: 400px;
+    }
+
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      color: #333;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #666;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .close-btn:hover {
+      color: #333;
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: #2196f3;
+      box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+    }
+
+    .form-input.error {
+      border-color: #c62828;
+    }
+
+    .error-message {
+      color: #c62828;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .btn-cancel, .btn-submit, .btn-delete-confirm {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-cancel {
+      background: #f5f5f5;
+      color: #666;
+    }
+
+    .btn-cancel:hover {
+      background: #e0e0e0;
+    }
+
+    .btn-submit {
+      background: #2196f3;
+      color: white;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: #1976d2;
+    }
+
+    .btn-submit:disabled {
+      background: #bdbdbd;
+      cursor: not-allowed;
+    }
+
+    .btn-delete-confirm {
+      background: #c62828;
+      color: white;
+    }
+
+    .btn-delete-confirm:hover:not(:disabled) {
+      background: #b71c1c;
+    }
+
+    .btn-delete-confirm:disabled {
+      background: #bdbdbd;
+      cursor: not-allowed;
+    }
+
+    .warning-text {
+      color: #c62828;
+      font-weight: 500;
+      margin-top: 10px;
+    }
+
+    /* Icons */
+    .icon-users::before { content: "👥"; }
+    .icon-plus::before { content: "➕"; }
+    .icon-error::before { content: "❌"; }
+    .icon-empty::before { content: "📭"; }
+    .icon-edit::before { content: "✏️"; }
+    .icon-delete::before { content: "🗑️"; }
+    .icon-close::before { content: "✕"; }
+  `]
+})
+export class UserManagementComponent implements OnInit {
+  private userService = inject(UserService);
+  private formBuilder = inject(FormBuilder);
+
+  // Signals for reactive state management
+  users = signal<User[]>([]);
+  isLoading = signal(false);
+  error = signal<string | null>(null);
+  showModal = signal(false);
+  isEditMode = signal(false);
+  isSubmitting = signal(false);
+  showDeleteModal = signal(false);
+  isDeleting = signal(false);
+  userToDelete = signal<User | null>(null);
+  currentEditingUser = signal<User | null>(null);
+  searchTerm = '';
+
+  userForm: FormGroup;
+
+  constructor() {
+    this.userForm = this.formBuilder.group({
+      username: ['', [
+        Validators.required,
+        Validators.minLength(1),
+        Validators.maxLength(50),
+        Validators.pattern(/^[a-zA-Z0-9_]+$/),
+        this.usernameUniquenessValidator.bind(this)
+      ]],
+      email: ['', [
+        Validators.required, 
+        Validators.email,
+        this.emailUniquenessValidator.bind(this)
+      ]],
+      first_name: ['', [Validators.maxLength(50)]],
+      last_name: ['', [Validators.maxLength(50)]],
+      role: ['']
+    });
+  }
+
+  ngOnInit() {
+    // Subscribe to the service's users observable for real-time updates
+    this.userService.users$.subscribe(users => {
+      this.users.set(users);
+    });
+    
+    // Load initial data
+    this.loadUsers();
+  }
+
+  loadUsers() {
+    this.isLoading.set(true);
+    this.error.set(null);
+    
+    this.userService.getUsers().subscribe({
+      next: (users) => {
+        this.users.set(users);
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        this.error.set('Failed to load users');
+        this.isLoading.set(false);
+        console.error('Error loading users:', err);
+      }
+    });
+  }
+
+  filteredUsers(): User[] {
+    if (!this.searchTerm.trim()) {
+      return this.users();
+    }
+    
+    const term = this.searchTerm.toLowerCase();
+    return this.users().filter(user => 
+      user.username.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term) ||
+      (user.full_name && user.full_name.toLowerCase().includes(term)) ||
+      (user.first_name && user.first_name.toLowerCase().includes(term)) ||
+      (user.last_name && user.last_name.toLowerCase().includes(term))
+    );
+  }
+
+  openCreateModal() {
+    this.isEditMode.set(false);
+    this.userForm.reset();
+    this.showModal.set(true);
+  }
+
+  openEditModal(user: User) {
+    this.isEditMode.set(true);
+    this.currentEditingUser.set(user);
+    this.userForm.patchValue({
+      username: user.username,
+      email: user.email,
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      role: user.role || ''
+    });
+    // Trigger validation to check username and email uniqueness
+    this.userForm.get('username')?.updateValueAndValidity();
+    this.userForm.get('email')?.updateValueAndValidity();
+    this.showModal.set(true);
+  }
+
+  closeModal() {
+    this.showModal.set(false);
+    this.userForm.reset();
+    this.userForm.markAsUntouched();
+    this.userForm.markAsPristine();
+    this.isSubmitting.set(false);
+    this.currentEditingUser.set(null);
+    this.error.set(null);
+  }
+
+  onSubmit() {
+    if (this.userForm.invalid) {
+      this.markFormGroupTouched();
+      return;
+    }
+
+    this.isSubmitting.set(true);
+    const formData = this.userForm.value;
+
+    if (this.isEditMode()) {
+      const currentUser = this.currentEditingUser();
+      if (currentUser?.id) {
+        const updateData: UserUpdateRequest = {
+          username: formData.username,
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          role: formData.role
+        };
+
+        this.userService.updateUser(currentUser.id, updateData).subscribe({
+          next: (updatedUser) => {
+            if (updatedUser) {
+              this.closeModal();
+              // Service will automatically update the observable
+            } else {
+              this.error.set('Failed to update user');
+            }
+            this.isSubmitting.set(false);
+          },
+          error: (err) => {
+            console.error('Error updating user:', err);
+            // Extract specific error message from API response
+            const errorMessage = err.error?.message || err.error?.error || 'Failed to update user';
+            this.error.set(errorMessage);
+            this.isSubmitting.set(false);
+          }
+        });
+      } else {
+        this.error.set('No user selected for editing');
+        this.isSubmitting.set(false);
+      }
+    } else {
+      const createData: UserCreateRequest = {
+        username: formData.username,
+        email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        role: formData.role
+      };
+
+        this.userService.createUser(createData).subscribe({
+          next: (newUser) => {
+            if (newUser) {
+              this.closeModal();
+              // Service will automatically update the observable
+            } else {
+              this.error.set('Failed to create user');
+            }
+            this.isSubmitting.set(false);
+          },
+          error: (err) => {
+            console.error('Error creating user:', err);
+            // Extract specific error message from API response
+            const errorMessage = err.error?.message || err.error?.error || 'Failed to create user';
+            this.error.set(errorMessage);
+            this.isSubmitting.set(false);
+          }
+        });
+    }
+  }
+
+  confirmDelete(user: User) {
+    this.userToDelete.set(user);
+    this.showDeleteModal.set(true);
+  }
+
+  cancelDelete() {
+    this.showDeleteModal.set(false);
+    this.userToDelete.set(null);
+    this.isDeleting.set(false);
+  }
+
+  deleteUser() {
+    const user = this.userToDelete();
+    if (!user?.id) return;
+
+    this.isDeleting.set(true);
+    this.userService.deleteUser(user.id).subscribe({
+      next: (success) => {
+        if (success) {
+          this.cancelDelete();
+          // Service will automatically update the observable
+        } else {
+          this.error.set('Failed to delete user');
+        }
+        this.isDeleting.set(false);
+      },
+      error: (err) => {
+        console.error('Error deleting user:', err);
+        // Extract specific error message from API response
+        const errorMessage = err.error?.message || err.error?.error || 'Failed to delete user';
+        this.error.set(errorMessage);
+        this.isDeleting.set(false);
+      }
+    });
+  }
+
+  showDeleteModalSignal(): boolean {
+    return this.showDeleteModal();
+  }
+
+  private markFormGroupTouched() {
+    Object.keys(this.userForm.controls).forEach(key => {
+      const control = this.userForm.get(key);
+      control?.markAsTouched();
+    });
+  }
+
+  private usernameUniquenessValidator(control: any) {
+    if (!control.value) {
+      return null;
+    }
+
+    const username = control.value.toLowerCase();
+    const currentUsers = this.users();
+    const currentEditingUser = this.currentEditingUser();
+
+    // Check if username already exists (excluding current user in edit mode)
+    const existingUser = currentUsers.find(user => 
+      user.username.toLowerCase() === username && 
+      user.id !== currentEditingUser?.id
+    );
+
+    return existingUser ? { usernameExists: true } : null;
+  }
+
+  private emailUniquenessValidator(control: any) {
+    if (!control.value) {
+      return null;
+    }
+
+    const email = control.value.toLowerCase();
+    const currentUsers = this.users();
+    const currentEditingUser = this.currentEditingUser();
+
+    // Check if email already exists (excluding current user in edit mode)
+    const existingUser = currentUsers.find(user => 
+      user.email.toLowerCase() === email && 
+      user.id !== currentEditingUser?.id
+    );
+
+    return existingUser ? { emailExists: true } : null;
+  }
+}

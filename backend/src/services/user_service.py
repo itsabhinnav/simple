@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from src.schemas.user_schema import UserSchema, UserCreateSchema, UserUpdateSchema
 from src.repositories.user_repository import IUserRepository
+from src.infrastructure.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class IUserService(ABC):
@@ -36,8 +39,9 @@ class IUserService(ABC):
 class UserService(IUserService):
     """Concrete implementation of user service with business logic"""
     
-    def __init__(self, user_repository: IUserRepository):
+    def __init__(self, user_repository: IUserRepository, git_database_service=None):
         self.user_repository = user_repository
+        self.git_database_service = git_database_service
     
     def get_all_users(self) -> List[Dict[str, Any]]:
         """Get all users with business logic"""
@@ -94,10 +98,21 @@ class UserService(IUserService):
                 user['email_masked'] = self._mask_email(user['email'])
                 user['full_name'] = self._get_full_name(user)
                 user['is_active'] = user.get('role') != 'inactive'
+                
+                # Commit changes to git if service is available
+                if self.git_database_service:
+                    try:
+                        self.git_database_service.commit_changes(f"Create user: {user_data.username}")
+                    except Exception as e:
+                        logger.warning(f"Failed to commit user creation to git: {e}")
             
             return user
+        except ValueError as e:
+            # Re-raise validation errors as-is
+            raise e
         except Exception as e:
-            raise Exception(f"Service error: Failed to create user - {str(e)}")
+            logger.error(f"Service error creating user: {str(e)}")
+            raise Exception(f"Failed to create user: {str(e)}")
     
     def update_user(self, user_id: int, user_data: UserUpdateSchema) -> Optional[Dict[str, Any]]:
         """Update user with business logic validation"""
@@ -127,10 +142,21 @@ class UserService(IUserService):
                 user['email_masked'] = self._mask_email(user['email'])
                 user['full_name'] = self._get_full_name(user)
                 user['is_active'] = user.get('role') != 'inactive'
+                
+                # Commit changes to git if service is available
+                if self.git_database_service:
+                    try:
+                        self.git_database_service.commit_changes(f"Update user: {user.get('username', user_id)}")
+                    except Exception as e:
+                        logger.warning(f"Failed to commit user update to git: {e}")
             
             return user
+        except ValueError as e:
+            # Re-raise validation errors as-is
+            raise e
         except Exception as e:
-            raise Exception(f"Service error: Failed to update user {user_id} - {str(e)}")
+            logger.error(f"Service error updating user {user_id}: {str(e)}")
+            raise Exception(f"Failed to update user {user_id}: {str(e)}")
     
     def delete_user(self, user_id: int) -> bool:
         """Delete user with business logic validation"""
@@ -148,9 +174,22 @@ class UserService(IUserService):
                 raise ValueError("Cannot delete admin users")
             
             # Delete user
-            return self.user_repository.delete(user_id)
+            success = self.user_repository.delete(user_id)
+            
+            # Commit changes to git if service is available and deletion was successful
+            if success and self.git_database_service:
+                try:
+                    self.git_database_service.commit_changes(f"Delete user: {existing_user.get('username', user_id)}")
+                except Exception as e:
+                    logger.warning(f"Failed to commit user deletion to git: {e}")
+            
+            return success
+        except ValueError as e:
+            # Re-raise validation errors as-is
+            raise e
         except Exception as e:
-            raise Exception(f"Service error: Failed to delete user {user_id} - {str(e)}")
+            logger.error(f"Service error deleting user {user_id}: {str(e)}")
+            raise Exception(f"Failed to delete user {user_id}: {str(e)}")
     
     def _validate_user_creation(self, user_data: UserCreateSchema) -> None:
         """Validate user creation business rules"""
