@@ -17,8 +17,18 @@ class GitDatabaseService:
         self.config_manager = get_config_manager()
         
         # Get configuration values
-        self.data_path = Path(self.config_manager.get_config("database.data_directory", "data"))
-        self.cache_path = Path(self.config_manager.get_config("database.cache_directory", "data/cache"))
+        data_dir = self.config_manager.get_config("database.data_directory", "data")
+        cache_dir = self.config_manager.get_config("database.cache_directory", "data/cache")
+        
+        # Ensure paths are resolved correctly (config may have "backend/" prefix)
+        # Remove "backend/" prefix if present
+        if data_dir.startswith("backend/"):
+            data_dir = data_dir[len("backend/"):]
+        if cache_dir.startswith("backend/"):
+            cache_dir = cache_dir[len("backend/"):]
+            
+        self.data_path = Path(data_dir)
+        self.cache_path = Path(cache_dir)
         self.database_name = self.config_manager.get_database_name()
         
         # Ensure directories exist
@@ -26,6 +36,28 @@ class GitDatabaseService:
         self.cache_path.mkdir(parents=True, exist_ok=True)
         
         logger.info("Git database service initialized")
+    
+    def get_user_git_token(self, username: str) -> Optional[str]:
+        """Get and decrypt user's Git token from database"""
+        try:
+            query = f"SELECT git_token_encrypted FROM users WHERE username = '{username}'"
+            result = self.execute_query(query)
+            
+            if result.get("success") and result.get("data"):
+                encrypted_token = result["data"][0].get("git_token_encrypted")
+                if encrypted_token:
+                    # Decrypt the base64 encoded token
+                    import base64
+                    try:
+                        git_token = base64.b64decode(encrypted_token.encode('utf-8')).decode('utf-8')
+                        return git_token
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt Git token: {e}")
+                        return None
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get user Git token: {e}")
+            return None
     
     def initialize(self) -> bool:
         """Initialize the service by cloning/fetching the repository"""
@@ -51,16 +83,17 @@ class GitDatabaseService:
             return False
     
     def _sync_databases_from_git(self) -> None:
-        """Sync database files from git repository to data folder"""
+        """Sync database files from git repository to local.db"""
         try:
             # Get database file name from configuration
             db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
             
-            # Copy main database file
+            # Copy main database file from remote to local.db
             if self.git_storage.file_exists(f"database/{db_filename}"):
-                # Copy directly to cache path instead of using copy_file_to_data
+                # Source: remote/dev/database/sakura_db.db
                 source_path = self.git_storage.local_repo_path / f"database/{db_filename}"
-                dest_path = self.cache_path / db_filename
+                # Destination: data/local/local.db (always sync to local.db)
+                dest_path = self.cache_path / "local.db"
                 
                 # Ensure destination directory exists
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +102,7 @@ class GitDatabaseService:
                 if not dest_path.exists():
                     import shutil
                     shutil.copy2(source_path, dest_path)
-                    logger.info(f"Synced database file: {db_filename}")
+                    logger.info(f"Synced database file: {db_filename} -> local.db")
                 else:
                     # Check if git file is newer than local file
                     import os
@@ -79,7 +112,7 @@ class GitDatabaseService:
                     if git_mtime > local_mtime:
                         import shutil
                         shutil.copy2(source_path, dest_path)
-                        logger.info(f"Synced database file (git newer): {db_filename}")
+                        logger.info(f"Synced database file (git newer): {db_filename} -> local.db")
                     else:
                         logger.info(f"Local database file is newer, skipping sync: {db_filename}")
             else:
@@ -89,16 +122,17 @@ class GitDatabaseService:
             logger.error(f"Failed to sync databases from git: {e}")
     
     def _sync_databases_to_git(self) -> bool:
-        """Sync database files from data folder back to git repository"""
+        """Sync local.db back to git repository"""
         try:
             # Get database file name from configuration
             db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
             
-            # Copy database file back to git repo
-            source_path = self.cache_path / db_filename
+            # Source: data/local/local.db
+            source_path = self.cache_path / "local.db"
+            # Destination: remote/dev/database/sakura_db.db
             dest_path = self.git_storage.local_repo_path / f"database/{db_filename}"
             
-            logger.info(f"Syncing database file: {db_filename}")
+            logger.info(f"Syncing local.db back to git: local.db -> {db_filename}")
             logger.info(f"Source path: {source_path}")
             logger.info(f"Destination path: {dest_path}")
             logger.info(f"Source exists: {source_path.exists()}")
@@ -111,26 +145,26 @@ class GitDatabaseService:
                 # Copy file
                 import shutil
                 shutil.copy2(source_path, dest_path)
-                logger.info(f"Synced database file back to git: {db_filename}")
+                logger.info(f"Synced local.db back to git: {db_filename}")
                 return True
             else:
-                logger.warning(f"Database file not found in cache: {source_path}")
+                logger.warning(f"Local database file not found: {source_path}")
                 return False
                 
         except Exception as e:
             logger.error(f"Failed to sync databases to git: {e}")
             return False
     
-    def commit_changes(self, commit_message: str = "Update database") -> bool:
-        """Commit database changes to git repository"""
+    def commit_changes(self, commit_message: str = "Update database", git_token: str = None) -> bool:
+        """Commit database changes to git repository using user's Git token"""
         try:
             # First sync database files back to git repo
             if not self._sync_databases_to_git():
                 logger.warning("No database changes to commit")
                 return False
             
-            # Commit and push changes
-            success = self.git_storage.push_changes(commit_message)
+            # Commit and push changes with user's token
+            success = self.git_storage.push_changes(commit_message, git_token)
             if success:
                 logger.info(f"Successfully committed database changes: {commit_message}")
             else:
@@ -147,11 +181,13 @@ class GitDatabaseService:
         try:
             # Get database file path
             db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
+            
+            # Use the configured cache path
             db_path = self.cache_path / db_filename
             
             if not db_path.exists():
                 logger.error(f"Database file not found: {db_path}")
-                return {"error": f"Database file not found: {db_path}", "data": []}
+                return {"error": f"Database file not found at {db_path}", "data": []}
             
             # Connect to database
             conn = sqlite3.connect(str(db_path))
@@ -261,6 +297,7 @@ class GitDatabaseService:
                     email TEXT UNIQUE NOT NULL,
                     password_hash TEXT NOT NULL,
                     secret_key_hash TEXT,
+                    git_token_encrypted TEXT,
                     first_name TEXT,
                     last_name TEXT,
                     role TEXT DEFAULT 'user',
@@ -277,6 +314,11 @@ class GitDatabaseService:
             
             try:
                 cursor.execute(f'ALTER TABLE {users_table} ADD COLUMN secret_key_hash TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {users_table} ADD COLUMN git_token_encrypted TEXT')
             except:
                 pass  # Column already exists
             
@@ -316,12 +358,48 @@ class GitDatabaseService:
                     requirement_id TEXT UNIQUE NOT NULL,
                     title TEXT NOT NULL,
                     description TEXT,
+                    given TEXT,
+                    when_action TEXT,
+                    then_result TEXT,
                     priority TEXT,
                     status TEXT,
+                    assignee TEXT,
+                    tags TEXT,
+                    created_by TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """
+            
+            try:
+                cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN given TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN when_action TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN then_result TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN assignee TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN tags TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN created_by TEXT')
+            except:
+                pass  # Column already exists
             
             # Execute table creation queries
             self.execute_query(create_users_table)

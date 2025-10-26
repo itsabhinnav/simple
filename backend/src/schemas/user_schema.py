@@ -13,6 +13,7 @@ class UserSchema(BaseModel):
     role: Optional[str] = Field(None, max_length=20)
     password_hash: Optional[str] = None  # Never expose this in responses
     secret_key_hash: Optional[str] = None  # Never expose this in responses
+    git_token_encrypted: Optional[str] = None  # Encrypted Git token, never expose
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -26,6 +27,7 @@ class UserCreateSchema(BaseModel):
     last_name: Optional[str] = Field(None, max_length=50)
     role: Optional[str] = Field(None, max_length=20)
     secret_key: str = Field(..., min_length=3, max_length=50)
+    git_token: str = Field(..., min_length=10, max_length=200)  # Required Git access token
 
 
 class UserUpdateSchema(BaseModel):

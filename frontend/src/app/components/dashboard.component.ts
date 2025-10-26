@@ -31,20 +31,27 @@ export class DashboardComponent implements OnInit {
       password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]]
     });
 
-    this.signupForm = this.formBuilder.group({
-      username: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
-      email: ['', [Validators.required, Validators.email]],
-      first_name: [''],
-      last_name: [''],
-      password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
-      confirmPassword: ['', Validators.required],
-      secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]]
-    }, { validators: this.passwordMatchValidator });
+        this.signupForm = this.formBuilder.group({
+          username: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
+          email: ['', [Validators.required, Validators.email]],
+          first_name: [''],
+          last_name: [''],
+          password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
+          confirmPassword: ['', Validators.required],
+          secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
+          git_token: ['', [Validators.required, Validators.minLength(10)]], // Required Git token
+          role: ['user'] // Default role
+        }, { validators: this.passwordMatchValidator });
   }
 
   ngOnInit() {
     // Set initial auth state
     this.isAuthenticated.set(this.authService.isAuthenticated());
+  }
+
+  isAdmin(): boolean {
+    const user = this.authService.getCurrentUser();
+    return user?.role === 'admin';
   }
 
   showLogin() {
@@ -99,7 +106,9 @@ export class DashboardComponent implements OnInit {
       password: this.signupForm.value.password,
       first_name: this.signupForm.value.first_name || undefined,
       last_name: this.signupForm.value.last_name || undefined,
-      secret_key: this.signupForm.value.secret_key
+      secret_key: this.signupForm.value.secret_key,
+      git_token: this.signupForm.value.git_token || undefined,
+      role: this.signupForm.value.role || 'user'
     };
 
     this.authService.signup(signupData).subscribe({

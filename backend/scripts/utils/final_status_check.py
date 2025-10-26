@@ -156,9 +156,7 @@ def check_system_status():
     
     directories = [
         "data",
-        "data/dev",
-        "data/cache",
-        "data/cache/dev",
+        "data/local",
         "remote",
         "backend/config"
     ]

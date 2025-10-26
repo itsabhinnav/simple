@@ -60,7 +60,7 @@ export class UserService {
    * Load all users from the API
    */
   loadUsers(): void {
-    this.http.get<ApiResponse<User[]>>(`${this.baseUrl}/users/`)
+    this.http.get<ApiResponse<User[]>>(`${this.baseUrl}/users`)
       .pipe(
         map(response => response.data || []),
         catchError(() => of([]))
@@ -74,7 +74,7 @@ export class UserService {
    * Get all users as Observable
    */
   getUsers(): Observable<User[]> {
-    return this.http.get<ApiResponse<User[]>>(`${this.baseUrl}/users/`)
+    return this.http.get<ApiResponse<User[]>>(`${this.baseUrl}/users`)
       .pipe(
         map(response => response.data || []),
         catchError(() => of([]))
@@ -96,7 +96,7 @@ export class UserService {
    * Create a new user
    */
   createUser(userData: UserCreateRequest): Observable<User | null> {
-    return this.http.post<ApiResponse<User>>(`${this.baseUrl}/users/`, userData)
+    return this.http.post<ApiResponse<User>>(`${this.baseUrl}/users`, userData)
       .pipe(
         map(response => {
           if (response.success && response.data) {

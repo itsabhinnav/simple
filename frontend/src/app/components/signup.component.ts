@@ -325,7 +325,9 @@ export class SignupComponent {
       last_name: [''],
       password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
       confirmPassword: ['', [Validators.required]],
-      secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]]
+      secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
+      git_token: ['', [Validators.required, Validators.minLength(10)]],
+      role: ['user']
     }, { validators: this.passwordMatchValidator });
   }
 
@@ -355,7 +357,9 @@ export class SignupComponent {
       password: this.signupForm.value.password,
       first_name: this.signupForm.value.first_name || undefined,
       last_name: this.signupForm.value.last_name || undefined,
-      secret_key: this.signupForm.value.secret_key
+      secret_key: this.signupForm.value.secret_key,
+      git_token: this.signupForm.value.git_token || undefined,
+      role: this.signupForm.value.role || 'user'
     };
 
     this.authService.signup(signupData).subscribe({

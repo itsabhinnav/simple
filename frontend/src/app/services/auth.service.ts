@@ -25,6 +25,7 @@ export interface SignupRequest {
   last_name?: string;
   role?: string;
   secret_key: string;
+  git_token: string;
 }
 
 export interface AuthResponse {

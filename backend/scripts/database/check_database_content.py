@@ -58,16 +58,16 @@ def main():
     print("🗄️ Database Content Checker")
     print("=" * 40)
     
-    # Check both database locations
+    # Resolve paths relative to backend directory
+    backend_dir = Path(__file__).parent.parent.parent
     databases = [
-        "backend/data/sakura_db.db",
-        "backend/data/cache/sakura_db.db",
-        "backend/remote/git/database/sakura_db.db"
+        backend_dir / "data" / "local" / "local.db",
+        backend_dir / "remote" / "dev" / "database" / "sakura_db.db"
     ]
     
     for db_path in databases:
         print(f"\n{'='*50}")
-        check_database_content(db_path)
+        check_database_content(str(db_path))
     
     print(f"\n{'='*50}")
     print("✅ Database content check complete!")

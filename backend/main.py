@@ -19,13 +19,22 @@ sys.path.insert(0, str(src_path))
 from src.infrastructure.dependency_injection import (
     get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service
 )
+
+# Import requirement service getter
+def get_requirement_service():
+    from src.services.requirement_service import IRequirementService
+    from src.infrastructure.dependency_injection import get_container
+    return get_container().container.get(IRequirementService)
 from src.controllers.user_controller import create_user_blueprint
 from src.controllers.test_case_controller import create_test_case_blueprint
 from src.controllers.auth_controller import create_auth_blueprint
+from src.controllers.admin_controller import create_admin_blueprint
+from src.controllers.requirement_controller import create_requirement_blueprint
 from src.middleware.error_handlers import (
     setup_error_handlers, setup_request_logging, 
     setup_cors_headers, setup_request_validation, setup_api_documentation
 )
+from src.middleware.auth_middleware import get_current_username
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -50,6 +59,13 @@ def create_app() -> Flask:
     setup_request_validation(app)
     setup_api_documentation(app)
     
+    @app.before_request
+    def inject_current_user():
+        from flask import g
+        from src.middleware.auth_middleware import get_current_user
+        g.current_user = get_current_user()
+        g.current_username = g.current_user.get('username') if g.current_user else None
+    
     # Register API blueprints
     register_api_routes(app)
     
@@ -66,15 +82,20 @@ def register_api_routes(app: Flask) -> None:
     # Get services from dependency injection
     user_service = get_user_service()
     test_case_service = get_test_case_service()
+    requirement_service = get_requirement_service()
     
     # Create and register blueprints
     auth_bp = create_auth_blueprint(user_service)
     user_bp = create_user_blueprint(user_service)
     test_case_bp = create_test_case_blueprint(test_case_service)
+    admin_bp = create_admin_blueprint()
+    requirement_bp = create_requirement_blueprint(requirement_service)
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(test_case_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(requirement_bp)
     
     logger.info("API routes registered successfully")
 

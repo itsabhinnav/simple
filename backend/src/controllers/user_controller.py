@@ -3,6 +3,7 @@ from typing import Dict, Any
 from src.services.user_service import IUserService
 from src.schemas.user_schema import UserCreateSchema, UserUpdateSchema
 from src.schemas.api_schema import ErrorResponseSchema, SuccessResponseSchema
+from src.middleware.admin_middleware import require_admin, is_admin
 
 
 class UserController:
@@ -11,8 +12,9 @@ class UserController:
     def __init__(self, user_service: IUserService):
         self.user_service = user_service
     
+    @require_admin
     def get_all_users(self) -> Dict[str, Any]:
-        """GET /api/users - Get all users"""
+        """GET /api/users - Get all users (Admin only)"""
         try:
             users = self.user_service.get_all_users()
             return jsonify({
@@ -57,8 +59,9 @@ class UserController:
                 "message": str(e)
             }), 500
     
+    @require_admin
     def create_user(self) -> Dict[str, Any]:
-        """POST /api/users - Create a new user"""
+        """POST /api/users - Create a new user (Admin only)"""
         try:
             data = request.get_json()
             if not data:
@@ -90,8 +93,9 @@ class UserController:
                 "message": str(e)
             }), 500
     
+    @require_admin
     def update_user(self, user_id: int) -> Dict[str, Any]:
-        """PUT /api/users/<user_id> - Update user"""
+        """PUT /api/users/<user_id> - Update user (Admin only)"""
         try:
             data = request.get_json()
             if not data:
@@ -130,8 +134,9 @@ class UserController:
                 "message": str(e)
             }), 500
     
+    @require_admin
     def delete_user(self, user_id: int) -> Dict[str, Any]:
-        """DELETE /api/users/<user_id> - Delete user"""
+        """DELETE /api/users/<user_id> - Delete user (Admin only)"""
         try:
             success = self.user_service.delete_user(user_id)
             if success:

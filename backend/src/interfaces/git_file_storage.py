@@ -12,8 +12,8 @@ class IGitFileStorage(ABC):
         pass
     
     @abstractmethod
-    def push_changes(self, commit_message: str = "Update database files") -> bool:
-        """Push local changes to remote repository"""
+    def push_changes(self, commit_message: str = "Update database files", git_token: str = None) -> bool:
+        """Push local changes to remote repository using user's Git token"""
         pass
     
     @abstractmethod

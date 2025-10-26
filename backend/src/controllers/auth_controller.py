@@ -51,22 +51,30 @@ class AuthController:
             # Hash the secret key
             secret_key_hash = generate_password_hash(user_data.secret_key)
             
+            # Encrypt the Git token (required) using base64 for simple encoding
+            import base64
+            git_token_bytes = user_data.git_token.encode('utf-8')
+            git_token_encrypted = base64.b64encode(git_token_bytes).decode('utf-8')
+            
             # Create user dict
             user_dict = user_data.dict()
             user_dict['password_hash'] = password_hash
             user_dict['secret_key_hash'] = secret_key_hash
             user_dict.pop('password', None)  # Remove plain password
             user_dict.pop('secret_key', None)  # Remove plain secret key
+            user_dict.pop('git_token', None)  # Remove plain git token
             
             # Manually insert the user since we need password_hash
             import sqlite3
             from datetime import datetime
             
             database_service = self.user_service.user_repository.database_service
+            
+            # Build query with git_token_encrypted (required)
             query = f"""
-                INSERT INTO users (username, email, password_hash, secret_key_hash, first_name, last_name, role)
-                VALUES ('{user_dict['username']}', '{user_dict['email']}', '{password_hash}', '{secret_key_hash}',
-                        '{user_dict.get('first_name', '')}', '{user_dict.get('last_name', '')}', 
+                INSERT INTO users (username, email, password_hash, secret_key_hash, git_token_encrypted, first_name, last_name, role)
+                VALUES ('{user_dict['username']}', '{user_dict['email']}', '{password_hash}', '{secret_key_hash}', 
+                        '{git_token_encrypted}', '{user_dict.get('first_name', '')}', '{user_dict.get('last_name', '')}', 
                         '{user_dict.get('role', 'user')}')
             """
             
@@ -81,6 +89,9 @@ class AuthController:
             if user:
                 # Generate JWT token
                 token = self._generate_token(user['id'], user['username'])
+                
+                # After creating user, trigger initial sync if remote has data
+                self._sync_remote_if_needed(user['username'], git_token_encrypted)
                 
                 return jsonify({
                     "success": True,
@@ -151,6 +162,9 @@ class AuthController:
             
             # Generate JWT token
             token = self._generate_token(user['id'], user['username'])
+            
+            # Trigger remote database sync if user has a Git token
+            self._sync_remote_if_needed(user['username'], user.get('git_token_encrypted'))
             
             return jsonify({
                 "success": True,
@@ -346,6 +360,37 @@ class AuthController:
                 "message": str(e)
             }), 500
     
+    def _sync_remote_if_needed(self, username: str, git_token_encrypted: str = None):
+        """Trigger remote database sync if needed and user has Git token"""
+        try:
+            if not git_token_encrypted:
+                return
+            
+            # Decrypt Git token
+            import base64
+            git_token = base64.b64decode(git_token_encrypted.encode('utf-8')).decode('utf-8')
+            
+            # Import and use sync service
+            from src.services.sync_remote_on_login import sync_remote_database
+            from src.infrastructure.configuration_manager import get_config_manager
+            
+            config = get_config_manager()
+            repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura")
+            local_repo_path = config.get_config("storage.local_repo_path", "remote/dev")
+            
+            # Trigger sync in background thread
+            import threading
+            sync_thread = threading.Thread(
+                target=sync_remote_database,
+                args=(username, git_token, repo_url, local_repo_path),
+                daemon=True
+            )
+            sync_thread.start()
+            logger.info(f"Triggered remote sync for user: {username}")
+            
+        except Exception as e:
+            logger.error(f"Failed to trigger remote sync: {e}")
+    
     def _sanitize_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """Remove sensitive information from user data"""
         sanitized = user.copy()
@@ -353,6 +398,8 @@ class AuthController:
         sanitized.pop('password', None)
         sanitized.pop('secret_key_hash', None)
         sanitized.pop('secret_key', None)
+        sanitized.pop('git_token_encrypted', None)  # Never expose Git token
+        sanitized.pop('git_token', None)
         return sanitized
 
 

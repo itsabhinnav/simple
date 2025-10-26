@@ -109,8 +109,8 @@ class GitFileStorage(IGitFileStorage):
             logger.error(f"Unexpected error during git operation: {e}")
             return False
     
-    def push_changes(self, commit_message: str = "Update database files") -> bool:
-        """Push local changes to remote repository"""
+    def push_changes(self, commit_message: str = "Update database files", git_token: str = None) -> bool:
+        """Push local changes to remote repository using user's Git token"""
         try:
             # Add all changes
             subprocess.run(
@@ -143,14 +143,26 @@ class GitFileStorage(IGitFileStorage):
                 check=True
             )
             
-            # Push to remote
-            subprocess.run(
-                ["git", "push", "origin"],
-                cwd=self.local_repo_path,
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            # Push to remote with user's token
+            if git_token:
+                # Use token in URL for authentication
+                remote_url = self.repo_url.replace("https://", f"https://oauth2:{git_token}@")
+                subprocess.run(
+                    ["git", "push", remote_url],
+                    cwd=self.local_repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+            else:
+                # Fallback to standard push
+                subprocess.run(
+                    ["git", "push", "origin"],
+                    cwd=self.local_repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
             
             logger.info("Changes pushed successfully")
             return True

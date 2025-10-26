@@ -152,6 +152,37 @@
                   placeholder="Enter your secret key">
               </div>
 
+              <div class="input-field-google">
+                <label for="signup-git-token">Git Access Token</label>
+                <input 
+                  type="password" 
+                  id="signup-git-token"
+                  formControlName="git_token"
+                  autocomplete="off"
+                  class="google-input"
+                  placeholder="Enter your GitLab/GitHub personal access token">
+                <div *ngIf="signupForm.get('git_token')?.invalid && signupForm.get('git_token')?.touched" class="field-error">
+                  Git access token is required (min 10 characters)
+                </div>
+                <div class="field-hint">
+                  Used to push database changes to remote repository. Required.
+                </div>
+              </div>
+
+              <div class="input-field-google">
+                <label for="signup-role">Role</label>
+                <select 
+                  id="signup-role"
+                  formControlName="role"
+                  class="google-input">
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <div class="field-hint">
+                  Select your account role
+                </div>
+              </div>
+
               <div class="form-actions-google">
                 <button 
                   type="button" 
@@ -171,6 +202,31 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Dashboard Section (shown after login) -->
+  <section class="dashboard-section" *ngIf="isAuthenticated()">
+    <div class="dashboard-container">
+          <div class="dashboard-actions">
+            <a routerLink="/requirements" class="dashboard-card">
+              <div class="card-icon">📋</div>
+              <h3>Requirements</h3>
+              <p>Create and manage requirements</p>
+            </a>
+            
+            <a routerLink="/users" class="dashboard-card" *ngIf="isAdmin()">
+              <div class="card-icon">👥</div>
+              <h3>User Management</h3>
+              <p>Manage users and permissions</p>
+            </a>
+            
+            <a routerLink="/test-cases" class="dashboard-card">
+              <div class="card-icon">🧪</div>
+              <h3>Test Cases</h3>
+              <p>Manage test cases</p>
+            </a>
+          </div>
     </div>
   </section>
 

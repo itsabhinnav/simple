@@ -254,6 +254,17 @@ class ApplicationContainer:
             )
         )
         
+        # Register requirement service
+        from src.services.requirement_service import IRequirementService, RequirementService
+        
+        self.container.register_singleton(
+            IRequirementService,
+            RequirementService,
+            factory=lambda: RequirementService(
+                database_service=self.container.get(HybridDatabaseService)
+            )
+        )
+        
         logger.info("Configuration-based application services configured successfully")
     
     async def initialize(self):
@@ -387,6 +398,12 @@ def get_user_service() -> IUserService:
 def get_test_case_service() -> ITestCaseService:
     """Get the test case service."""
     return get_container().container.get(ITestCaseService)
+
+
+def get_requirement_service():
+    """Get the requirement service."""
+    from src.services.requirement_service import IRequirementService
+    return get_container().container.get(IRequirementService)
 
 
 def get_user_repository() -> IUserRepository:

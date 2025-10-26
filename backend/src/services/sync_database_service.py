@@ -182,11 +182,13 @@ class SyncDatabaseService:
     def _download_database(self, db_name: str, environment: str) -> str:
         """Download database file from mock server."""
         try:
-            # Create local cache directory
-            cache_dir = Path("data/cache")
-            cache_dir.mkdir(parents=True, exist_ok=True)
+            # Create local directory
+            # Resolve path relative to backend directory to avoid nested data folders
+            backend_dir = Path(__file__).parent.parent.parent
+            local_dir = backend_dir / "data" / "local"
+            local_dir.mkdir(parents=True, exist_ok=True)
             
-            local_path = cache_dir / f"{db_name}.db"
+            local_path = local_dir / "local.db"
             
             # Download from mock server
             response = requests.get(

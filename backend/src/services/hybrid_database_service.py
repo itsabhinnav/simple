@@ -134,13 +134,20 @@ class HybridDatabaseService:
     def execute_query(self, query: str, database_name: str = "default", use_cache: bool = True) -> Dict[str, Any]:
         """Execute query with hybrid strategy"""
         try:
+            # Get current username from Flask's g object for authenticated requests
+            try:
+                from flask import g
+                username = g.get('current_username')
+            except:
+                username = None
+            
             # Determine query type
             query_upper = query.strip().upper()
             
             if query_upper.startswith('SELECT'):
                 return self._handle_read_query(query, database_name, use_cache)
             else:
-                return self._handle_write_query(query, database_name)
+                return self._handle_write_query(query, database_name, username)
                 
         except Exception as e:
             logger.error(f"Hybrid query execution failed: {e}")
@@ -190,7 +197,7 @@ class HybridDatabaseService:
                 "data": []
             }
     
-    def _handle_write_query(self, query: str, database_name: str) -> Dict[str, Any]:
+    def _handle_write_query(self, query: str, database_name: str, username: str = None) -> Dict[str, Any]:
         """Handle write queries with immediate sync"""
         try:
             # Execute on remote database
@@ -206,9 +213,15 @@ class HybridDatabaseService:
                 try:
                     # Generate informative commit message from query
                     commit_message = self._generate_commit_message(query)
-                    commit_success = self.remote_db.commit_changes(commit_message)
+                    
+                    # Get user's Git token if username is provided
+                    git_token = None
+                    if username:
+                        git_token = self.remote_db.get_user_git_token(username)
+                    
+                    commit_success = self.remote_db.commit_changes(commit_message, git_token)
                     if commit_success:
-                        logger.info("Successfully committed changes to git")
+                        logger.info(f"Successfully committed changes to git as {username if username else 'system'}")
                     else:
                         logger.warning("Failed to commit changes to git")
                 except Exception as commit_error:

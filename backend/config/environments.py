@@ -385,8 +385,8 @@ class DevelopmentConfig(ApplicationConfig):
             database=DatabaseConfig(
                 provider=DatabaseProvider.SQLITE,
                 name="sakura_dev.db",
-                data_directory="data/dev",
-                cache_directory="data/cache/dev"
+                data_directory="data/local",
+                cache_directory="data/local"
             ),
             storage=StorageConfig(
                 provider=StorageProvider.GIT,
@@ -395,7 +395,7 @@ class DevelopmentConfig(ApplicationConfig):
                 password="password",
                 repository="android-devops/sakura-db",
                 local_repo_path="remote/dev",
-                data_path="data/dev"
+                data_path="data/local"
             ),
             authentication=AuthenticationConfig(
                 default_admin_username="admin",
