@@ -259,6 +259,8 @@ class GitDatabaseService:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
                     email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    secret_key_hash TEXT,
                     first_name TEXT,
                     last_name TEXT,
                     role TEXT DEFAULT 'user',
@@ -266,6 +268,17 @@ class GitDatabaseService:
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """
+            
+            # Add columns if table already exists (migration)
+            try:
+                cursor.execute(f'ALTER TABLE {users_table} ADD COLUMN password_hash TEXT')
+            except:
+                pass  # Column already exists
+            
+            try:
+                cursor.execute(f'ALTER TABLE {users_table} ADD COLUMN secret_key_hash TEXT')
+            except:
+                pass  # Column already exists
             
             # Create test_cases table if it doesn't exist
             create_test_cases_table = f"""

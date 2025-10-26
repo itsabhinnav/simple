@@ -1,0 +1,178 @@
+<div class="landing-container">
+  <!-- Auth Section -->
+  <section class="auth-section" *ngIf="!isAuthenticated()">
+    <div class="auth-container-google">
+      <!-- Header -->
+      <div class="auth-header-top">
+        <span class="logo-text">🌸 Sakura</span>
+        <span class="header-subtitle" *ngIf="activeTab() === 'login'">Sign in to Sakura</span>
+        <span class="header-subtitle" *ngIf="activeTab() === 'signup'">Create your Sakura Account</span>
+      </div>
+
+      <!-- Two Column Layout -->
+      <div class="auth-content-wrapper">
+        <!-- Left: Info Section -->
+        <div class="info-column">
+          <h1 class="info-title">Sign in</h1>
+          <p class="info-subtitle">to continue to <a href="#" class="site-link">Sakura</a></p>
+        </div>
+
+        <!-- Right: Form Section -->
+        <div class="form-column">
+          <div *ngIf="error()" class="error-message">
+            {{ error() }}
+          </div>
+
+          <!-- Sign In Form -->
+          <div class="form-wrapper" *ngIf="activeTab() === 'login'">
+            <form [formGroup]="loginForm" (ngSubmit)="onLogin()" class="signin-form">
+              <div class="input-field-google">
+                <label for="login-username">Username</label>
+                <input 
+                  type="text" 
+                  id="login-username"
+                  formControlName="username"
+                  autocomplete="username"
+                  class="google-input">
+                <div *ngIf="loginForm.get('username')?.invalid && loginForm.get('username')?.touched" class="field-error">
+                  Username is required
+                </div>
+              </div>
+
+              <div class="input-field-google">
+                <label for="login-password">Password</label>
+                <input 
+                  type="password" 
+                  id="login-password"
+                  formControlName="password"
+                  autocomplete="current-password"
+                  class="google-input">
+                <div *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched" class="field-error">
+                  Password is required
+                </div>
+              </div>
+
+              <a routerLink="/forgot-password" class="forgot-link-google">Forgot password?</a>
+
+              <div class="form-actions-google">
+                <button 
+                  type="button" 
+                  class="btn-create-link"
+                  (click)="showSignup()">
+                  Create account
+                </button>
+                <button 
+                  type="submit" 
+                  class="btn-next-google"
+                  [disabled]="loginForm.invalid || isLoggingIn()">
+                  <span *ngIf="isLoggingIn()" class="spinner-small"></span>
+                  <span *ngIf="!isLoggingIn()">Next</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Sign Up Form -->
+          <div class="form-wrapper" *ngIf="activeTab() === 'signup'">
+            <form [formGroup]="signupForm" (ngSubmit)="onSignup()" class="signin-form">
+              <div class="input-field-row-google">
+                <div class="input-field-google">
+                  <label for="signup-firstname">First name</label>
+                  <input 
+                    type="text" 
+                    id="signup-firstname"
+                    formControlName="first_name"
+                    autocomplete="given-name"
+                    class="google-input">
+                </div>
+                <div class="input-field-google">
+                  <label for="signup-lastname">Last name</label>
+                  <input 
+                    type="text" 
+                    id="signup-lastname"
+                    formControlName="last_name"
+                    autocomplete="family-name"
+                    class="google-input">
+                </div>
+              </div>
+
+              <div class="input-field-google">
+                <label for="signup-username">Username</label>
+                <input 
+                  type="text" 
+                  id="signup-username"
+                  formControlName="username"
+                  autocomplete="username"
+                  class="google-input">
+              </div>
+
+              <div class="input-field-google">
+                <label for="signup-email">Email</label>
+                <input 
+                  type="email" 
+                  id="signup-email"
+                  formControlName="email"
+                  autocomplete="email"
+                  class="google-input">
+              </div>
+
+              <div class="input-field-row-google">
+                <div class="input-field-google">
+                  <label for="signup-password">Password</label>
+                  <input 
+                    type="password" 
+                    id="signup-password"
+                    formControlName="password"
+                    autocomplete="new-password"
+                    class="google-input">
+                </div>
+                <div class="input-field-google">
+                  <label for="signup-confirm">Confirm</label>
+                  <input 
+                    type="password" 
+                    id="signup-confirm"
+                    formControlName="confirmPassword"
+                    autocomplete="new-password"
+                    class="google-input">
+                </div>
+              </div>
+
+              <div class="password-hint-google">
+                Use 8 or more characters with a mix of letters, numbers & symbols
+              </div>
+
+              <div class="input-field-google">
+                <label for="signup-secret">Secret Key (for password recovery)</label>
+                <input 
+                  type="text" 
+                  id="signup-secret"
+                  formControlName="secret_key"
+                  autocomplete="off"
+                  class="google-input"
+                  placeholder="Enter your secret key">
+              </div>
+
+              <div class="form-actions-google">
+                <button 
+                  type="button" 
+                  class="btn-signin-instead-google"
+                  (click)="showLogin()">
+                  Sign in instead
+                </button>
+                <button 
+                  type="submit" 
+                  class="btn-next-google"
+                  [disabled]="signupForm.invalid || isSigningUp()">
+                  <span *ngIf="isSigningUp()" class="spinner-small"></span>
+                  <span *ngIf="!isSigningUp()">Next</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+

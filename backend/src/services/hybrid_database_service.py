@@ -201,10 +201,12 @@ class HybridDatabaseService:
                 logger.info("Write operation successful, triggering immediate sync...")
                 self._trigger_immediate_sync_and_wait()
                 
-                # Commit changes to git repository
+                # Commit changes to git repository with informative message
                 logger.info("Committing changes to git repository...")
                 try:
-                    commit_success = self.remote_db.commit_changes("Database update from CRUD operation")
+                    # Generate informative commit message from query
+                    commit_message = self._generate_commit_message(query)
+                    commit_success = self.remote_db.commit_changes(commit_message)
                     if commit_success:
                         logger.info("Successfully committed changes to git")
                     else:
@@ -225,6 +227,63 @@ class HybridDatabaseService:
                 "data": []
             }
     
+    def _generate_commit_message(self, query: str) -> str:
+        """Generate informative commit message from SQL query"""
+        try:
+            query_upper = query.strip().upper()
+            
+            # Extract operation and table name
+            if query_upper.startswith('INSERT INTO'):
+                parts = query.split('INSERT INTO')[1].strip().split()
+                table_name = parts[0].replace('(', '').strip()
+                operation = "Add"
+                
+                # Try to extract data for more context
+                if 'username' in query:
+                    # Extract username for user operations
+                    import re
+                    username_match = re.search(r"username['\"]?\s*=\s*['\"]?([^',\")]+)", query)
+                    if username_match:
+                        return f"{operation} user: {username_match.group(1)}"
+                
+            elif query_upper.startswith('UPDATE'):
+                parts = query.split('UPDATE')[1].strip().split()
+                table_name = parts[0].strip()
+                operation = "Update"
+                
+                # Extract key information for context
+                if 'password_hash' in query and 'users' in query_upper:
+                    return "Update user password"
+                if 'users' in query_upper:
+                    # Try to extract username
+                    import re
+                    where_match = re.search(r"WHERE\s+username\s*=\s*['\"]?([^',\")]+)", query)
+                    if where_match:
+                        return f"{operation} user: {where_match.group(1)}"
+                    return f"{operation} user record"
+                
+            elif query_upper.startswith('DELETE FROM'):
+                parts = query.split('DELETE FROM')[1].strip().split()
+                table_name = parts[0].strip()
+                operation = "Delete"
+                
+                # Extract key information
+                if 'users' in query_upper:
+                    import re
+                    where_match = re.search(r"WHERE\s+username\s*=\s*['\"]?([^',\")]+)", query)
+                    if where_match:
+                        return f"{operation} user: {where_match.group(1)}"
+                    return f"{operation} user record"
+            else:
+                # Fallback for other operations
+                return f"Database update: {table_name if 'table_name' in locals() else 'unknown table'}"
+            
+            return f"{operation} record in {table_name}"
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate commit message: {e}")
+            return "Database update"
+
     def _clear_relevant_cache(self, query: str):
         """Clear cache entries related to the modified table"""
         try:

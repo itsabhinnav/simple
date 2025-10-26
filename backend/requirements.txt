@@ -7,3 +7,5 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 requests==2.32.3
 pyyaml==6.0.2
+PyJWT==2.8.0
+Werkzeug==3.0.1

@@ -252,17 +252,14 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     .user-management-container {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 20px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: var(--spacing-md);
     }
 
     .management-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 30px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      background-color: var(--color-gray-100);
+      border-bottom: 1px solid var(--color-gray-300);
+      padding: var(--spacing-lg);
+      margin-bottom: var(--spacing-lg);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -277,12 +274,13 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     .breadcrumb {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--spacing-sm);
       font-size: 14px;
+      margin-bottom: var(--spacing-sm);
     }
 
     .breadcrumb-link {
-      color: rgba(255, 255, 255, 0.8);
+      color: var(--color-primary-lighter);
       text-decoration: none;
       display: flex;
       align-items: center;
@@ -291,47 +289,51 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     }
 
     .breadcrumb-link:hover {
-      color: white;
+      color: var(--color-primary);
     }
 
     .breadcrumb-separator {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--color-gray-400);
     }
 
     .breadcrumb-current {
-      color: white;
+      color: var(--color-primary);
       font-weight: 500;
     }
 
     .page-title {
       margin: 0;
-      font-size: 2rem;
+      font-size: 1.8rem;
       font-weight: 600;
       display: flex;
       align-items: center;
       gap: 10px;
+      color: var(--color-primary);
     }
 
     .add-btn {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 6px;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      background: var(--color-primary);
+      color: var(--color-gray-100);
+      border: 1px solid var(--color-primary);
+      border-radius: var(--border-radius-sm);
       cursor: pointer;
       font-size: 14px;
+      font-weight: 500;
       transition: all 0.2s;
     }
 
     .add-btn:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.3);
+      background: var(--color-primary-light);
+      border-color: var(--color-primary-light);
     }
 
     .add-btn:disabled {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--color-gray-400);
+      border-color: var(--color-gray-400);
       cursor: not-allowed;
     }
 
@@ -343,8 +345,8 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     .spinner {
       width: 40px;
       height: 40px;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #2196f3;
+      border: 4px solid var(--color-gray-300);
+      border-top: 4px solid var(--color-accent);
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin: 0 auto 20px;
@@ -367,10 +369,10 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     }
 
     .table-container {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      background: var(--color-gray-100);
+      border: 1px solid var(--color-gray-300);
+      border-radius: var(--border-radius);
+      padding: var(--spacing-lg);
     }
 
     .table-header {
@@ -390,17 +392,18 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     }
 
     .search-input {
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      padding: var(--spacing-sm) var(--spacing-md);
+      border: 1px solid var(--color-gray-300);
+      border-radius: var(--border-radius-sm);
       width: 250px;
       font-size: 14px;
+      background-color: var(--color-gray-100);
     }
 
     .search-input:focus {
       outline: none;
-      border-color: #2196f3;
-      box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--color-accent-light);
     }
 
     .table-wrapper {
@@ -478,26 +481,30 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     }
 
     .btn-edit {
-      background: #e3f2fd;
-      color: #1976d2;
+      background: var(--color-accent-light);
+      color: var(--color-accent-hover);
     }
 
     .btn-edit:hover {
-      background: #bbdefb;
+      background: var(--color-accent-light);
+      opacity: 0.8;
     }
 
     .btn-delete {
-      background: #ffebee;
-      color: #c62828;
+      background: transparent;
+      color: var(--color-primary-lighter);
+      border: 1px solid var(--color-gray-300);
     }
 
     .btn-delete:hover:not(:disabled) {
-      background: #ffcdd2;
+      background: var(--color-gray-200);
+      border-color: var(--color-gray-400);
     }
 
     .btn-delete:disabled {
-      background: #f5f5f5;
-      color: #bdbdbd;
+      background: transparent;
+      color: var(--color-gray-400);
+      border-color: var(--color-gray-300);
       cursor: not-allowed;
     }
 
@@ -646,39 +653,46 @@ import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../serv
     }
 
     .btn-cancel {
-      background: #f5f5f5;
-      color: #666;
+      background: var(--color-gray-200);
+      color: var(--color-primary);
+      border: 1px solid var(--color-gray-300);
     }
 
     .btn-cancel:hover {
-      background: #e0e0e0;
+      background: var(--color-gray-300);
     }
 
     .btn-submit {
-      background: #2196f3;
-      color: white;
+      background: var(--color-primary);
+      color: var(--color-gray-100);
+      border: 1px solid var(--color-primary);
     }
 
     .btn-submit:hover:not(:disabled) {
-      background: #1976d2;
+      background: var(--color-primary-light);
+      border-color: var(--color-primary-light);
     }
 
     .btn-submit:disabled {
-      background: #bdbdbd;
+      background: var(--color-gray-400);
+      border-color: var(--color-gray-400);
       cursor: not-allowed;
     }
 
     .btn-delete-confirm {
-      background: #c62828;
-      color: white;
+      background: var(--color-primary);
+      color: var(--color-gray-100);
+      border: 1px solid var(--color-primary);
     }
 
     .btn-delete-confirm:hover:not(:disabled) {
-      background: #b71c1c;
+      background: var(--color-primary-light);
+      border-color: var(--color-primary-light);
     }
 
     .btn-delete-confirm:disabled {
-      background: #bdbdbd;
+      background: var(--color-gray-400);
+      border-color: var(--color-gray-400);
       cursor: not-allowed;
     }
 

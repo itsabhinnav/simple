@@ -1,15 +1,21 @@
 <div class="app-container">
   <header class="app-header">
     <div class="header-content">
-      <h1>{{ title() }}</h1>
-      <div class="connection-status">
-        <span class="status-indicator" [class.connected]="message() !== 'Loading...'"></span>
-        {{ message() }}
+      <h1>🌸 {{ title() }}</h1>
+      <div class="header-right">
+        <div class="connection-status">
+          <span class="status-indicator" [class.connected]="message() !== 'Loading...'"></span>
+          {{ message() }}
+        </div>
+        <div *ngIf="currentUser()" class="user-info">
+          <span class="user-name">{{ currentUser()?.username }}</span>
+          <button class="btn-logout" (click)="logout()">Logout</button>
+        </div>
       </div>
     </div>
   </header>
   
   <main class="app-main">
-    <router-outlet />
+    <router-outlet></router-outlet>
   </main>
 </div>

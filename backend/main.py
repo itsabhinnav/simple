@@ -21,6 +21,7 @@ from src.infrastructure.dependency_injection import (
 )
 from src.controllers.user_controller import create_user_blueprint
 from src.controllers.test_case_controller import create_test_case_blueprint
+from src.controllers.auth_controller import create_auth_blueprint
 from src.middleware.error_handlers import (
     setup_error_handlers, setup_request_logging, 
     setup_cors_headers, setup_request_validation, setup_api_documentation
@@ -67,9 +68,11 @@ def register_api_routes(app: Flask) -> None:
     test_case_service = get_test_case_service()
     
     # Create and register blueprints
+    auth_bp = create_auth_blueprint(user_service)
     user_bp = create_user_blueprint(user_service)
     test_case_bp = create_test_case_blueprint(test_case_service)
     
+    app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(test_case_bp)
     
