@@ -44,8 +44,9 @@ class RequirementService(IRequirementService):
     def get_all_requirements(self) -> List[Dict[str, Any]]:
         """Get all requirements"""
         try:
-            query = """SELECT id, requirement_id, title, description, priority, status, created_by, 
-                       created_at, updated_at FROM requirements ORDER BY created_at DESC"""
+            query = """SELECT id, requirement_id, title, description, given, when_action, then_result, 
+                       priority, status, assignee, tags, created_by, created_at, updated_at 
+                       FROM requirements ORDER BY created_at DESC"""
             result = self.database_service.execute_query(query, "default")
             data = result.get('data', [])
             return data
@@ -76,7 +77,9 @@ class RequirementService(IRequirementService):
             from flask import g
             created_by = g.get('current_username', 'system')
             
-            # Prepare values
+            logger.info(f"Creating requirement with data: {requirement_data.dict()}")
+            
+            # Prepare values with proper escaping
             desc_val = (requirement_data.description or '').replace("'", "''")
             given_val = (requirement_data.given or '').replace("'", "''")
             when_val = (requirement_data.when or '').replace("'", "''")
@@ -95,6 +98,7 @@ class RequirementService(IRequirementService):
                  '{requirement_data.priority or 'P2'}', '{requirement_data.status or 'Draft'}', '{assignee_val}', '{tags_val}', '{created_by}')
             """
             
+            logger.info(f"Executing query: {query}")
             result = self.database_service.execute_query(query, "default")
             
             if result.get("success"):
@@ -103,11 +107,18 @@ class RequirementService(IRequirementService):
                               created_at, updated_at FROM requirements WHERE requirement_id = '{requirement_data.requirement_id}'"""
                 get_result = self.database_service.execute_query(get_query, "default")
                 reqs = get_result.get('data', [])
-                return reqs[0] if reqs else requirement_data.dict()
+                if reqs:
+                    logger.info(f"Successfully created requirement with ID: {reqs[0].get('id')}")
+                    return reqs[0]
+                else:
+                    logger.warning("Requirement created but not found in database")
+                    return requirement_data.dict()
             else:
-                raise Exception("Failed to create requirement")
+                error_msg = result.get('error', 'Unknown error')
+                logger.error(f"Query execution failed: {error_msg}")
+                raise Exception(f"Failed to create requirement: {error_msg}")
         except Exception as e:
-            logger.error(f"Failed to create requirement: {e}")
+            logger.error(f"Failed to create requirement: {e}", exc_info=True)
             raise Exception(f"Service error: Failed to create requirement - {str(e)}")
     
     def update_requirement(self, req_id: int, requirement_data: RequirementUpdateSchema) -> Optional[Dict[str, Any]]:

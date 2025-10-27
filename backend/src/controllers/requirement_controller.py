@@ -73,6 +73,12 @@ class RequirementController:
                     "message": "Request body is required"
                 }), 400
             
+            logger.info(f"Creating requirement with data: {data}")
+            
+            # Convert when_action to when if present
+            if 'when_action' in data and 'when' not in data:
+                data['when'] = data.pop('when_action')
+            
             requirement_data = RequirementCreateSchema(**data)
             requirement = self.requirement_service.create_requirement(requirement_data)
             
@@ -82,13 +88,14 @@ class RequirementController:
                 "data": requirement
             }), 201
         except ValueError as e:
+            logger.error(f"Validation error: {e}")
             return jsonify({
                 "success": False,
                 "error": "Validation error",
                 "message": str(e)
             }), 400
         except Exception as e:
-            logger.error(f"Failed to create requirement: {e}")
+            logger.error(f"Failed to create requirement: {e}", exc_info=True)
             return jsonify({
                 "success": False,
                 "error": "Failed to create requirement",

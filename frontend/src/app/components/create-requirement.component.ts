@@ -456,7 +456,21 @@ export class CreateRequirementComponent implements OnInit {
         this.isSubmitting.set(false);
         console.error('Error creating requirement:', err);
         
-        const errorMsg = err?.error?.message || err?.error?.error || err?.message || 'Failed to create requirement. Please check the console for details.';
+        // Extract error message from various possible error formats
+        let errorMsg = 'Failed to create requirement';
+        
+        if (err?.error) {
+          // HTTP error response
+          errorMsg = err.error.message || err.error.error || err.error;
+        } else if (err?.message) {
+          // JavaScript error
+          errorMsg = err.message;
+        } else if (typeof err === 'string') {
+          errorMsg = err;
+        } else {
+          errorMsg = 'Unknown error occurred. Please check the console for details.';
+        }
+        
         this.errorMessage.set(errorMsg);
         
         // Scroll to top to show error

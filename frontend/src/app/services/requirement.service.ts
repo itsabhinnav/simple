@@ -83,19 +83,41 @@ export class RequirementService {
       );
   }
 
-  createRequirement(data: RequirementCreateRequest): Observable<Requirement | null> {
-    return this.http.post<ApiResponse<Requirement>>(`${this.baseUrl}/requirements`, data)
+  createRequirement(data: RequirementCreateRequest): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/requirements`, data)
       .pipe(
-        map(response => response.data || null),
-        catchError(() => of(null))
+        map((response: any) => {
+          console.log('Create requirement response:', response);
+          if (response.success && response.data) {
+            return response.data;
+          } else {
+            throw new Error(response.message || response.error || 'Failed to create requirement');
+          }
+        }),
+        catchError((error) => {
+          console.error('Error creating requirement:', error);
+          const errorMessage = error?.error?.message || error?.error?.error || error?.message || 'Failed to create requirement';
+          throw new Error(errorMessage);
+        })
       );
   }
 
-  updateRequirement(id: number, data: RequirementUpdateRequest): Observable<Requirement | null> {
-    return this.http.put<ApiResponse<Requirement>>(`${this.baseUrl}/requirements/${id}`, data)
+  updateRequirement(id: number, data: RequirementUpdateRequest): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/requirements/${id}`, data)
       .pipe(
-        map(response => response.data || null),
-        catchError(() => of(null))
+        map((response: any) => {
+          console.log('Update requirement response:', response);
+          if (response.success && response.data) {
+            return response.data;
+          } else {
+            throw new Error(response.message || response.error || 'Failed to update requirement');
+          }
+        }),
+        catchError((error) => {
+          console.error('Error updating requirement:', error);
+          const errorMessage = error?.error?.message || error?.error?.error || error?.message || 'Failed to update requirement';
+          throw new Error(errorMessage);
+        })
       );
   }
 
