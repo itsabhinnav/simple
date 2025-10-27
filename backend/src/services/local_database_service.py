@@ -160,6 +160,17 @@ class LocalDatabaseService:
                 )
             """
             
+            # Create database metadata table for version tracking
+            create_database_metadata_table = """
+                CREATE TABLE IF NOT EXISTS database_metadata (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metadata_key TEXT UNIQUE NOT NULL,
+                    metadata_value TEXT,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            
             # Execute table creation queries
             self.execute_query(create_users_table, "default")
             self.execute_query(create_test_cases_table, "default")
@@ -168,6 +179,13 @@ class LocalDatabaseService:
             self.execute_query(create_user_sessions_table, "default")
             self.execute_query(create_local_cache_table, "default")
             self.execute_query(create_sync_status_table, "default")
+            self.execute_query(create_database_metadata_table, "default")
+            
+            # Initialize database version if not exists
+            self.execute_query("""
+                INSERT OR IGNORE INTO database_metadata (metadata_key, metadata_value)
+                VALUES ('version', '1')
+            """, "default")
             
             logger.info("Local database tables ensured successfully")
             return True
@@ -175,6 +193,43 @@ class LocalDatabaseService:
         except Exception as e:
             logger.error(f"Failed to ensure local tables exist: {e}")
             return False
+    
+    def get_database_version(self) -> int:
+        """Get the current database version"""
+        try:
+            query = "SELECT metadata_value FROM database_metadata WHERE metadata_key = 'version'"
+            result = self.execute_query(query, "default")
+            
+            if result.get("success") and result.get("data"):
+                return int(result["data"][0]["metadata_value"])
+            else:
+                # If no version exists, initialize it to 1
+                self.execute_query("""
+                    INSERT OR REPLACE INTO database_metadata (metadata_key, metadata_value)
+                    VALUES ('version', '1')
+                """, "default")
+                return 1
+        except Exception as e:
+            logger.error(f"Failed to get database version: {e}")
+            return 1
+    
+    def increment_database_version(self) -> int:
+        """Increment the database version"""
+        try:
+            current_version = self.get_database_version()
+            new_version = current_version + 1
+            
+            query = """
+                INSERT OR REPLACE INTO database_metadata (metadata_key, metadata_value, updated_at)
+                VALUES ('version', ?, CURRENT_TIMESTAMP)
+            """
+            self.execute_query(f"UPDATE database_metadata SET metadata_value = '{new_version}' WHERE metadata_key = 'version'", "default")
+            
+            logger.info(f"Database version incremented: {current_version} -> {new_version}")
+            return new_version
+        except Exception as e:
+            logger.error(f"Failed to increment database version: {e}")
+            return self.get_database_version()
     
     def execute_query(self, query: str, database_name: str = "default", **kwargs) -> Dict[str, Any]:
         """Execute a query on the local database
