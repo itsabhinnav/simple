@@ -160,7 +160,7 @@ class HybridDatabaseService:
         """Worker thread for periodic synchronization (remote → local for reads)"""
         while self.sync_running:
             try:
-                logger.info("Starting periodic sync (remote → local)...")
+                logger.info("Starting periodic sync (remote -> local)...")
                 self.sync_remote_to_local()
                 self.last_sync_time = datetime.now()
                 logger.info(f"Periodic sync completed at {self.last_sync_time}")
