@@ -16,13 +16,18 @@ from flask_cors import CORS
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-# Enable network restrictions for security
-try:
-    from src.infrastructure.network_restrictor import enable_network_restrictions, verify_network_isolation
-    enable_network_restrictions()
-    print("[SECURITY] Network restrictions enabled")
-except Exception as e:
-    print(f"[WARNING] Could not enable network restrictions: {e}")
+# Enable network restrictions for security (optional, can be disabled for development)
+ENABLE_NETWORK_RESTRICTIONS = os.environ.get('ENABLE_NETWORK_RESTRICTIONS', 'false').lower() == 'true'
+
+if ENABLE_NETWORK_RESTRICTIONS:
+    try:
+        from src.infrastructure.network_restrictor import enable_network_restrictions, verify_network_isolation
+        enable_network_restrictions()
+        print("[SECURITY] Network restrictions enabled")
+    except Exception as e:
+        print(f"[WARNING] Could not enable network restrictions: {e}")
+else:
+    print("[INFO] Network restrictions disabled (set ENABLE_NETWORK_RESTRICTIONS=true to enable)")
 
 from src.infrastructure.dependency_injection import (
     get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service

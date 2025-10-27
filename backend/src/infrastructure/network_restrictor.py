@@ -49,12 +49,20 @@ _connection_log: List[dict] = []
 
 def is_host_allowed(host: str) -> bool:
     """Check if host is in the allowed list"""
+    if not host:
+        return True
+    
     # Check exact match
     if host in ALLOWED_HOSTS:
         return True
     
     # Check if it's a localhost variant
-    if host.lower() in ['localhost', '127.0.0.1', '::1', '0.0.0.0']:
+    host_lower = host.lower()
+    if host_lower in ['localhost', '127.0.0.1', '::1', '0.0.0.0', '0::1']:
+        return True
+    
+    # Check if it starts with localhost
+    if host_lower.startswith('localhost'):
         return True
     
     # Check if it's an IP address in private ranges
@@ -68,7 +76,12 @@ def is_host_allowed(host: str) -> bool:
         if host == '35.182.246.103':  # Example GitLab IP
             return True
     except ValueError:
+        # Not a valid IP address
         pass
+    
+    # Check if host contains allowed domains
+    if 'gitlab.com' in host_lower:
+        return True
     
     return False
 
