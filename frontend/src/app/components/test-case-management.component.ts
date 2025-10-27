@@ -105,15 +105,15 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
                 {{ tc.priority || 'P3' }}
               </span>
             </div>
-            <h3 class="card-title">{{ tc.test_objective || tc.test_name || 'Test Case' }}</h3>
+            <h3 class="card-title">{{ tc.test_objective || 'Test Case' }}</h3>
             <p class="card-description" *ngIf="tc.feature">Feature: {{ tc.feature }}</p>
             <p class="card-description" *ngIf="tc.preconditions">{{ tc.preconditions }}</p>
             
             <div class="card-footer">
-              <span class="type-badge">
+              <span class="status-badge" [class]="getTypeClass(tc.test_type)">
                 {{ tc.test_type || 'N/A' }}
               </span>
-              <span class="feature-badge" *ngIf="tc.feature">{{ tc.feature }}</span>
+              <span class="assignee" *ngIf="tc.feature">👤 {{ tc.feature }}</span>
             </div>
             <div class="card-actions">
               <button class="btn-edit" (click)="openEditModal(tc)" title="Edit">
@@ -738,7 +738,7 @@ export class TestCaseManagementComponent implements OnInit {
   }
 
   getUniqueFeatures(): string[] {
-    const features = this.testCases().map(tc => tc.feature).filter(f => f);
+    const features = this.testCases().map(tc => tc.feature).filter((f): f is string => f !== undefined && f !== null && f !== '');
     return [...new Set(features)];
   }
 
@@ -749,6 +749,16 @@ export class TestCaseManagementComponent implements OnInit {
     if (p.includes('P2') || p.includes('MEDIUM')) return 'priority-medium';
     if (p.includes('P3') || p.includes('LOW')) return 'priority-low';
     return 'priority-default';
+  }
+
+  getTypeClass(testType: string | undefined): string {
+    if (!testType) return 'status-default';
+    const type = testType.toLowerCase();
+    if (type === 'positive') return 'status-completed';
+    if (type === 'negative') return 'status-draft';
+    if (type === 'boundary') return 'status-active';
+    if (type === 'performance') return 'status-progress';
+    return 'status-default';
   }
 
   openCreateModal() {
