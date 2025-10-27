@@ -1,6 +1,6 @@
 <div class="landing-container">
   <!-- Auth Section -->
-  <section class="auth-section" *ngIf="!isAuthenticated()">
+  <section class="auth-section" *ngIf="!isAuthenticated() && isInitialized()">
     <div class="auth-container-google">
       <!-- Header -->
       <div class="auth-header-top">
@@ -206,7 +206,7 @@
   </section>
 
   <!-- Dashboard Section (shown after login) -->
-  <section class="dashboard-section" *ngIf="isAuthenticated()">
+  <section class="dashboard-section" *ngIf="isAuthenticated() && isInitialized()">
     <div class="dashboard-grid">
       <!-- Stat Tile 1: Requirements -->
       <div class="stat-tile-grid">

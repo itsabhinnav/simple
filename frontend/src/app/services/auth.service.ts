@@ -44,9 +44,16 @@ export class AuthService {
   private readonly API_URL = 'http://localhost:5000/api/auth';
   private currentUser = signal<User | null>(null);
   private token = signal<string | null>(null);
+  private isInitialized = signal(false);
   
   constructor(private http: HttpClient) {
     this.loadTokenFromStorage();
+    // Mark as initialized after token is loaded
+    this.isInitialized.set(true);
+  }
+  
+  getIsInitialized(): boolean {
+    return this.isInitialized();
   }
   
   /**

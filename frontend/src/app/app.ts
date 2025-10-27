@@ -25,6 +25,7 @@ export class App implements OnInit {
   
   message = signal('Loading...');
   currentUser = signal<User | null>(null);
+  isInitialized = signal(false);
   
   // Search functionality
   searchQuery = signal('');
@@ -39,6 +40,11 @@ export class App implements OnInit {
 
     // Get current auth state on init
     this.currentUser.set(this.authService.getCurrentUser());
+    
+    // Mark as initialized to prevent flash
+    setTimeout(() => {
+      this.isInitialized.set(true);
+    }, 0);
   }
 
   logout() {
