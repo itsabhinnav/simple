@@ -1,7 +1,7 @@
 <div class="app-container">
   <header class="app-header">
     <div class="header-content">
-      <h1>🌸 {{ title() }}</h1>
+      <h1 routerLink="/" style="cursor: pointer;">🌸 {{ title() }}</h1>
       <div class="header-center" *ngIf="currentUser()">
         <div class="search-container-header">
           <input 

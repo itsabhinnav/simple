@@ -48,6 +48,13 @@
   font-weight: 600;
   margin: 0;
   color: var(--color-primary);
+  text-decoration: none;
+  display: inline-block;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 0.7;
+  }
 }
 
 /* Search in Header */
