@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl } from '@angular/forms';
 import { AuthService } from '../services/auth.service';
+import { RequirementService } from '../services/requirement.service';
+import { TestCaseService } from '../services/test-case.service';
+import { Requirement } from '../services/requirement.service';
+import { TestCase } from '../services/test-case.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -15,12 +19,24 @@ export class DashboardComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
   private formBuilder = inject(FormBuilder);
+  private requirementService = inject(RequirementService);
+  private testCaseService = inject(TestCaseService);
 
   isAuthenticated = signal(false);
   activeTab = signal<'login' | 'signup'>('login');
   error = signal<string | null>(null);
   isLoggingIn = signal(false);
   isSigningUp = signal(false);
+
+  // Dashboard stats
+  requirementsCount = signal(0);
+  testCasesCount = signal(0);
+  searchQuery = signal('');
+  showCreateMenu = signal(false);
+  
+  // Combined search results
+  searchResults = signal<(Requirement | TestCase)[]>([]);
+  isLoadingStats = signal(false);
 
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -47,6 +63,92 @@ export class DashboardComponent implements OnInit {
   ngOnInit() {
     // Set initial auth state
     this.isAuthenticated.set(this.authService.isAuthenticated());
+    
+    // Load stats if authenticated
+    if (this.isAuthenticated()) {
+      this.loadDashboardStats();
+    }
+  }
+
+  loadDashboardStats() {
+    this.isLoadingStats.set(true);
+    
+    // Load requirements count
+    this.requirementService.getRequirements().subscribe({
+      next: (requirements) => {
+        this.requirementsCount.set(requirements.length);
+      },
+      error: () => this.requirementsCount.set(0)
+    });
+    
+    // Load test cases count
+    this.testCaseService.getTestCases().subscribe({
+      next: (testCases) => {
+        this.testCasesCount.set(testCases.length);
+        this.isLoadingStats.set(false);
+      },
+      error: () => {
+        this.testCasesCount.set(0);
+        this.isLoadingStats.set(false);
+      }
+    });
+  }
+
+  onSearch(query: string) {
+    this.searchQuery.set(query);
+    
+    if (!query.trim()) {
+      this.searchResults.set([]);
+      return;
+    }
+
+    // Search in both requirements and test cases
+    this.requirementService.getRequirements().subscribe({
+      next: (requirements) => {
+        this.testCaseService.getTestCases().subscribe({
+          next: (testCases) => {
+            const filteredRequirements = requirements.filter(req =>
+              req.title?.toLowerCase().includes(query.toLowerCase()) ||
+              req.description?.toLowerCase().includes(query.toLowerCase()) ||
+              req.requirement_id?.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            const filteredTestCases = testCases.filter(tc =>
+              tc.test_case_id?.toLowerCase().includes(query.toLowerCase()) ||
+              tc.test_objective?.toLowerCase().includes(query.toLowerCase()) ||
+              tc.feature?.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            this.searchResults.set([...filteredRequirements, ...filteredTestCases]);
+          }
+        });
+      }
+    });
+  }
+
+  toggleCreateMenu() {
+    this.showCreateMenu.set(!this.showCreateMenu());
+  }
+
+  closeCreateMenu() {
+    this.showCreateMenu.set(false);
+  }
+
+  onClickOutside(event: Event) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.create-container')) {
+      this.closeCreateMenu();
+    }
+  }
+
+  createRequirement() {
+    this.router.navigate(['/requirements']);
+    this.showCreateMenu.set(false);
+  }
+
+  createTestCase() {
+    this.router.navigate(['/test-cases']);
+    this.showCreateMenu.set(false);
   }
 
   isAdmin(): boolean {

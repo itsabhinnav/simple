@@ -208,25 +208,106 @@
   <!-- Dashboard Section (shown after login) -->
   <section class="dashboard-section" *ngIf="isAuthenticated()">
     <div class="dashboard-container">
-          <div class="dashboard-actions">
-            <a routerLink="/requirements" class="dashboard-card">
-              <div class="card-icon">📋</div>
-              <h3>Requirements</h3>
-              <p>Create and manage requirements</p>
-            </a>
-            
-            <a routerLink="/users" class="dashboard-card" *ngIf="isAdmin()">
-              <div class="card-icon">👥</div>
-              <h3>User Management</h3>
-              <p>Manage users and permissions</p>
-            </a>
-            
-            <a routerLink="/test-cases" class="dashboard-card">
-              <div class="card-icon">🧪</div>
-              <h3>Test Cases</h3>
-              <p>Manage test cases</p>
-            </a>
+      <!-- Search and Create Bar -->
+      <div class="dashboard-header">
+        <div class="search-container">
+          <input 
+            type="text" 
+            class="search-input"
+            placeholder="Search requirements and test cases..."
+            [value]="searchQuery()"
+            (input)="onSearch($any($event.target).value)">
+          <span class="search-icon">🔍</span>
+        </div>
+        
+        <div class="create-container">
+          <button class="btn-create" (click)="toggleCreateMenu()">
+            <span class="create-icon">+</span>
+            Create
+          </button>
+          
+          <!-- Create Dropdown Menu -->
+          <div class="create-menu" *ngIf="showCreateMenu()">
+            <button class="menu-item" (click)="createRequirement()">
+              <span class="menu-icon">📋</span>
+              <span class="menu-text">
+                <strong>Requirement</strong>
+                <small>Create a new requirement</small>
+              </span>
+            </button>
+            <button class="menu-item" (click)="createTestCase()">
+              <span class="menu-icon">🧪</span>
+              <span class="menu-text">
+                <strong>Test Case</strong>
+                <small>Create a new test case</small>
+              </span>
+            </button>
           </div>
+        </div>
+      </div>
+
+      <!-- Summary Statistics -->
+      <div class="stats-container">
+        <div class="stat-card">
+          <div class="stat-icon">📋</div>
+          <div class="stat-content">
+            <div class="stat-count">{{ requirementsCount() }}</div>
+            <div class="stat-label">Requirements</div>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">🧪</div>
+          <div class="stat-content">
+            <div class="stat-count">{{ testCasesCount() }}</div>
+            <div class="stat-label">Test Cases</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Results -->
+      <div class="search-results" *ngIf="searchQuery()">
+        <h3 class="results-title">Search Results ({{ searchResults().length }})</h3>
+        
+        <div class="results-list" *ngIf="searchResults().length > 0">
+          <div *ngFor="let item of searchResults()" class="result-item">
+            <div class="result-type" *ngIf="'requirement_id' in item">📋 Requirement</div>
+            <div class="result-type" *ngIf="'test_case_id' in item">🧪 Test Case</div>
+            
+            <div class="result-content">
+              <div class="result-id" *ngIf="'requirement_id' in item">{{ item.requirement_id }}</div>
+              <div class="result-id" *ngIf="'test_case_id' in item">{{ item.test_case_id }}</div>
+              <div class="result-title" *ngIf="'title' in item">{{ item.title }}</div>
+              <div class="result-objective" *ngIf="'test_objective' in item">{{ item.test_objective }}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="no-results" *ngIf="searchResults().length === 0 && searchQuery()">
+          No results found for "{{ searchQuery() }}"
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="dashboard-actions" *ngIf="!searchQuery()">
+        <a routerLink="/requirements" class="dashboard-card">
+          <div class="card-icon">📋</div>
+          <h3>Requirements</h3>
+          <p>Create and manage requirements</p>
+        </a>
+        
+        <a routerLink="/users" class="dashboard-card" *ngIf="isAdmin()">
+          <div class="card-icon">👥</div>
+          <h3>User Management</h3>
+          <p>Manage users and permissions</p>
+        </a>
+        
+        <a routerLink="/test-cases" class="dashboard-card">
+          <div class="card-icon">🧪</div>
+          <h3>Test Cases</h3>
+          <p>Manage test cases</p>
+        </a>
+      </div>
     </div>
   </section>
 
