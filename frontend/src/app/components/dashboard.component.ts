@@ -31,11 +31,6 @@ export class DashboardComponent implements OnInit {
   // Dashboard stats
   requirementsCount = signal(0);
   testCasesCount = signal(0);
-  searchQuery = signal('');
-  showCreateMenu = signal(false);
-  
-  // Combined search results
-  searchResults = signal<(Requirement | TestCase)[]>([]);
   isLoadingStats = signal(false);
 
   loginForm: FormGroup;
@@ -94,62 +89,6 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  onSearch(query: string) {
-    this.searchQuery.set(query);
-    
-    if (!query.trim()) {
-      this.searchResults.set([]);
-      return;
-    }
-
-    // Search in both requirements and test cases
-    this.requirementService.getRequirements().subscribe({
-      next: (requirements) => {
-        this.testCaseService.getTestCases().subscribe({
-          next: (testCases) => {
-            const filteredRequirements = requirements.filter(req =>
-              req.title?.toLowerCase().includes(query.toLowerCase()) ||
-              req.description?.toLowerCase().includes(query.toLowerCase()) ||
-              req.requirement_id?.toLowerCase().includes(query.toLowerCase())
-            );
-            
-            const filteredTestCases = testCases.filter(tc =>
-              tc.test_case_id?.toLowerCase().includes(query.toLowerCase()) ||
-              tc.test_objective?.toLowerCase().includes(query.toLowerCase()) ||
-              tc.feature?.toLowerCase().includes(query.toLowerCase())
-            );
-            
-            this.searchResults.set([...filteredRequirements, ...filteredTestCases]);
-          }
-        });
-      }
-    });
-  }
-
-  toggleCreateMenu() {
-    this.showCreateMenu.set(!this.showCreateMenu());
-  }
-
-  closeCreateMenu() {
-    this.showCreateMenu.set(false);
-  }
-
-  onClickOutside(event: Event) {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.create-container')) {
-      this.closeCreateMenu();
-    }
-  }
-
-  createRequirement() {
-    this.router.navigate(['/requirements']);
-    this.showCreateMenu.set(false);
-  }
-
-  createTestCase() {
-    this.router.navigate(['/test-cases']);
-    this.showCreateMenu.set(false);
-  }
 
   isAdmin(): boolean {
     const user = this.authService.getCurrentUser();
