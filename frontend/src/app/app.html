@@ -66,7 +66,7 @@
   </header>
   
   <!-- Quick Actions Bar (Below Navbar) -->
-  <div class="quick-actions-global" *ngIf="currentUser() && !isRequirementsOrTestCasesPage()">
+  <div class="quick-actions-global" *ngIf="currentUser() && isDashboardPage()">
     <div class="quick-actions-bar">
       <button class="action-btn" (click)="createRequirement()">
         <span class="action-icon">+</span>

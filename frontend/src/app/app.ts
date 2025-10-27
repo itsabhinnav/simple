@@ -97,8 +97,8 @@ export class App implements OnInit {
     this.closeCreateMenu();
   }
 
-  isRequirementsOrTestCasesPage(): boolean {
+  isDashboardPage(): boolean {
     const url = window.location.pathname;
-    return url.includes('/requirements') || url.includes('/test-cases');
+    return url === '/' || url === '';
   }
 }
