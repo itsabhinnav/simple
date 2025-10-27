@@ -11,7 +11,7 @@ import { TestCaseService, TestCaseCreateRequest } from '../services/test-case.se
   template: `
     <div class="create-page-container">
       <div class="page-header">
-        <button class="back-btn" routerLink="/test-cases">
+        <button class="back-btn" routerLink="/">
           ← Back
         </button>
         <h1>Create New Test Case</h1>
@@ -169,7 +169,7 @@ import { TestCaseService, TestCaseCreateRequest } from '../services/test-case.se
             <button 
               type="button" 
               class="btn-cancel" 
-              routerLink="/test-cases">
+              routerLink="/">
               Cancel
             </button>
             <button 

@@ -12,7 +12,7 @@ import { RequirementCreateRequest } from './requirements.component';
   template: `
     <div class="create-page-container">
       <div class="page-header">
-        <button class="back-btn" routerLink="/requirements">
+        <button class="back-btn" routerLink="/">
           ← Back
         </button>
         <h1>Create New Requirement</h1>
@@ -160,7 +160,7 @@ import { RequirementCreateRequest } from './requirements.component';
             <button 
               type="button" 
               class="btn-cancel" 
-              routerLink="/requirements">
+              routerLink="/">
               Cancel
             </button>
             <button 
