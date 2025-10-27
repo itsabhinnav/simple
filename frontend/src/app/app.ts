@@ -1,5 +1,5 @@
 import { Component, signal, inject, OnInit, effect } from '@angular/core';
-import { RouterOutlet, Router } from '@angular/router';
+import { RouterOutlet, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { AuthService, User } from './services/auth.service';
