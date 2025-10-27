@@ -61,24 +61,17 @@ export class DashboardComponent implements OnInit {
   }
 
   ngOnInit() {
-    // Wait for auth service to initialize
-    const checkInit = () => {
-      if (this.authService.getIsInitialized()) {
-        // Set initial auth state synchronously to prevent flash
-        const isAuth = this.authService.isAuthenticated();
-        this.isAuthenticated.set(isAuth);
-        this.isInitialized.set(true);
-        
-        // Load stats if authenticated
-        if (isAuth) {
-          this.loadDashboardStats();
-        }
-      } else {
-        // Retry after a short delay
-        setTimeout(checkInit, 10);
-      }
-    };
-    checkInit();
+    // Set initial auth state immediately to prevent flash
+    const isAuth = this.authService.isAuthenticated();
+    this.isAuthenticated.set(isAuth);
+    
+    // Set initialized synchronously to prevent flicker
+    this.isInitialized.set(true);
+    
+    // Load stats if authenticated
+    if (isAuth) {
+      this.loadDashboardStats();
+    }
   }
 
   loadDashboardStats() {

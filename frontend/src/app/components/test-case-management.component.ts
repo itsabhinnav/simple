@@ -1117,6 +1117,14 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
+    
+    // Close filter dropdowns when clicking outside
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.filter-panel') && !target.closest('.filter-dropdown') && !target.closest('.filter-btn-blue') && !target.closest('.filter-btn-more')) {
+        this.activeFilter.set('');
+      }
+    });
   }
 
   loadTestCases() {
@@ -1209,15 +1217,16 @@ export class TestCaseManagementComponent implements OnInit {
     } else {
       this.activeFilter.set(filterType);
       
-      // Position the panel after setting the active filter
-      setTimeout(() => {
+      // Position the panel immediately using requestAnimationFrame to prevent flicker
+      requestAnimationFrame(() => {
         const activePanel = document.querySelector('.filter-panel');
         if (activePanel) {
           const panelEl = activePanel as HTMLElement;
           panelEl.style.top = `${rect.bottom + 4}px`;
           panelEl.style.left = `${rect.left}px`;
+          panelEl.style.position = 'fixed';
         }
-      }, 0);
+      });
     }
   }
   
