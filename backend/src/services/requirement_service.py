@@ -44,7 +44,7 @@ class RequirementService(IRequirementService):
     def get_all_requirements(self) -> List[Dict[str, Any]]:
         """Get all requirements"""
         try:
-            query = """SELECT id, requirement_id, title, description, given, when_action, then_result, 
+            query = """SELECT id, requirement_id, title, description, requirement_type, given, when_action, then_result, 
                        priority, status, assignee, tags, created_by, created_at, updated_at 
                        FROM requirements ORDER BY created_at DESC"""
             result = self.database_service.execute_query(query, "default")
@@ -60,7 +60,7 @@ class RequirementService(IRequirementService):
             if not isinstance(req_id, int) or req_id <= 0:
                 raise ValueError("Invalid requirement ID")
             
-            query = f"""SELECT id, requirement_id, title, description, given, when_action, 
+            query = f"""SELECT id, requirement_id, title, description, requirement_type, given, when_action, 
                        then_result, priority, status, assignee, tags, created_by, 
                        created_at, updated_at FROM requirements WHERE id = {req_id}"""
             result = self.database_service.execute_query(query, "default")
