@@ -115,10 +115,10 @@ import { RequirementCreateRequest } from './requirements.component';
                   formControlName="priority"
                   class="form-input">
                   <option value="">Select Priority</option>
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
+                  <option value="P4">Low (P4)</option>
+                  <option value="P3">Medium (P3)</option>
+                  <option value="P2">High (P2)</option>
+                  <option value="P1">Critical (P1)</option>
                 </select>
                 <div *ngIf="requirementForm.get('priority')?.invalid && requirementForm.get('priority')?.touched" class="error-message">
                   Priority is required
@@ -133,11 +133,10 @@ import { RequirementCreateRequest } from './requirements.component';
                   class="form-input">
                   <option value="">Select Status</option>
                   <option value="Draft">Draft</option>
-                  <option value="Active">Active</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Review">Review</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Archived">Archived</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Implemented">Implemented</option>
+                  <option value="Tested">Tested</option>
+                  <option value="Closed">Closed</option>
                 </select>
                 <div *ngIf="requirementForm.get('status')?.invalid && requirementForm.get('status')?.touched" class="error-message">
                   Status is required

@@ -9,6 +9,7 @@ export interface Requirement {
   requirement_id: string;
   title: string;
   description?: string;
+  requirement_type?: string;
   given?: string;
   when_action?: string;
   then_result?: string;
@@ -65,7 +66,6 @@ export class RequirementService {
     return this.http.get<ApiResponse<Requirement[]>>(`${this.baseUrl}/requirements`)
       .pipe(
         map(response => {
-          console.log('Requirements API response:', response);
           return response.data || [];
         }),
         catchError((error) => {

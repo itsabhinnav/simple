@@ -9,6 +9,7 @@ export interface Requirement {
   requirement_id: string;
   title: string;
   description?: string;
+  requirement_type?: string;
   given?: string;
   when_action?: string;
   then_result?: string;
@@ -98,7 +99,7 @@ export class RequirementsComponent implements OnInit {
     
     this.requirementService.getRequirements().subscribe({
       next: (requirements) => {
-        this.requirements.set(requirements);
+        this.requirements.set(requirements || []);
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -143,7 +144,7 @@ export class RequirementsComponent implements OnInit {
   openCreateModal() {
     this.isEditMode.set(false);
     this.requirementForm.reset({
-      priority: 'Medium',
+      priority: 'P2',
       status: 'Draft'
     });
     this.showModal.set(true);

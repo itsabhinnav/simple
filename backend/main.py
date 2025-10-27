@@ -62,8 +62,12 @@ def create_app() -> Flask:
     """
     app = Flask(__name__)
     
+    # Disable strict slashes to prevent redirects
+    app.url_map.strict_slashes = False
+    
     # Configure CORS
-    CORS(app, origins=["*"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    CORS(app, origins=["*"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+         allow_headers=["Content-Type", "Authorization"], supports_credentials=True)
     
     # Setup middleware
     setup_error_handlers(app)

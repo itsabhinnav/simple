@@ -102,14 +102,9 @@ def setup_request_logging(app: Flask) -> None:
 
 def setup_cors_headers(app: Flask) -> None:
     """Setup CORS headers for API responses"""
-    
-    @app.after_request
-    def after_request(response):
-        """Add CORS headers to all responses"""
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        return response
+    # CORS headers are already handled by Flask-CORS in main.py
+    # This function is kept for backward compatibility but does nothing
+    pass
 
 
 def setup_request_validation(app: Flask) -> None:
@@ -118,7 +113,7 @@ def setup_request_validation(app: Flask) -> None:
     @app.before_request
     def validate_request():
         """Validate incoming requests"""
-        # Skip validation for OPTIONS requests
+        # OPTIONS requests are handled by Flask-CORS
         if request.method == 'OPTIONS':
             return
         
