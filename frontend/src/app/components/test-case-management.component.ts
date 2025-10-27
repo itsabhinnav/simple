@@ -365,6 +365,10 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     .priority-p1 { background: #ffebee; color: #c62828; }
     .priority-p2 { background: #fff3e0; color: #ef6c00; }
     .priority-p3 { background: #e8f5e8; color: #2e7d32; }
+    .priority-low { background: #e8f5e8; color: #2e7d32; }
+    .priority-medium { background: #fff3e0; color: #ef6c00; }
+    .priority-high { background: #ffebee; color: #c62828; }
+    .priority-default { background: #f5f5f5; color: #757575; }
 
     .complexity-badge {
       padding: 4px 8px;
@@ -387,6 +391,12 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
 
     .status-badge.has-requirements { background: #e8f5e8; color: #2e7d32; }
     .status-badge.no-requirements { background: #fafafa; color: #757575; }
+    .status-draft { background: #f5f5f5; color: #757575; }
+    .status-active { background: #e3f2fd; color: #1976d2; }
+    .status-progress { background: #fff3e0; color: #f57c00; }
+    .status-review { background: #f3e5f5; color: #7b1fa2; }
+    .status-completed { background: #e8f5e8; color: #2e7d32; }
+    .status-default { background: #fafafa; color: #757575; }
 
     .actions {
       display: flex;
@@ -424,6 +434,116 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       text-align: center;
       padding: 60px 20px;
       color: #666;
+    }
+
+    .assignee {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .requirements-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 16px;
+    }
+
+    .requirement-card {
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 16px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .requirement-card:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .req-id {
+      font-weight: 600;
+      color: #1a73e8;
+      font-size: 13px;
+    }
+
+    .card-title {
+      margin: 8px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .card-description {
+      font-size: 14px;
+      color: #666;
+      margin: 8px 0;
+      line-height: 1.5;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .card-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .filters-section {
+      background: white;
+      padding: 16px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .search-filter {
+      width: 100%;
+    }
+
+    .select-filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .filter-select {
+      padding: 10px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .board-container {
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .board-header h3 {
+      margin: 0 0 16px 0;
+      color: #333;
     }
 
     .retry-btn {
