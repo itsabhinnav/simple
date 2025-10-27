@@ -253,16 +253,20 @@
   background: #f8f9fa;
 }
 
-/* 2x2 Grid Layout */
+/* Dashboard Grid Layout - Stats Only */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto;
-  gap: 20px;
-  max-width: 1400px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  max-width: 900px;
   width: 100%;
-  min-height: 500px;
   padding: 20px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .welcome-title {

@@ -227,58 +227,6 @@
         <div class="stat-value-large">{{ testCasesCount() }}</div>
         <a routerLink="/test-cases" class="stat-link-grid">View all →</a>
       </div>
-      
-      <!-- Panel 1: Recent Requirements -->
-      <div class="dashboard-panel-grid">
-        <div class="panel-header-grid">
-          <h2 class="panel-title-grid">Recent Requirements</h2>
-          <a routerLink="/requirements" class="panel-link-grid">View all</a>
-        </div>
-        <div class="panel-content-grid" *ngIf="recentRequirements().length > 0">
-          <div *ngFor="let req of recentRequirements()" class="activity-item-grid" (click)="viewRequirement(req)">
-            <div class="activity-icon-grid">📋</div>
-            <div class="activity-content-grid">
-              <div class="activity-id-grid">{{ req.requirement_id }}</div>
-              <div class="activity-title-grid">{{ req.title }}</div>
-              <div class="activity-meta-grid">
-                <span class="badge-grid" [class.badge-high]="req.priority === 'high'" 
-                                     [class.badge-medium]="req.priority === 'medium'"
-                                     [class.badge-low]="req.priority === 'low'">
-                  {{ req.priority }}
-                </span>
-                <span class="activity-status-grid">{{ req.status }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="panel-empty-grid" *ngIf="recentRequirements().length === 0">
-          No requirements yet
-        </div>
-      </div>
-
-      <!-- Panel 2: Recent Test Cases -->
-      <div class="dashboard-panel-grid">
-        <div class="panel-header-grid">
-          <h2 class="panel-title-grid">Recent Test Cases</h2>
-          <a routerLink="/test-cases" class="panel-link-grid">View all</a>
-        </div>
-        <div class="panel-content-grid" *ngIf="recentTestCases().length > 0">
-          <div *ngFor="let tc of recentTestCases()" class="activity-item-grid" (click)="viewTestCase(tc)">
-            <div class="activity-icon-grid">🧪</div>
-            <div class="activity-content-grid">
-              <div class="activity-id-grid">{{ tc.test_case_id }}</div>
-              <div class="activity-title-grid">{{ tc.test_objective || 'Test Case' }}</div>
-              <div class="activity-meta-grid">
-                <span class="badge-grid">{{ tc.feature || 'N/A' }}</span>
-                <span class="activity-priority-grid">{{ tc.priority || 'N/A' }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="panel-empty-grid" *ngIf="recentTestCases().length === 0">
-          No test cases yet
-        </div>
-      </div>
     </div>
   </section>
 
