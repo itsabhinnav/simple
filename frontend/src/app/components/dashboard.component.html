@@ -207,89 +207,76 @@
 
   <!-- Dashboard Section (shown after login) -->
   <section class="dashboard-section" *ngIf="isAuthenticated()">
-    <div class="dashboard-container">
-      <!-- Interactive Dashboard Stats -->
-      <div class="dashboard-stats-grid">
-        <div class="stat-tile">
-          <div class="stat-header">
-            <span class="stat-icon-large">📋</span>
-            <h3 class="stat-title">Requirements</h3>
-          </div>
-          <div class="stat-value">{{ requirementsCount() }}</div>
-          <a routerLink="/requirements" class="stat-link">View all →</a>
+    <div class="dashboard-grid">
+      <!-- Stat Tile 1: Requirements -->
+      <div class="stat-tile-grid">
+        <div class="stat-header-grid">
+          <span class="stat-icon-large">📋</span>
+          <h3 class="stat-title">Requirements</h3>
         </div>
-        
-        <div class="stat-tile">
-          <div class="stat-header">
-            <span class="stat-icon-large">🧪</span>
-            <h3 class="stat-title">Test Cases</h3>
-          </div>
-          <div class="stat-value">{{ testCasesCount() }}</div>
-          <a routerLink="/test-cases" class="stat-link">View all →</a>
+        <div class="stat-value-large">{{ requirementsCount() }}</div>
+        <a routerLink="/requirements" class="stat-link-grid">View all →</a>
+      </div>
+      
+      <!-- Stat Tile 2: Test Cases -->
+      <div class="stat-tile-grid">
+        <div class="stat-header-grid">
+          <span class="stat-icon-large">🧪</span>
+          <h3 class="stat-title">Test Cases</h3>
         </div>
-        
-        <div class="stat-tile" *ngIf="isAdmin()">
-          <div class="stat-header">
-            <span class="stat-icon-large">👥</span>
-            <h3 class="stat-title">Users</h3>
+        <div class="stat-value-large">{{ testCasesCount() }}</div>
+        <a routerLink="/test-cases" class="stat-link-grid">View all →</a>
+      </div>
+      
+      <!-- Panel 1: Recent Requirements -->
+      <div class="dashboard-panel-grid">
+        <div class="panel-header-grid">
+          <h2 class="panel-title-grid">Recent Requirements</h2>
+          <a routerLink="/requirements" class="panel-link-grid">View all</a>
+        </div>
+        <div class="panel-content-grid" *ngIf="recentRequirements().length > 0">
+          <div *ngFor="let req of recentRequirements()" class="activity-item-grid" (click)="viewRequirement(req)">
+            <div class="activity-icon-grid">📋</div>
+            <div class="activity-content-grid">
+              <div class="activity-id-grid">{{ req.requirement_id }}</div>
+              <div class="activity-title-grid">{{ req.title }}</div>
+              <div class="activity-meta-grid">
+                <span class="badge-grid" [class.badge-high]="req.priority === 'high'" 
+                                     [class.badge-medium]="req.priority === 'medium'"
+                                     [class.badge-low]="req.priority === 'low'">
+                  {{ req.priority }}
+                </span>
+                <span class="activity-status-grid">{{ req.status }}</span>
+              </div>
+            </div>
           </div>
-          <div class="stat-value">Active</div>
-          <a routerLink="/users" class="stat-link">Manage →</a>
+        </div>
+        <div class="panel-empty-grid" *ngIf="recentRequirements().length === 0">
+          No requirements yet
         </div>
       </div>
 
-      <!-- Recent Activity -->
-      <div class="dashboard-sections">
-        <!-- Recent Requirements -->
-        <div class="dashboard-panel">
-          <div class="panel-header">
-            <h2 class="panel-title">Recent Requirements</h2>
-            <a routerLink="/requirements" class="panel-link">View all</a>
-          </div>
-          <div class="panel-content" *ngIf="recentRequirements().length > 0">
-            <div *ngFor="let req of recentRequirements()" class="activity-item" (click)="viewRequirement(req)">
-              <div class="activity-icon">📋</div>
-              <div class="activity-content">
-                <div class="activity-id">{{ req.requirement_id }}</div>
-                <div class="activity-title">{{ req.title }}</div>
-                <div class="activity-meta">
-                  <span class="badge" [class.badge-high]="req.priority === 'high'" 
-                                             [class.badge-medium]="req.priority === 'medium'"
-                                             [class.badge-low]="req.priority === 'low'">
-                    {{ req.priority }}
-                  </span>
-                  <span class="activity-status">{{ req.status }}</span>
-                </div>
+      <!-- Panel 2: Recent Test Cases -->
+      <div class="dashboard-panel-grid">
+        <div class="panel-header-grid">
+          <h2 class="panel-title-grid">Recent Test Cases</h2>
+          <a routerLink="/test-cases" class="panel-link-grid">View all</a>
+        </div>
+        <div class="panel-content-grid" *ngIf="recentTestCases().length > 0">
+          <div *ngFor="let tc of recentTestCases()" class="activity-item-grid" (click)="viewTestCase(tc)">
+            <div class="activity-icon-grid">🧪</div>
+            <div class="activity-content-grid">
+              <div class="activity-id-grid">{{ tc.test_case_id }}</div>
+              <div class="activity-title-grid">{{ tc.test_objective || 'Test Case' }}</div>
+              <div class="activity-meta-grid">
+                <span class="badge-grid">{{ tc.feature || 'N/A' }}</span>
+                <span class="activity-priority-grid">{{ tc.priority || 'N/A' }}</span>
               </div>
             </div>
-          </div>
-          <div class="panel-empty" *ngIf="recentRequirements().length === 0">
-            No requirements yet
           </div>
         </div>
-
-        <!-- Recent Test Cases -->
-        <div class="dashboard-panel">
-          <div class="panel-header">
-            <h2 class="panel-title">Recent Test Cases</h2>
-            <a routerLink="/test-cases" class="panel-link">View all</a>
-          </div>
-          <div class="panel-content" *ngIf="recentTestCases().length > 0">
-            <div *ngFor="let tc of recentTestCases()" class="activity-item" (click)="viewTestCase(tc)">
-              <div class="activity-icon">🧪</div>
-              <div class="activity-content">
-                <div class="activity-id">{{ tc.test_case_id }}</div>
-                <div class="activity-title">{{ tc.test_objective || 'Test Case' }}</div>
-                <div class="activity-meta">
-                  <span class="badge">{{ tc.feature || 'N/A' }}</span>
-                  <span class="activity-priority">{{ tc.priority || 'N/A' }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="panel-empty" *ngIf="recentTestCases().length === 0">
-            No test cases yet
-          </div>
+        <div class="panel-empty-grid" *ngIf="recentTestCases().length === 0">
+          No test cases yet
         </div>
       </div>
     </div>
