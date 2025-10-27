@@ -674,6 +674,8 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       gap: 8px;
       flex-wrap: wrap;
       margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
     }
 
     .global-search-input {
@@ -687,6 +689,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
 
     .filter-dropdown {
       position: relative;
+      z-index: 10;
     }
 
     .filter-btn-blue {
@@ -756,15 +759,15 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
 
     .filter-panel {
       position: absolute;
-      top: 100%;
+      top: calc(100% + 4px);
       left: 0;
       background: white;
       border: 1px solid #ddd;
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       min-width: 300px;
+      max-width: 400px;
       z-index: 1000;
-      margin-top: 4px;
     }
 
     .filter-panel-header {
