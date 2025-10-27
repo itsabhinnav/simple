@@ -96,4 +96,9 @@ export class App implements OnInit {
     this.router.navigate(['/test-cases/create']);
     this.closeCreateMenu();
   }
+
+  isRequirementsOrTestCasesPage(): boolean {
+    const url = window.location.pathname;
+    return url.includes('/requirements') || url.includes('/test-cases');
+  }
 }
