@@ -89,6 +89,32 @@ def initialize_database():
         except:
             pass  # Column already exists
         
+        # Add new columns to requirements table if they don't exist
+        try:
+            cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN given TEXT')
+        except:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN when_action TEXT')
+        except:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN then_result TEXT')
+        except:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN assignee TEXT')
+        except:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute(f'ALTER TABLE {requirements_table} ADD COLUMN tags TEXT')
+        except:
+            pass  # Column already exists
+        
         # Create test_cases table
         print(f"🧪 Creating {test_cases_table} table...")
         cursor.execute(f'''
@@ -127,9 +153,14 @@ def initialize_database():
                 requirement_id TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL,
                 description TEXT,
+                given TEXT,
+                when_action TEXT,
+                then_result TEXT,
                 requirement_type TEXT CHECK(requirement_type IN ('Functional', 'HMI', 'Safety', 'Performance', 'Usability')),
-                priority TEXT CHECK(priority IN ('P1', 'P2', 'P3', 'P4')),
-                status TEXT CHECK(status IN ('Draft', 'Approved', 'Implemented', 'Tested', 'Closed')) DEFAULT 'Draft',
+                priority TEXT CHECK(priority IN ('P1', 'P2', 'P3', 'P4', 'High', 'Medium', 'Low', 'Critical')),
+                status TEXT CHECK(status IN ('Draft', 'Approved', 'Implemented', 'Tested', 'Closed', 'Active', 'In Progress', 'Review', 'Completed', 'Archived')) DEFAULT 'Draft',
+                assignee TEXT,
+                tags TEXT,
                 created_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
