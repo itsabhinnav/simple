@@ -1,0 +1,112 @@
+<div class="detail-container">
+  <!-- Header -->
+  <header class="detail-header">
+    <nav class="breadcrumb">
+      <a routerLink="/" class="breadcrumb-link">
+        <i class="icon-database"></i>
+        Dashboard
+      </a>
+      <span class="breadcrumb-separator">›</span>
+      <a routerLink="/requirements" class="breadcrumb-link">Requirements</a>
+      <span class="breadcrumb-separator">›</span>
+      <span class="breadcrumb-current">{{ requirement()?.requirement_id || 'Detail' }}</span>
+    </nav>
+    <div class="header-actions">
+      <button class="btn-edit" routerLink="/requirements" title="Back">
+        <i class="icon-back"></i>
+        Back
+      </button>
+      <button class="btn-delete" (click)="deleteRequirement()" title="Delete">
+        <i class="icon-delete"></i>
+        Delete
+      </button>
+    </div>
+  </header>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading()" class="loading-container">
+    <div class="spinner"></div>
+    <p>Loading requirement...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error() && !isLoading()" class="error-container">
+    <i class="icon-error"></i>
+    <p>{{ error() }}</p>
+    <button (click)="loadRequirement(requirementId()!)" class="retry-btn">Retry</button>
+  </div>
+
+  <!-- Requirement Detail -->
+  <div *ngIf="requirement() && !isLoading()" class="detail-content">
+    <div class="detail-card">
+      <!-- Card Header -->
+      <div class="card-header">
+        <div class="title-section">
+          <h1 class="detail-title">{{ requirement()?.title }}</h1>
+          <span class="detail-id">{{ requirement()?.requirement_id }}</span>
+        </div>
+        <div class="badges">
+          <span class="priority-badge" [class]="getPriorityClass(requirement()?.priority || '')">
+            {{ requirement()?.priority }}
+          </span>
+          <span class="status-badge" [class]="getStatusClass(requirement()?.status || '')">
+            {{ requirement()?.status }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Card Body -->
+      <div class="card-body">
+        <!-- Description -->
+        <div class="detail-section" *ngIf="requirement()?.description">
+          <h3 class="section-title">Description</h3>
+          <p class="section-content">{{ requirement()?.description }}</p>
+        </div>
+
+        <!-- GIVEN-WHEN-THEN -->
+        <div class="detail-section gwt-section" *ngIf="requirement()?.given || requirement()?.when_action || requirement()?.then_result">
+          <h3 class="section-title">Acceptance Criteria</h3>
+          <div class="gwt-container">
+            <div class="gwt-item" *ngIf="requirement()?.given">
+              <span class="gwt-label">GIVEN</span>
+              <p class="gwt-content">{{ requirement()?.given }}</p>
+            </div>
+            <div class="gwt-item" *ngIf="requirement()?.when_action">
+              <span class="gwt-label">WHEN</span>
+              <p class="gwt-content">{{ requirement()?.when_action }}</p>
+            </div>
+            <div class="gwt-item" *ngIf="requirement()?.then_result">
+              <span class="gwt-label">THEN</span>
+              <p class="gwt-content">{{ requirement()?.then_result }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="detail-meta">
+          <div class="meta-item" *ngIf="requirement()?.requirement_type">
+            <span class="meta-label">Type:</span>
+            <span class="meta-value">{{ requirement()?.requirement_type }}</span>
+          </div>
+          <div class="meta-item" *ngIf="requirement()?.assignee">
+            <span class="meta-label">Assignee:</span>
+            <span class="meta-value">👤 {{ requirement()?.assignee }}</span>
+          </div>
+          <div class="meta-item" *ngIf="requirement()?.tags">
+            <span class="meta-label">Tags:</span>
+            <span class="meta-value">{{ requirement()?.tags }}</span>
+          </div>
+          <div class="meta-item" *ngIf="requirement()?.created_at">
+            <span class="meta-label">Created:</span>
+            <span class="meta-value">{{ requirement()?.created_at }}</span>
+          </div>
+          <div class="meta-item" *ngIf="requirement()?.updated_at">
+            <span class="meta-label">Updated:</span>
+            <span class="meta-value">{{ requirement()?.updated_at }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

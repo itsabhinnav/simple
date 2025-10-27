@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest } from '../services/test-case.service';
 
 @Component({
@@ -219,7 +219,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
 
         <!-- Test Cases Grid -->
         <div *ngIf="filteredTestCases().length > 0" class="requirements-grid">
-          <div *ngFor="let tc of filteredTestCases()" class="requirement-card">
+          <div *ngFor="let tc of filteredTestCases()" class="requirement-card" (click)="navigateToDetail(tc.test_case_id)">
             <div class="card-header">
               <span class="req-id">{{ tc.test_case_id }}</span>
               <span class="priority-badge" [class]="getPriorityClass(tc.priority)">
@@ -236,7 +236,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
               </span>
               <span class="assignee" *ngIf="tc.feature">👤 {{ tc.feature }}</span>
             </div>
-            <div class="card-actions">
+            <div class="card-actions" (click)="$event.stopPropagation()">
               <button class="btn-edit" (click)="openEditModal(tc)" title="Edit">
                 <i class="icon-edit"></i>
               </button>
@@ -1048,6 +1048,7 @@ export class TestCaseManagementComponent implements OnInit {
   private testCaseService = inject(TestCaseService);
   private formBuilder = inject(FormBuilder);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   // Signals for reactive state management
   testCases = signal<TestCase[]>([]);
@@ -1641,6 +1642,10 @@ export class TestCaseManagementComponent implements OnInit {
 
   showDeleteModalSignal(): boolean {
     return this.showDeleteModal();
+  }
+
+  navigateToDetail(id: string | number) {
+    this.router.navigate(['/test-cases', id]);
   }
 
   private markFormGroupTouched() {

@@ -90,7 +90,7 @@
 
     <!-- Requirements Grid -->
     <div *ngIf="filteredRequirements().length > 0" class="requirements-grid">
-      <div *ngFor="let req of filteredRequirements()" class="requirement-card">
+      <div *ngFor="let req of filteredRequirements()" class="requirement-card" (click)="navigateToDetail(req.id!)">
         <div class="card-header">
           <span class="req-id">{{ req.requirement_id }}</span>
           <span class="priority-badge" [class]="getPriorityClass(req.priority)">
@@ -106,7 +106,7 @@
           </span>
           <span class="assignee" *ngIf="req.assignee">👤 {{ req.assignee }}</span>
         </div>
-        <div class="card-actions">
+        <div class="card-actions" (click)="$event.stopPropagation()">
           <button class="btn-edit" (click)="openEditModal(req)" title="Edit">
             <i class="icon-edit"></i>
           </button>

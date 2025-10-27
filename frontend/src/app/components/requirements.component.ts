@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { RequirementService } from '../services/requirement.service';
 
 export interface Requirement {
@@ -58,6 +58,7 @@ export class RequirementsComponent implements OnInit {
   private requirementService = inject(RequirementService);
   private formBuilder = inject(FormBuilder);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   requirements = signal<Requirement[]>([]);
   isLoading = signal(false);
@@ -261,6 +262,10 @@ export class RequirementsComponent implements OnInit {
       .map(req => req.assignee)
       .filter((assignee): assignee is string => assignee !== undefined && assignee !== null && assignee.trim() !== '');
     return [...new Set(assignees)];
+  }
+
+  navigateToDetail(id: number) {
+    this.router.navigate(['/requirements', id]);
   }
 
   private markFormGroupTouched(formGroup: FormGroup) {
