@@ -57,31 +57,31 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
             class="global-search-input"
             [(ngModel)]="searchTerm">
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn-blue" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature')">
+            <button class="filter-btn-blue" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature', $event)">
               feature ▼
               <span class="filter-count" *ngIf="selectedFeatures().length > 0">+{{ selectedFeatures().length }}</span>
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn-blue" [class.active]="showScreenIdFilter()" (click)="toggleFilter('screenId')">
+            <button class="filter-btn-blue" [class.active]="showScreenIdFilter()" (click)="toggleFilter('screenId', $event)">
               Screen ID ▼
               <span class="filter-count" *ngIf="selectedScreenIds().length > 0">+{{ selectedScreenIds().length }}</span>
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn-blue" [class.active]="showTypeFilter()" (click)="toggleFilter('type')">
+            <button class="filter-btn-blue" [class.active]="showTypeFilter()" (click)="toggleFilter('type', $event)">
               test type ▼
               <span class="filter-count" *ngIf="selectedTypes().length > 0">+{{ selectedTypes().length }}</span>
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn-blue" [class.active]="showTestSuiteTypeFilter()" (click)="toggleFilter('testsuiteType')">
+            <button class="filter-btn-blue" [class.active]="showTestSuiteTypeFilter()" (click)="toggleFilter('testsuiteType', $event)">
               TestSuite Type ▼
               <span class="filter-count" *ngIf="selectedTestSuiteTypes().length > 0">+{{ selectedTestSuiteTypes().length }}</span>
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn-blue" [class.active]="showRequirementTypeFilter()" (click)="toggleFilter('requirementType')">
+            <button class="filter-btn-blue" [class.active]="showRequirementTypeFilter()" (click)="toggleFilter('requirementType', $event)">
               Requirement Type ▼
               <span class="filter-count" *ngIf="selectedRequirementTypes().length > 0">+{{ selectedRequirementTypes().length }}</span>
             </button>
@@ -758,16 +758,16 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .filter-panel {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 0;
+      position: fixed;
       background: white;
       border: 1px solid #ddd;
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       min-width: 300px;
       max-width: 400px;
-      z-index: 1000;
+      max-height: 500px;
+      overflow-y: auto;
+      z-index: 1050;
     }
 
     .filter-panel-header {
@@ -1200,11 +1200,24 @@ export class TestCaseManagementComponent implements OnInit {
   }
   
   // Filter management methods
-  toggleFilter(filterType: string) {
+  toggleFilter(filterType: string, event: Event) {
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    
     if (this.activeFilter() === filterType) {
       this.activeFilter.set('');
     } else {
       this.activeFilter.set(filterType);
+      
+      // Position the panel after setting the active filter
+      setTimeout(() => {
+        const activePanel = document.querySelector('.filter-panel');
+        if (activePanel) {
+          const panelEl = activePanel as HTMLElement;
+          panelEl.style.top = `${rect.bottom + 4}px`;
+          panelEl.style.left = `${rect.left}px`;
+        }
+      }, 0);
     }
   }
   
