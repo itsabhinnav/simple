@@ -90,10 +90,10 @@ class GitDatabaseService:
             
             # Copy main database file from remote to local.db
             if self.git_storage.file_exists(f"database/{db_filename}"):
-                # Source: remote/dev/database/sakura_db.db
+                # Source: data/remote/dev/database/sakura_db.db
                 source_path = self.git_storage.local_repo_path / f"database/{db_filename}"
-                # Destination: data/local/local.db (always sync to local.db)
-                dest_path = self.cache_path / "local.db"
+                # Destination: data/local/dev/database/sakura_db.db (always sync to sakura_db.db)
+                dest_path = self.cache_path / "sakura_db.db"
                 
                 # Ensure destination directory exists
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +102,7 @@ class GitDatabaseService:
                 if not dest_path.exists():
                     import shutil
                     shutil.copy2(source_path, dest_path)
-                    logger.info(f"Synced database file: {db_filename} -> local.db")
+                    logger.info(f"Synced database file: {db_filename} -> sakura_db.db")
                 else:
                     # Check if git file is newer than local file
                     import os
@@ -122,17 +122,17 @@ class GitDatabaseService:
             logger.error(f"Failed to sync databases from git: {e}")
     
     def _sync_databases_to_git(self) -> bool:
-        """Sync local.db back to git repository"""
+        """Sync sakura_db.db back to git repository"""
         try:
             # Get database file name from configuration
             db_filename = self.database_name if self.database_name.endswith('.db') else f"{self.database_name}.db"
             
-            # Source: data/local/local.db
-            source_path = self.cache_path / "local.db"
-            # Destination: remote/dev/database/sakura_db.db
+            # Source: data/local/dev/database/sakura_db.db
+            source_path = self.cache_path / "sakura_db.db"
+            # Destination: data/remote/dev/database/sakura_db.db
             dest_path = self.git_storage.local_repo_path / f"database/{db_filename}"
             
-            logger.info(f"Syncing local.db back to git: local.db -> {db_filename}")
+            logger.info(f"Syncing sakura_db.db back to git: sakura_db.db -> {db_filename}")
             logger.info(f"Source path: {source_path}")
             logger.info(f"Destination path: {dest_path}")
             logger.info(f"Source exists: {source_path.exists()}")
@@ -145,7 +145,7 @@ class GitDatabaseService:
                 # Copy file
                 import shutil
                 shutil.copy2(source_path, dest_path)
-                logger.info(f"Synced local.db back to git: {db_filename}")
+                logger.info(f"Synced sakura_db.db back to git: {db_filename}")
                 return True
             else:
                 logger.warning(f"Local database file not found: {source_path}")

@@ -43,7 +43,11 @@ class HybridDatabaseService:
                 logger.error("Failed to initialize remote database")
                 return False
             
-            # Start periodic sync
+            # On startup: fetch remote and copy to local
+            logger.info("Fetching remote database and copying to local...")
+            self._copy_remote_to_local_on_startup()
+            
+            # Start periodic sync (local → remote)
             self.start_periodic_sync()
             
             logger.info("Hybrid database service initialized successfully")
@@ -68,12 +72,49 @@ class HybridDatabaseService:
             self.sync_thread.join(timeout=5)
         logger.info("Periodic sync thread stopped")
     
+    def _copy_remote_to_local_on_startup(self):
+        """Copy remote database to local on startup"""
+        try:
+            logger.info("Fetching latest changes from remote Git repository...")
+            # Fetch from Git
+            self.remote_db.git_storage.clone_or_fetch_repo()
+            
+            # Copy remote database file to local
+            import shutil
+            from pathlib import Path
+            
+            remote_db_path = Path(self.remote_db.git_storage.local_repo_path) / "database" / "sakura_db.db"
+            local_db_path = self.local_db.local_db_path
+            
+            if remote_db_path.exists():
+                if local_db_path.exists():
+                    # Check if remote is newer
+                    remote_mtime = remote_db_path.stat().st_mtime
+                    local_mtime = local_db_path.stat().st_mtime
+                    
+                    if remote_mtime > local_mtime:
+                        logger.info("Remote database is newer, copying to local...")
+                        shutil.copy2(remote_db_path, local_db_path)
+                        logger.info(f"✓ Copied remote database to: {local_db_path}")
+                    else:
+                        logger.info("Local database is up-to-date")
+                else:
+                    logger.info("Local database doesn't exist, copying from remote...")
+                    local_db_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(remote_db_path, local_db_path)
+                    logger.info(f"✓ Copied remote database to: {local_db_path}")
+            else:
+                logger.warning("Remote database file not found, keeping local database")
+                
+        except Exception as e:
+            logger.error(f"Failed to copy remote to local on startup: {e}")
+    
     def _sync_worker(self):
-        """Worker thread for periodic synchronization"""
+        """Worker thread for periodic synchronization (local → remote)"""
         while self.sync_running:
             try:
-                logger.info("Starting periodic sync...")
-                self.sync_remote_to_local()
+                logger.info("Starting periodic sync (local → remote)...")
+                self.sync_local_to_remote()
                 self.last_sync_time = datetime.now()
                 logger.info(f"Periodic sync completed at {self.last_sync_time}")
                 
@@ -84,24 +125,43 @@ class HybridDatabaseService:
                 logger.error(f"Error in periodic sync: {e}")
                 time.sleep(60)  # Wait 1 minute before retrying
     
-    def sync_remote_to_local(self):
-        """Synchronize remote database to local cache"""
+    def sync_local_to_remote(self):
+        """Synchronize local database to remote (periodic sync)"""
         try:
-            logger.info("Syncing remote database to local cache...")
+            logger.info("Syncing local database to remote...")
             
-            # Sync users table
-            self._sync_table_to_cache("users")
+            # Copy local database file to remote location
+            import shutil
+            from pathlib import Path
             
-            # Sync test_cases table
-            self._sync_table_to_cache("test_cases")
+            local_db_path = self.local_db.local_db_path
+            remote_db_path = Path(self.remote_db.git_storage.local_repo_path) / "database" / "sakura_db.db"
             
-            # Sync requirements table
-            self._sync_table_to_cache("requirements")
-            
-            logger.info("Remote to local sync completed")
+            if local_db_path.exists():
+                remote_db_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(local_db_path, remote_db_path)
+                logger.info(f"✓ Copied local database to remote: {remote_db_path}")
+                
+                # Commit to Git
+                git_token = None
+                try:
+                    from flask import g
+                    username = g.get('current_username')
+                    if username:
+                        git_token = self.remote_db.get_user_git_token(username)
+                except:
+                    pass
+                
+                commit_success = self.remote_db.commit_changes("Periodic sync: update from local database", git_token)
+                if commit_success:
+                    logger.info("✓ Changes committed to Git repository")
+                else:
+                    logger.warning("Failed to commit changes to Git")
+            else:
+                logger.warning("Local database file not found")
             
         except Exception as e:
-            logger.error(f"Failed to sync remote to local: {e}")
+            logger.error(f"Failed to sync local to remote: {e}")
     
     def _sync_table_to_cache(self, table_name: str):
         """Sync a specific table from remote to local cache"""
@@ -110,7 +170,7 @@ class HybridDatabaseService:
             query = f"SELECT * FROM {table_name}"
             remote_result = self.remote_db.execute_query(query)
             
-            if remote_result["success"]:
+            if remote_result.get("success"):
                 # Cache the data locally
                 cache_key = f"remote_{table_name}"
                 import json
@@ -158,29 +218,13 @@ class HybridDatabaseService:
             }
     
     def _handle_read_query(self, query: str, database_name: str, use_cache: bool) -> Dict[str, Any]:
-        """Handle read queries with caching strategy"""
+        """Handle read queries - execute on LOCAL database first"""
         try:
-            # Try to get from cache first if enabled
-            if use_cache:
-                cache_key = f"query_{hash(query)}"
-                cached_data = self.local_db.get_cached_data(cache_key)
-                
-                if cached_data:
-                    import json
-                    data = json.loads(cached_data)
-                    logger.debug(f"Returning cached data for query: {query[:50]}...")
-                    return {
-                        "success": True,
-                        "data": data,
-                        "row_count": len(data),
-                        "cached": True
-                    }
+            # Always read from local database
+            result = self.local_db.execute_query(query, database_name)
             
-            # Execute on remote database
-            result = self.remote_db.execute_query(query, database_name)
-            
-            # Cache the result if successful
-            if result["success"] and use_cache:
+            # Cache the result if enabled and successful
+            if result.get("success") and use_cache:
                 cache_key = f"query_{hash(query)}"
                 import json
                 cache_data = json.dumps(result["data"])
@@ -198,36 +242,44 @@ class HybridDatabaseService:
             }
     
     def _handle_write_query(self, query: str, database_name: str, username: str = None) -> Dict[str, Any]:
-        """Handle write queries with immediate sync"""
+        """Handle write queries - execute on LOCAL database first, then sync to remote"""
         try:
-            # Execute on remote database
-            result = self.remote_db.execute_query(query, database_name)
+            # Execute on LOCAL database first
+            result = self.local_db.execute_query(query, database_name)
             
-            # If successful, trigger immediate sync and wait for completion
-            if result["success"]:
-                logger.info("Write operation successful, triggering immediate sync...")
-                self._trigger_immediate_sync_and_wait()
+            # If successful, sync to remote in background and commit to Git
+            if result.get("success"):
+                logger.info("Write operation successful on local database")
                 
-                # Commit changes to git repository with informative message
-                logger.info("Committing changes to git repository...")
+                # Sync to remote in background thread
                 try:
-                    # Generate informative commit message from query
-                    commit_message = self._generate_commit_message(query)
+                    # Copy to remote location
+                    import shutil
+                    from pathlib import Path
                     
-                    # Get user's Git token if username is provided
-                    git_token = None
-                    if username:
-                        git_token = self.remote_db.get_user_git_token(username)
+                    local_db_path = self.local_db.local_db_path
+                    remote_db_path = Path(self.remote_db.git_storage.local_repo_path) / "database" / "sakura_db.db"
                     
-                    commit_success = self.remote_db.commit_changes(commit_message, git_token)
-                    if commit_success:
-                        logger.info(f"Successfully committed changes to git as {username if username else 'system'}")
-                    else:
-                        logger.warning("Failed to commit changes to git")
+                    if local_db_path.exists():
+                        remote_db_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(local_db_path, remote_db_path)
+                        logger.info("✓ Local changes synced to remote")
+                        
+                        # Commit to Git
+                        commit_message = self._generate_commit_message(query)
+                        git_token = None
+                        if username:
+                            git_token = self.remote_db.get_user_git_token(username)
+                        
+                        commit_success = self.remote_db.commit_changes(commit_message, git_token)
+                        if commit_success:
+                            logger.info(f"✓ Changes committed to Git as {username if username else 'system'}")
+                        else:
+                            logger.warning("Failed to commit changes to Git")
                 except Exception as commit_error:
-                    logger.error(f"Error during git commit: {commit_error}")
+                    logger.error(f"Error syncing to remote: {commit_error}")
                 
-                # Clear relevant cache entries to ensure fresh data on next read
+                # Clear relevant cache entries
                 self._clear_relevant_cache(query)
             
             return result
@@ -321,47 +373,6 @@ class HybridDatabaseService:
         except Exception as e:
             logger.error(f"Failed to clear cache: {e}")
     
-    def _trigger_immediate_sync_and_wait(self):
-        """Trigger immediate synchronization and wait for completion"""
-        import threading
-        import time
-
-        sync_completed = threading.Event()
-        sync_error = None
-        
-        def sync_worker():
-            nonlocal sync_error
-            try:
-                self.sync_remote_to_local()
-                logger.info("Immediate sync completed")
-            except Exception as e:
-                logger.error(f"Immediate sync failed: {e}")
-                sync_error = e
-            finally:
-                sync_completed.set()
-        
-        sync_thread = threading.Thread(target=sync_worker, daemon=True)
-        sync_thread.start()
-        
-        # Wait for sync to complete (with timeout)
-        if sync_completed.wait(timeout=30):  # 30 second timeout
-            if sync_error:
-                logger.warning(f"Sync completed with error: {sync_error}")
-        else:
-            logger.warning("Sync timed out after 30 seconds")
-    
-    def _trigger_immediate_sync(self):
-        """Trigger immediate synchronization in a separate thread"""
-        def sync_worker():
-            try:
-                self.sync_remote_to_local()
-                logger.info("Immediate sync completed")
-            except Exception as e:
-                logger.error(f"Immediate sync failed: {e}")
-        
-        sync_thread = threading.Thread(target=sync_worker, daemon=True)
-        sync_thread.start()
-    
     def get_user_data(self, user_id: int) -> Dict[str, Any]:
         """Get user data combining local preferences and remote data"""
         try:
@@ -373,7 +384,7 @@ class HybridDatabaseService:
             remote_result = self.remote_db.execute_query(query)
             
             user_data = {}
-            if remote_result["success"] and remote_result["data"]:
+            if remote_result.get("success") and remote_result.get("data"):
                 user_data = remote_result["data"][0]
             
             # Merge with local preferences
@@ -410,10 +421,10 @@ class HybridDatabaseService:
             }
     
     def force_sync(self) -> bool:
-        """Force immediate synchronization"""
+        """Force immediate synchronization (local → remote)"""
         try:
             logger.info("Forcing immediate synchronization...")
-            self.sync_remote_to_local()
+            self.sync_local_to_remote()
             self.last_sync_time = datetime.now()
             logger.info("Force sync completed successfully")
             return True
@@ -429,9 +440,9 @@ class HybridDatabaseService:
                 "DELETE FROM local_cache WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP"
             )
             
-            if result["success"]:
-                logger.info(f"Cleaned up {result['row_count']} expired cache entries")
-                return result["row_count"]
+            if result.get("success"):
+                logger.info(f"Cleaned up {result.get('row_count', 0)} expired cache entries")
+                return result.get("row_count", 0)
             
             return 0
             

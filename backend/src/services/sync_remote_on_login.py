@@ -88,18 +88,18 @@ def sync_remote_database(username: str, git_token: str, repo_url: str, local_rep
         if result.returncode == 0:
             logger.info("✓ Remote database synced successfully")
             
-            # Copy database files from remote to local.db
+            # Copy database files from remote to sakura_db.db
             db_files = list(local_repo.glob("database/*.db"))
             # Resolve path relative to backend directory to avoid nested data folders
             backend_dir = Path(__file__).parent.parent.parent
-            local_db_path = backend_dir / "data" / "local"
+            local_db_path = backend_dir / "data" / "local" / "dev" / "database"
             local_db_path.mkdir(parents=True, exist_ok=True)
             
             for db_file in db_files:
-                # Always sync to local.db
-                dest = local_db_path / "local.db"
+                # Always sync to sakura_db.db
+                dest = local_db_path / "sakura_db.db"
                 shutil.copy2(db_file, dest)
-                logger.info(f"Synced: {db_file.name} -> local.db")
+                logger.info(f"Synced: {db_file.name} -> sakura_db.db")
             
             return True
         else:
@@ -119,7 +119,7 @@ def get_user_git_token_from_db(username: str) -> Optional[str]:
         
         # Resolve path relative to backend directory to avoid nested data folders
         backend_dir = Path(__file__).parent.parent.parent
-        db_path = backend_dir / "data" / "local" / "local.db"
+        db_path = backend_dir / "data" / "local" / "dev" / "database" / "sakura_db.db"
         if not db_path.exists():
             logger.warning("Database not found")
             return None
@@ -163,7 +163,7 @@ def should_sync_remote(username: str) -> bool:
         # Check if local database exists and has data
         # Resolve path relative to backend directory to avoid nested data folders
         backend_dir = Path(__file__).parent.parent.parent
-        db_path = backend_dir / "data" / "local" / "local.db"
+        db_path = backend_dir / "data" / "local" / "dev" / "database" / "sakura_db.db"
         if db_path.exists():
             import sqlite3
             conn = sqlite3.connect(str(db_path))

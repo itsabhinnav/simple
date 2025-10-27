@@ -112,6 +112,75 @@ def register_legacy_routes(app: Flask) -> None:
             "version": "1.0.0"
         }
     
+    @app.route('/api/all/')
+    def get_all_data():
+        """Get all data from all tables."""
+        try:
+            import sqlite3
+            from pathlib import Path
+            
+            # Get database path from configuration
+            from src.infrastructure.configuration_manager import get_config_manager
+            config_manager = get_config_manager()
+            local_db_path = config_manager.get_config("database.local_db_path", "data/local/dev/database/local.db")
+            
+            # Resolve path relative to backend directory
+            backend_dir = Path(__file__).parent
+            db_path = backend_dir / local_db_path
+            
+            if not db_path.exists():
+                return {
+                    "success": False,
+                    "error": "Database not found",
+                    "path": str(db_path)
+                }, 404
+            
+            # Connect to database
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            try:
+                # Get all table names
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [t[0] for t in cursor.fetchall() if t[0] != 'sqlite_sequence']
+                
+                all_data = {}
+                
+                for table in tables:
+                    # Get all rows from the table
+                    cursor.execute(f"SELECT * FROM {table}")
+                    rows = cursor.fetchall()
+                    
+                    # Convert rows to dictionaries
+                    table_data = []
+                    for row in rows:
+                        table_data.append(dict(row))
+                    
+                    all_data[table] = {
+                        "count": len(table_data),
+                        "data": table_data
+                    }
+                
+                return {
+                    "success": True,
+                    "message": "All data retrieved successfully",
+                    "database": str(db_path.name),
+                    "tables": all_data,
+                    "total_tables": len(tables),
+                    "total_rows": sum(data["count"] for data in all_data.values())
+                }
+                
+            finally:
+                conn.close()
+                
+        except Exception as e:
+            logger.error(f"Failed to get all data: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }, 500
+    
     @app.route('/api/databases')
     def list_databases():
         """List available databases (legacy endpoint)."""

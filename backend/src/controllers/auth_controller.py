@@ -65,47 +65,77 @@ class AuthController:
             user_dict.pop('git_token', None)  # Remove plain git token
             
             # Manually insert the user since we need password_hash
-            import sqlite3
-            from datetime import datetime
+            # Use the local database service to ensure user is created in the correct database
+            from src.infrastructure.dependency_injection import get_local_database_service
+            local_database_service = get_local_database_service()
+            database_service = local_database_service
             
-            database_service = self.user_service.user_repository.database_service
+            # Use parameterized query to prevent SQL injection
+            # For SQLite databases, we need to use execute_query with proper parameters
+            # Since the database_service might not support parameterized queries directly,
+            # we'll escape the values to prevent SQL injection
+            import re
             
-            # Build query with git_token_encrypted (required)
+            def escape_sql_string(value):
+                """Escape SQL string to prevent injection"""
+                if value is None:
+                    return "''"
+                # Escape single quotes by doubling them
+                escaped = str(value).replace("'", "''")
+                return f"'{escaped}'"
+            
+            username = escape_sql_string(user_dict['username'])
+            email = escape_sql_string(user_dict['email'])
+            first_name = escape_sql_string(user_dict.get('first_name', ''))
+            last_name = escape_sql_string(user_dict.get('last_name', ''))
+            role = escape_sql_string(user_dict.get('role', 'user'))
+            
+            # Build query with escaped values to prevent SQL injection
             query = f"""
                 INSERT INTO users (username, email, password_hash, secret_key_hash, git_token_encrypted, first_name, last_name, role)
-                VALUES ('{user_dict['username']}', '{user_dict['email']}', '{password_hash}', '{secret_key_hash}', 
-                        '{git_token_encrypted}', '{user_dict.get('first_name', '')}', '{user_dict.get('last_name', '')}', 
-                        '{user_dict.get('role', 'user')}')
+                VALUES ({username}, {email}, {escape_sql_string(password_hash)}, {escape_sql_string(secret_key_hash)}, 
+                        {escape_sql_string(git_token_encrypted)}, {first_name}, {last_name}, {role})
             """
             
+            logger.info(f"Executing signup query for user: {user_data.username}")
             result = database_service.execute_query(query, "default")
             
-            if not result.get("success"):
-                raise Exception(result.get('error', 'Failed to create user'))
+            # Check if query was successful
+            if result.get("success") is False:
+                error_msg = result.get('error', 'Failed to create user')
+                logger.error(f"Failed to create user: {error_msg}")
+                raise Exception(error_msg)
             
-            # Fetch the created user
-            user = self.user_service.user_repository.find_by_username(user_dict['username'])
+            logger.info(f"Query executed successfully, row_id: {result.get('lastrowid')}")
             
-            if user:
-                # Generate JWT token
-                token = self._generate_token(user['id'], user['username'])
-                
-                # After creating user, trigger initial sync if remote has data
-                self._sync_remote_if_needed(user['username'], git_token_encrypted)
-                
-                return jsonify({
-                    "success": True,
-                    "message": "User created successfully",
-                    "data": {
-                        "user": self._sanitize_user(user),
-                        "token": token
-                    }
-                }), 201
-            else:
-                return jsonify({
-                    "success": False,
-                    "error": "Failed to create user"
-                }), 500
+            # Fetch the created user using the same database service to ensure consistency
+            escaped_username = user_dict['username'].replace("'", "''")
+            fetch_query = f"SELECT * FROM users WHERE username = '{escaped_username}'"
+            logger.info(f"Fetching user with query: {fetch_query}")
+            fetch_result = database_service.execute_query(fetch_query, "default")
+            logger.info(f"Fetch result: success={fetch_result.get('success')}, data_count={len(fetch_result.get('data', []))}")
+            
+            if not fetch_result.get("success") or not fetch_result.get("data"):
+                logger.error(f"Failed to fetch created user: {user_data.username}")
+                logger.error(f"Fetch result details: {fetch_result}")
+                raise Exception("Failed to fetch created user")
+            
+            user = fetch_result['data'][0]
+            
+            # Generate JWT token
+            token = self._generate_token(user['id'], user['username'])
+            
+            # After creating user, trigger initial sync if remote has data
+            self._sync_remote_if_needed(user['username'], git_token_encrypted)
+            
+            return jsonify({
+                "success": True,
+                "message": "User created successfully",
+                "data": {
+                    "user": self._sanitize_user(user),
+                    "token": token
+                }
+            }), 201
             
         except ValueError as e:
             return jsonify({
@@ -334,12 +364,26 @@ class AuthController:
             password_hash = generate_password_hash(new_password)
             
             # Update the password
-            import sqlite3
-            database_service = self.user_service.user_repository.database_service
+            # Escape username to prevent SQL injection
+            def escape_sql_string(value):
+                """Escape SQL string to prevent injection"""
+                if value is None:
+                    return "''"
+                escaped = str(value).replace("'", "''")
+                return f"'{escaped}'"
+            
+            # Use local database service for password updates
+            from src.infrastructure.dependency_injection import get_local_database_service
+            local_database_service = get_local_database_service()
+            database_service = local_database_service
+            
+            escaped_username = escape_sql_string(username)
+            escaped_password_hash = escape_sql_string(password_hash)
+            
             query = f"""
                 UPDATE users 
-                SET password_hash = '{password_hash}', updated_at = CURRENT_TIMESTAMP
-                WHERE username = '{username}'
+                SET password_hash = {escaped_password_hash}, updated_at = CURRENT_TIMESTAMP
+                WHERE username = {escaped_username}
             """
             
             result = database_service.execute_query(query, "default")
@@ -376,7 +420,7 @@ class AuthController:
             
             config = get_config_manager()
             repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura")
-            local_repo_path = config.get_config("storage.local_repo_path", "remote/dev")
+            local_repo_path = config.get_config("storage.local_repo_path", "data/remote/dev")
             
             # Trigger sync in background thread
             import threading

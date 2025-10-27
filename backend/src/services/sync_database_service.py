@@ -185,10 +185,10 @@ class SyncDatabaseService:
             # Create local directory
             # Resolve path relative to backend directory to avoid nested data folders
             backend_dir = Path(__file__).parent.parent.parent
-            local_dir = backend_dir / "data" / "local"
+            local_dir = backend_dir / "data" / "local" / "dev" / "database"
             local_dir.mkdir(parents=True, exist_ok=True)
             
-            local_path = local_dir / "local.db"
+            local_path = local_dir / "sakura_db.db"
             
             # Download from mock server
             response = requests.get(

@@ -64,6 +64,7 @@ def initialize_database():
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 secret_key_hash TEXT,
+                git_token_encrypted TEXT,
                 first_name TEXT,
                 last_name TEXT,
                 role TEXT DEFAULT 'user',
@@ -80,6 +81,11 @@ def initialize_database():
         
         try:
             cursor.execute(f'ALTER TABLE {users_table} ADD COLUMN secret_key_hash TEXT')
+        except:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute(f'ALTER TABLE {users_table} ADD COLUMN git_token_encrypted TEXT')
         except:
             pass  # Column already exists
         

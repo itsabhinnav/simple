@@ -61,8 +61,8 @@ def main():
     # Resolve paths relative to backend directory
     backend_dir = Path(__file__).parent.parent.parent
     databases = [
-        backend_dir / "data" / "local" / "local.db",
-        backend_dir / "remote" / "dev" / "database" / "sakura_db.db"
+        backend_dir / "data" / "local" / "dev" / "database" / "local.db",
+        backend_dir / "data" / "remote" / "dev" / "database" / "sakura_db.db"
     ]
     
     for db_path in databases:

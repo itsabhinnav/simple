@@ -15,7 +15,7 @@ class LocalDatabaseService:
         self.config_manager = get_config_manager()
         
         # Get configuration values
-        self.local_db_path = Path(self.config_manager.get_config("database.local_db_path", "data/local/local.db"))
+        self.local_db_path = Path(self.config_manager.get_config("database.local_db_path", "data/local/dev/database/local.db"))
         
         # Ensure directory exists
         self.local_db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -41,6 +41,74 @@ class LocalDatabaseService:
         """Ensure required local database tables exist"""
         try:
             logger.info("Ensuring local database tables exist...")
+            
+            # Get table names from configuration
+            users_table = self.config_manager.get_table_name("users")
+            test_cases_table = self.config_manager.get_table_name("test_cases")
+            requirements_table = self.config_manager.get_table_name("requirements")
+            
+            # Create users table
+            create_users_table = f"""
+                CREATE TABLE IF NOT EXISTS {users_table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
+                    secret_key_hash TEXT,
+                    git_token_encrypted TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    role TEXT DEFAULT 'user',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            
+            # Create test_cases table
+            create_test_cases_table = f"""
+                CREATE TABLE IF NOT EXISTS {test_cases_table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    test_case_id TEXT UNIQUE NOT NULL,
+                    requirement_id TEXT,
+                    test_name TEXT NOT NULL,
+                    feature TEXT,
+                    test_type TEXT,
+                    description TEXT,
+                    preconditions TEXT,
+                    test_steps TEXT,
+                    expected_result TEXT,
+                    test_category TEXT,
+                    test_level TEXT,
+                    test_environment TEXT,
+                    test_data TEXT,
+                    test_priority TEXT,
+                    test_status TEXT,
+                    test_execution_type TEXT,
+                    test_automation_status TEXT,
+                    test_priority_level TEXT,
+                    test_suite TEXT,
+                    created_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            
+            # Create requirements table
+            create_requirements_table = f"""
+                CREATE TABLE IF NOT EXISTS {requirements_table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    requirement_id TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    requirement_type TEXT CHECK(requirement_type IN ('Functional', 'HMI', 'Safety', 'Performance', 'Usability')),
+                    priority TEXT CHECK(priority IN ('P1', 'P2', 'P3', 'P4')),
+                    status TEXT CHECK(status IN ('Draft', 'Approved', 'Implemented', 'Tested', 'Closed')) DEFAULT 'Draft',
+                    created_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    version TEXT DEFAULT '1.0'
+                )
+            """
             
             # Create user preferences table
             create_user_preferences_table = """
@@ -93,10 +161,13 @@ class LocalDatabaseService:
             """
             
             # Execute table creation queries
-            self.execute_query(create_user_preferences_table)
-            self.execute_query(create_user_sessions_table)
-            self.execute_query(create_local_cache_table)
-            self.execute_query(create_sync_status_table)
+            self.execute_query(create_users_table, "default")
+            self.execute_query(create_test_cases_table, "default")
+            self.execute_query(create_requirements_table, "default")
+            self.execute_query(create_user_preferences_table, "default")
+            self.execute_query(create_user_sessions_table, "default")
+            self.execute_query(create_local_cache_table, "default")
+            self.execute_query(create_sync_status_table, "default")
             
             logger.info("Local database tables ensured successfully")
             return True
@@ -105,15 +176,22 @@ class LocalDatabaseService:
             logger.error(f"Failed to ensure local tables exist: {e}")
             return False
     
-    def execute_query(self, query: str, params: tuple = ()) -> Dict[str, Any]:
-        """Execute a query on the local database"""
+    def execute_query(self, query: str, database_name: str = "default", **kwargs) -> Dict[str, Any]:
+        """Execute a query on the local database
+        
+        Args:
+            query: SQL query string
+            database_name: Database name (ignored for local service)
+            **kwargs: Additional parameters for compatibility
+        """
         try:
             conn = sqlite3.connect(str(self.local_db_path))
             conn.row_factory = sqlite3.Row  # Enable column access by name
             cursor = conn.cursor()
             
             try:
-                cursor.execute(query, params)
+                # Execute the query directly (no parameterized queries for raw SQL from auth controller)
+                cursor.execute(query)
                 
                 # Determine if this is a SELECT query
                 if query.strip().upper().startswith('SELECT'):
@@ -145,9 +223,49 @@ class LocalDatabaseService:
                 "data": []
             }
     
+    def _execute_query_with_params(self, query: str, params: tuple = ()) -> Dict[str, Any]:
+        """Execute a query with parameters"""
+        try:
+            conn = sqlite3.connect(str(self.local_db_path))
+            conn.row_factory = sqlite3.Row  # Enable column access by name
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute(query, params)
+                
+                # Determine if this is a SELECT query
+                if query.strip().upper().startswith('SELECT'):
+                    rows = cursor.fetchall()
+                    data = [dict(row) for row in rows]
+                    return {
+                        "success": True,
+                        "data": data,
+                        "row_count": len(data)
+                    }
+                else:
+                    # For INSERT, UPDATE, DELETE
+                    conn.commit()
+                    return {
+                        "success": True,
+                        "row_count": cursor.rowcount,
+                        "lastrowid": cursor.lastrowid
+                    }
+                    
+            finally:
+                cursor.close()
+                conn.close()
+                
+        except Exception as e:
+            logger.error(f"Local database query with params failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": []
+            }
+    
     def get_user_preference(self, user_id: int, preference_key: str) -> Optional[str]:
         """Get a user preference value"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             "SELECT preference_value FROM user_preferences WHERE user_id = ? AND preference_key = ?",
             (user_id, preference_key)
         )
@@ -158,7 +276,7 @@ class LocalDatabaseService:
     
     def set_user_preference(self, user_id: int, preference_key: str, preference_value: str) -> bool:
         """Set a user preference value"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             """INSERT OR REPLACE INTO user_preferences (user_id, preference_key, preference_value, updated_at)
                VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
             (user_id, preference_key, preference_value)
@@ -167,7 +285,7 @@ class LocalDatabaseService:
     
     def get_user_preferences(self, user_id: int) -> Dict[str, str]:
         """Get all user preferences"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             "SELECT preference_key, preference_value FROM user_preferences WHERE user_id = ?",
             (user_id,)
         )
@@ -178,7 +296,7 @@ class LocalDatabaseService:
     
     def cache_data(self, cache_key: str, data: str, expires_at: Optional[str] = None) -> bool:
         """Cache data locally"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             """INSERT OR REPLACE INTO local_cache (cache_key, cache_data, expires_at, last_synced)
                VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
             (cache_key, data, expires_at)
@@ -187,7 +305,7 @@ class LocalDatabaseService:
     
     def get_cached_data(self, cache_key: str) -> Optional[str]:
         """Get cached data"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             "SELECT cache_data FROM local_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)",
             (cache_key,)
         )
@@ -198,7 +316,7 @@ class LocalDatabaseService:
     
     def update_sync_status(self, table_name: str, status: str, error_message: str = None) -> bool:
         """Update sync status for a table"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             """INSERT OR REPLACE INTO sync_status (table_name, sync_status, error_message, last_sync_time, updated_at)
                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
             (table_name, status, error_message)
@@ -207,7 +325,7 @@ class LocalDatabaseService:
     
     def get_sync_status(self, table_name: str) -> Optional[Dict[str, Any]]:
         """Get sync status for a table"""
-        result = self.execute_query(
+        result = self._execute_query_with_params(
             "SELECT * FROM sync_status WHERE table_name = ?",
             (table_name,)
         )

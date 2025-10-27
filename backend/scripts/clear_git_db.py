@@ -8,8 +8,8 @@ This script deletes all data from the remote database and prepares it for commit
 import sqlite3
 from pathlib import Path
 
-# Path to the git-tracked database
-db_path = Path("backend/remote/dev/database/sakura_db.db")
+# Path to the remote database  
+db_path = Path("backend/data/remote/dev/database/sakura_db.db")
 
 if not db_path.exists():
     print(f"❌ Database not found at {db_path}!")

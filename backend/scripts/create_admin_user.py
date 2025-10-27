@@ -16,7 +16,7 @@ def create_admin_user():
     
     # Resolve path relative to script location
     backend_dir = Path(__file__).parent.parent
-    db_path = backend_dir / "data" / "local" / "local.db"
+    db_path = backend_dir / "data" / "local" / "dev" / "database" / "local.db"
     
     if not db_path.exists():
         print(f"Database not found at {db_path}. Please run the application first to initialize the database.")

@@ -10,8 +10,8 @@ from pathlib import Path
 
 # Resolve paths relative to backend directory
 backend_dir = Path(__file__).parent.parent
-local_db = backend_dir / "data" / "local" / "local.db"
-remote_db = backend_dir / "remote" / "dev" / "database" / "sakura_db.db"
+local_db = backend_dir / "data" / "local" / "dev" / "database" / "local.db"
+remote_db = backend_dir / "data" / "remote" / "dev" / "database" / "sakura_db.db"
 
 def clear_database(db_path, db_name):
     """Clear all data from all tables"""
