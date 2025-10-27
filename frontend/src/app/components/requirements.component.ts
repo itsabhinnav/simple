@@ -90,16 +90,6 @@ export class RequirementsComponent implements OnInit {
 
   ngOnInit() {
     this.loadRequirements();
-    
-    // Check for create query parameter and auto-open modal
-    this.route.queryParams.subscribe(params => {
-      if (params['create'] === 'true') {
-        // Small delay to ensure page is loaded
-        setTimeout(() => {
-          this.openCreateModal();
-        }, 100);
-      }
-    });
   }
 
   loadRequirements() {

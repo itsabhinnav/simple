@@ -28,7 +28,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
         </div>
         <button 
           class="add-btn" 
-          (click)="openCreateModal()"
+          routerLink="/test-cases/create"
           [disabled]="isLoading()">
           <i class="icon-plus"></i>
           Add New Test Case
@@ -827,16 +827,6 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
-    
-    // Check for create query parameter and auto-open modal
-    this.route.queryParams.subscribe(params => {
-      if (params['create'] === 'true') {
-        // Small delay to ensure page is loaded
-        setTimeout(() => {
-          this.openCreateModal();
-        }, 100);
-      }
-    });
   }
 
   loadTestCases() {

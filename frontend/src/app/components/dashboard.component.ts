@@ -108,11 +108,11 @@ export class DashboardComponent implements OnInit {
   }
 
   createRequirement() {
-    this.router.navigate(['/requirements'], { queryParams: { create: 'true' } });
+    this.router.navigate(['/requirements/create']);
   }
 
   createTestCase() {
-    this.router.navigate(['/test-cases'], { queryParams: { create: 'true' } });
+    this.router.navigate(['/test-cases/create']);
   }
 
 
