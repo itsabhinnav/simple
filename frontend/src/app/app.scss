@@ -373,11 +373,11 @@
     font-size: 13px;
     
     span {
-      display: none;
+      display: inline;
     }
     
     .action-icon {
-      margin: 0;
+      margin-right: 5px;
     }
   }
 }
