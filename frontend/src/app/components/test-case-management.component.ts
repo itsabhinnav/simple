@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest } from '../services/test-case.service';
 
 @Component({
@@ -773,6 +773,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
 export class TestCaseManagementComponent implements OnInit {
   private testCaseService = inject(TestCaseService);
   private formBuilder = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
 
   // Signals for reactive state management
   testCases = signal<TestCase[]>([]);
@@ -826,6 +827,16 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
+    
+    // Check for create query parameter and auto-open modal
+    this.route.queryParams.subscribe(params => {
+      if (params['create'] === 'true') {
+        // Small delay to ensure page is loaded
+        setTimeout(() => {
+          this.openCreateModal();
+        }, 100);
+      }
+    });
   }
 
   loadTestCases() {

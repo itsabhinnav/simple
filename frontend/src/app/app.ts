@@ -88,12 +88,12 @@ export class App implements OnInit {
   }
 
   createRequirement() {
-    this.router.navigate(['/requirements']);
+    this.router.navigate(['/requirements'], { queryParams: { create: 'true' } });
     this.closeCreateMenu();
   }
 
   createTestCase() {
-    this.router.navigate(['/test-cases']);
+    this.router.navigate(['/test-cases'], { queryParams: { create: 'true' } });
     this.closeCreateMenu();
   }
 }

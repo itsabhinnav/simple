@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { RequirementService } from '../services/requirement.service';
 
 export interface Requirement {
@@ -56,6 +56,7 @@ export interface RequirementUpdateRequest {
 export class RequirementsComponent implements OnInit {
   private requirementService = inject(RequirementService);
   private formBuilder = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
 
   requirements = signal<Requirement[]>([]);
   isLoading = signal(false);
@@ -89,6 +90,16 @@ export class RequirementsComponent implements OnInit {
 
   ngOnInit() {
     this.loadRequirements();
+    
+    // Check for create query parameter and auto-open modal
+    this.route.queryParams.subscribe(params => {
+      if (params['create'] === 'true') {
+        // Small delay to ensure page is loaded
+        setTimeout(() => {
+          this.openCreateModal();
+        }, 100);
+      }
+    });
   }
 
   loadRequirements() {
