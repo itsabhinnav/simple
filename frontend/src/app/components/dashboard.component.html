@@ -208,44 +208,109 @@
   <!-- Dashboard Section (shown after login) -->
   <section class="dashboard-section" *ngIf="isAuthenticated()">
     <div class="dashboard-container">
-      <!-- Summary Statistics -->
-      <div class="stats-container">
-        <div class="stat-card">
-          <div class="stat-icon">📋</div>
-          <div class="stat-content">
-            <div class="stat-count">{{ requirementsCount() }}</div>
-            <div class="stat-label">Requirements</div>
+      <!-- Interactive Dashboard Stats -->
+      <div class="dashboard-stats-grid">
+        <div class="stat-tile">
+          <div class="stat-header">
+            <span class="stat-icon-large">📋</span>
+            <h3 class="stat-title">Requirements</h3>
           </div>
+          <div class="stat-value">{{ requirementsCount() }}</div>
+          <a routerLink="/requirements" class="stat-link">View all →</a>
         </div>
         
-        <div class="stat-card">
-          <div class="stat-icon">🧪</div>
-          <div class="stat-content">
-            <div class="stat-count">{{ testCasesCount() }}</div>
-            <div class="stat-label">Test Cases</div>
+        <div class="stat-tile">
+          <div class="stat-header">
+            <span class="stat-icon-large">🧪</span>
+            <h3 class="stat-title">Test Cases</h3>
+          </div>
+          <div class="stat-value">{{ testCasesCount() }}</div>
+          <a routerLink="/test-cases" class="stat-link">View all →</a>
+        </div>
+        
+        <div class="stat-tile" *ngIf="isAdmin()">
+          <div class="stat-header">
+            <span class="stat-icon-large">👥</span>
+            <h3 class="stat-title">Users</h3>
+          </div>
+          <div class="stat-value">Active</div>
+          <a routerLink="/users" class="stat-link">Manage →</a>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="dashboard-sections">
+        <!-- Recent Requirements -->
+        <div class="dashboard-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Recent Requirements</h2>
+            <a routerLink="/requirements" class="panel-link">View all</a>
+          </div>
+          <div class="panel-content" *ngIf="recentRequirements().length > 0">
+            <div *ngFor="let req of recentRequirements()" class="activity-item" (click)="viewRequirement(req)">
+              <div class="activity-icon">📋</div>
+              <div class="activity-content">
+                <div class="activity-id">{{ req.requirement_id }}</div>
+                <div class="activity-title">{{ req.title }}</div>
+                <div class="activity-meta">
+                  <span class="badge" [class.badge-high]="req.priority === 'high'" 
+                                             [class.badge-medium]="req.priority === 'medium'"
+                                             [class.badge-low]="req.priority === 'low'">
+                    {{ req.priority }}
+                  </span>
+                  <span class="activity-status">{{ req.status }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-empty" *ngIf="recentRequirements().length === 0">
+            No requirements yet
+          </div>
+        </div>
+
+        <!-- Recent Test Cases -->
+        <div class="dashboard-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Recent Test Cases</h2>
+            <a routerLink="/test-cases" class="panel-link">View all</a>
+          </div>
+          <div class="panel-content" *ngIf="recentTestCases().length > 0">
+            <div *ngFor="let tc of recentTestCases()" class="activity-item" (click)="viewTestCase(tc)">
+              <div class="activity-icon">🧪</div>
+              <div class="activity-content">
+                <div class="activity-id">{{ tc.test_case_id }}</div>
+                <div class="activity-title">{{ tc.test_objective || 'Test Case' }}</div>
+                <div class="activity-meta">
+                  <span class="badge">{{ tc.feature || 'N/A' }}</span>
+                  <span class="activity-priority">{{ tc.priority || 'N/A' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-empty" *ngIf="recentTestCases().length === 0">
+            No test cases yet
           </div>
         </div>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="dashboard-actions">
-        <a routerLink="/requirements" class="dashboard-card">
-          <div class="card-icon">📋</div>
-          <h3>Requirements</h3>
-          <p>Create and manage requirements</p>
-        </a>
-        
-        <a routerLink="/users" class="dashboard-card" *ngIf="isAdmin()">
-          <div class="card-icon">👥</div>
-          <h3>User Management</h3>
-          <p>Manage users and permissions</p>
-        </a>
-        
-        <a routerLink="/test-cases" class="dashboard-card">
-          <div class="card-icon">🧪</div>
-          <h3>Test Cases</h3>
-          <p>Manage test cases</p>
-        </a>
+      <!-- Quick Actions Bar -->
+      <div class="quick-actions-bar">
+        <button class="action-btn" (click)="createRequirement()">
+          <span class="action-icon">+</span>
+          <span>New Requirement</span>
+        </button>
+        <button class="action-btn" (click)="createTestCase()">
+          <span class="action-icon">+</span>
+          <span>New Test Case</span>
+        </button>
+        <button class="action-btn secondary" routerLink="/requirements">
+          <span>📋</span>
+          <span>All Requirements</span>
+        </button>
+        <button class="action-btn secondary" routerLink="/test-cases">
+          <span>🧪</span>
+          <span>All Test Cases</span>
+        </button>
       </div>
     </div>
   </section>

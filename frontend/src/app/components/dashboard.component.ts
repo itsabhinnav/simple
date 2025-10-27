@@ -32,6 +32,10 @@ export class DashboardComponent implements OnInit {
   requirementsCount = signal(0);
   testCasesCount = signal(0);
   isLoadingStats = signal(false);
+  
+  // Recent items
+  recentRequirements = signal<Requirement[]>([]);
+  recentTestCases = signal<TestCase[]>([]);
 
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -72,6 +76,9 @@ export class DashboardComponent implements OnInit {
     this.requirementService.getRequirements().subscribe({
       next: (requirements) => {
         this.requirementsCount.set(requirements.length);
+        // Get recent requirements (last 5)
+        const recent = requirements.slice(0, 5);
+        this.recentRequirements.set(recent);
       },
       error: () => this.requirementsCount.set(0)
     });
@@ -80,6 +87,9 @@ export class DashboardComponent implements OnInit {
     this.testCaseService.getTestCases().subscribe({
       next: (testCases) => {
         this.testCasesCount.set(testCases.length);
+        // Get recent test cases (last 5)
+        const recent = testCases.slice(0, 5);
+        this.recentTestCases.set(recent);
         this.isLoadingStats.set(false);
       },
       error: () => {
@@ -87,6 +97,22 @@ export class DashboardComponent implements OnInit {
         this.isLoadingStats.set(false);
       }
     });
+  }
+
+  viewRequirement(req: Requirement) {
+    this.router.navigate(['/requirements']);
+  }
+
+  viewTestCase(tc: TestCase) {
+    this.router.navigate(['/test-cases']);
+  }
+
+  createRequirement() {
+    this.router.navigate(['/requirements']);
+  }
+
+  createTestCase() {
+    this.router.navigate(['/test-cases']);
   }
 
 
