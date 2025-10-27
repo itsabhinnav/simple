@@ -122,7 +122,9 @@ class RequirementService(IRequirementService):
             
             for key, value in req_dict.items():
                 if value is not None:
-                    updates.append(f"{key} = '{value}'")
+                    # Escape single quotes in string values
+                    val = str(value).replace("'", "''") if isinstance(value, str) else value
+                    updates.append(f"{key} = '{val}'")
             
             if not updates:
                 return None
