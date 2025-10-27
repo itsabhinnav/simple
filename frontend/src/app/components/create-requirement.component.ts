@@ -18,6 +18,16 @@ import { RequirementCreateRequest } from './requirements.component';
         <h1>Create New Requirement</h1>
       </div>
 
+      <!-- Error Message -->
+      <div *ngIf="errorMessage()" class="alert alert-error">
+        <strong>Error:</strong> {{ errorMessage() }}
+      </div>
+
+      <!-- Success Message -->
+      <div *ngIf="successMessage()" class="alert alert-success">
+        <strong>Success:</strong> {{ successMessage() }}
+      </div>
+
       <div class="form-container">
         <form [formGroup]="requirementForm" (ngSubmit)="onSubmit()" class="create-form">
           <div class="form-section">
@@ -336,6 +346,43 @@ import { RequirementCreateRequest } from './requirements.component';
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    .alert {
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    .alert-error {
+      background-color: #ffebee;
+      border: 1px solid #e57373;
+      color: #c62828;
+    }
+
+    .alert-success {
+      background-color: #e8f5e9;
+      border: 1px solid #81c784;
+      color: #2e7d32;
+    }
+
+    .alert strong {
+      font-weight: 600;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   `]
 })
 export class CreateRequirementComponent implements OnInit {
@@ -345,6 +392,8 @@ export class CreateRequirementComponent implements OnInit {
 
   isSubmitting = signal(false);
   requirementForm: FormGroup;
+  errorMessage = signal<string | null>(null);
+  successMessage = signal<string | null>(null);
 
   constructor() {
     this.requirementForm = this.formBuilder.group({
@@ -365,10 +414,13 @@ export class CreateRequirementComponent implements OnInit {
 
   onSubmit() {
     if (this.requirementForm.invalid) {
+      this.errorMessage.set('Please fill in all required fields.');
       return;
     }
 
     this.isSubmitting.set(true);
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
     
     const formValue = this.requirementForm.value;
     const createRequest: RequirementCreateRequest = {
@@ -384,15 +436,26 @@ export class CreateRequirementComponent implements OnInit {
       tags: formValue.tags
     };
 
+    console.log('Creating requirement with data:', createRequest);
+
     this.requirementService.createRequirement(createRequest).subscribe({
       next: (requirement) => {
+        console.log('Requirement created successfully:', requirement);
         this.isSubmitting.set(false);
-        this.router.navigate(['/requirements']);
+        this.successMessage.set('Requirement created successfully!');
+        setTimeout(() => {
+          this.router.navigate(['/requirements']);
+        }, 1500);
       },
       error: (err) => {
         this.isSubmitting.set(false);
         console.error('Error creating requirement:', err);
-        alert('Failed to create requirement. Please try again.');
+        
+        const errorMsg = err?.error?.message || err?.error?.error || err?.message || 'Failed to create requirement. Please check the console for details.';
+        this.errorMessage.set(errorMsg);
+        
+        // Scroll to top to show error
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
   }

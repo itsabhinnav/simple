@@ -17,6 +17,16 @@ import { TestCaseService, TestCaseCreateRequest } from '../services/test-case.se
         <h1>Create New Test Case</h1>
       </div>
 
+      <!-- Error Message -->
+      <div *ngIf="errorMessage()" class="alert alert-error">
+        <strong>Error:</strong> {{ errorMessage() }}
+      </div>
+
+      <!-- Success Message -->
+      <div *ngIf="successMessage()" class="alert alert-success">
+        <strong>Success:</strong> {{ successMessage() }}
+      </div>
+
       <div class="form-container">
         <form [formGroup]="testCaseForm" (ngSubmit)="onSubmit()" class="create-form">
           <div class="form-section">
@@ -354,6 +364,8 @@ export class CreateTestCaseComponent implements OnInit {
 
   isSubmitting = signal(false);
   testCaseForm: FormGroup;
+  errorMessage = signal<string | null>(null);
+  successMessage = signal<string | null>(null);
 
   constructor() {
     this.testCaseForm = this.formBuilder.group({
@@ -376,10 +388,13 @@ export class CreateTestCaseComponent implements OnInit {
 
   onSubmit() {
     if (this.testCaseForm.invalid) {
+      this.errorMessage.set('Please fill in all required fields.');
       return;
     }
 
     this.isSubmitting.set(true);
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
     
     const formValue = this.testCaseForm.value;
     const createRequest: TestCaseCreateRequest = {
@@ -397,15 +412,26 @@ export class CreateTestCaseComponent implements OnInit {
       reference_document: formValue.reference_document
     };
 
+    console.log('Creating test case with data:', createRequest);
+
     this.testCaseService.createTestCase(createRequest).subscribe({
       next: (testCase) => {
+        console.log('Test case created successfully:', testCase);
         this.isSubmitting.set(false);
-        this.router.navigate(['/test-cases']);
+        this.successMessage.set('Test case created successfully!');
+        setTimeout(() => {
+          this.router.navigate(['/test-cases']);
+        }, 1500);
       },
       error: (err) => {
         this.isSubmitting.set(false);
         console.error('Error creating test case:', err);
-        alert('Failed to create test case. Please try again.');
+        
+        const errorMsg = err?.error?.message || err?.error?.error || err?.message || 'Failed to create test case. Please check the console for details.';
+        this.errorMessage.set(errorMsg);
+        
+        // Scroll to top to show error
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
   }
