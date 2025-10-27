@@ -1,14 +1,17 @@
-.requirements-container {
+.management-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: var(--spacing-md);
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.requirements-header {
-  background-color: var(--color-gray-100);
-  border-bottom: 1px solid var(--color-gray-300);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
+.management-header {
+  background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -28,53 +31,58 @@
 }
 
 .breadcrumb-link {
-  color: var(--color-primary-lighter);
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
   display: flex;
   align-items: center;
   gap: 5px;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: white;
 }
 
 .breadcrumb-separator {
-  color: var(--color-gray-400);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .breadcrumb-current {
-  color: var(--color-primary);
+  color: white;
   font-weight: 500;
 }
 
 .page-title {
   margin: 0;
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--color-primary);
+  color: white;
 }
 
 .add-btn {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-primary);
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.2);
   color: white;
-  border: none;
-  border-radius: var(--border-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
   transition: all 0.2s;
+  text-decoration: none;
 }
 
 .add-btn:hover:not(:disabled) {
-  background: var(--color-primary-light);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .add-btn:disabled {
-  background: var(--color-gray-400);
+  background: rgba(255, 255, 255, 0.1);
   cursor: not-allowed;
 }
 
