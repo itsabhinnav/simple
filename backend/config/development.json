@@ -2,7 +2,7 @@
   "environment": "development",
   "database": {
     "provider": "hybrid",
-    "name": "local",
+    "name": "sakura_db",
     "host": "localhost",
     "port": 5432,
     "username": "",
