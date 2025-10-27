@@ -50,31 +50,84 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
 
       <!-- Filters -->
       <div class="filters-section">
-        <div class="search-filter">
+        <div class="filter-tabs">
           <input 
             type="text" 
-            placeholder="Search test cases..." 
-            [(ngModel)]="searchTerm"
-            class="search-input">
+            placeholder="Search work..." 
+            class="global-search-input">
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn" [class.active]="showTypeFilter()" (click)="toggleFilter('type')">
+              Type = {{ getFilterDisplay('type') }}
+              <span class="filter-count" *ngIf="selectedTypes().length > 0">+{{ selectedTypes().length }}</span>
+            </button>
+          </div>
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn" [class.active]="showPriorityFilter()" (click)="toggleFilter('priority')">
+              Priority = {{ getFilterDisplay('priority') }}
+              <span class="filter-count" *ngIf="selectedPriorities().length > 0">+{{ selectedPriorities().length }}</span>
+            </button>
+          </div>
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature')">
+              Feature = {{ getFilterDisplay('feature') }}
+              <span class="filter-count" *ngIf="selectedFeatures().length > 0">+{{ selectedFeatures().length }}</span>
+            </button>
+          </div>
+          <button class="clear-filters-btn" (click)="clearAllFilters()">Clear filters</button>
         </div>
-        <div class="select-filters">
-          <select [(ngModel)]="selectedType" (ngModelChange)="selectedType.set($event)" class="filter-select">
-            <option value="all">All Types</option>
-            <option value="Positive">Positive</option>
-            <option value="Negative">Negative</option>
-            <option value="Boundary">Boundary</option>
-            <option value="Performance">Performance</option>
-          </select>
-          <select [(ngModel)]="selectedPriority" (ngModelChange)="selectedPriority.set($event)" class="filter-select">
-            <option value="all">All Priorities</option>
-            <option value="P1">P1 - High</option>
-            <option value="P2">P2 - Medium</option>
-            <option value="P3">P3 - Low</option>
-          </select>
-          <select [(ngModel)]="selectedFeature" (ngModelChange)="selectedFeature.set($event)" class="filter-select">
-            <option value="all">All Features</option>
-            <option *ngFor="let feature of getUniqueFeatures()" [value]="feature">{{ feature }}</option>
-          </select>
+
+        <!-- Type Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showTypeFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header">
+            <span>Type = (equals)</span>
+          </div>
+          <input type="text" placeholder="Search Type" class="filter-search" [(ngModel)]="typeSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let type of getTypeOptions()" class="filter-option">
+              <input type="checkbox" [checked]="isTypeSelected(type)" (change)="toggleType(type)">
+              <span class="filter-label">{{ type }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearTypes()">Clear selection</button>
+            <span class="filter-count-info">{{ getSelectedTypesCount() }} of {{ getTypeOptions().length }}</span>
+          </div>
+        </div>
+
+        <!-- Priority Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showPriorityFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header">
+            <span>Priority = (equals)</span>
+          </div>
+          <input type="text" placeholder="Search Priority" class="filter-search" [(ngModel)]="prioritySearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let priority of getPriorityOptions()" class="filter-option">
+              <input type="checkbox" [checked]="isPrioritySelected(priority)" (change)="togglePriority(priority)">
+              <span class="filter-label">{{ priority }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearPriorities()">Clear selection</button>
+            <span class="filter-count-info">{{ getSelectedPrioritiesCount() }} of {{ getPriorityOptions().length }}</span>
+          </div>
+        </div>
+
+        <!-- Feature Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showFeatureFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header">
+            <span>Feature = (equals)</span>
+          </div>
+          <input type="text" placeholder="Search Feature" class="filter-search" [(ngModel)]="featureSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let feature of getFilteredFeatures()" class="filter-option">
+              <input type="checkbox" [checked]="isFeatureSelected(feature)" (change)="toggleFeature(feature)">
+              <span class="filter-label">{{ feature }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearFeatures()">Clear selection</button>
+            <span class="filter-count-info">{{ getSelectedFeaturesCount() }} of {{ getFilteredFeatures().length }}</span>
+          </div>
         </div>
       </div>
 
@@ -88,10 +141,10 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
         <div *ngIf="filteredTestCases().length === 0" class="empty-state">
           <i class="icon-empty"></i>
           <h3>No Test Cases Found</h3>
-          <p *ngIf="searchTerm || selectedType() !== 'all' || selectedPriority() !== 'all' || selectedFeature() !== 'all'">
+          <p *ngIf="searchTerm || selectedTypes().length > 0 || selectedPriorities().length > 0 || selectedFeatures().length > 0">
             No test cases match your filter criteria.
           </p>
-          <p *ngIf="!searchTerm && selectedType() === 'all' && selectedPriority() === 'all' && selectedFeature() === 'all'">
+          <p *ngIf="!searchTerm && selectedTypes().length === 0 && selectedPriorities().length === 0 && selectedFeatures().length === 0">
             No test cases available. Create your first test case!
           </p>
         </div>
@@ -546,6 +599,162 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       color: #333;
     }
 
+    /* Filter Panel Styles */
+    .filter-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .global-search-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .filter-dropdown {
+      position: relative;
+    }
+
+    .filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: white;
+      color: #333;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      background: #f5f5f5;
+    }
+
+    .filter-btn.active {
+      background: #e3f2fd;
+      border-color: #1a73e8;
+      color: #1a73e8;
+    }
+
+    .filter-count {
+      background: #1a73e8;
+      color: white;
+      border-radius: 12px;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .clear-filters-btn {
+      padding: 6px 12px;
+      background: none;
+      border: none;
+      color: #1a73e8;
+      cursor: pointer;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .clear-filters-btn:hover {
+      color: #1557b0;
+    }
+
+    .filter-panel {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      min-width: 300px;
+      z-index: 1000;
+      margin-top: 4px;
+    }
+
+    .filter-panel-header {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .filter-search {
+      width: 100%;
+      padding: 8px 12px;
+      border: none;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+
+    .filter-search:focus {
+      outline: none;
+    }
+
+    .filter-options {
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .filter-option:hover {
+      background: #f5f5f5;
+    }
+
+    .filter-option input[type="checkbox"] {
+      margin-right: 8px;
+      cursor: pointer;
+    }
+
+    .filter-label {
+      font-size: 14px;
+      color: #333;
+    }
+
+    .filter-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+    }
+
+    .filter-clear {
+      background: none;
+      border: none;
+      color: #1a73e8;
+      cursor: pointer;
+      font-size: 12px;
+      transition: color 0.2s;
+    }
+
+    .filter-clear:hover {
+      color: #1557b0;
+    }
+
+    .filter-count-info {
+      color: #666;
+    }
+
     .retry-btn {
       background: #1a73e8;
       color: white;
@@ -763,9 +972,15 @@ export class TestCaseManagementComponent implements OnInit {
   testCaseToDelete = signal<TestCase | null>(null);
   currentEditingTestCase = signal<TestCase | null>(null);
   searchTerm = '';
-  selectedType = signal<string>('all');
-  selectedPriority = signal<string>('all');
-  selectedFeature = signal<string>('all');
+  selectedTypes = signal<string[]>([]);
+  selectedPriorities = signal<string[]>([]);
+  selectedFeatures = signal<string[]>([]);
+  
+  typeSearchTerm = '';
+  prioritySearchTerm = '';
+  featureSearchTerm = '';
+  
+  activeFilter = signal<string>('');
 
   testCaseForm: FormGroup;
 
@@ -839,22 +1054,148 @@ export class TestCaseManagementComponent implements OnInit {
       );
     }
     
-    // Filter by type
-    if (this.selectedType() !== 'all') {
-      filtered = filtered.filter(tc => tc.test_type === this.selectedType());
+    // Filter by types (multi-select)
+    if (this.selectedTypes().length > 0) {
+      filtered = filtered.filter(tc => this.selectedTypes().includes(tc.test_type || ''));
     }
     
-    // Filter by priority
-    if (this.selectedPriority() !== 'all') {
-      filtered = filtered.filter(tc => tc.priority === this.selectedPriority());
+    // Filter by priorities (multi-select)
+    if (this.selectedPriorities().length > 0) {
+      filtered = filtered.filter(tc => this.selectedPriorities().includes(tc.priority || ''));
     }
     
-    // Filter by feature
-    if (this.selectedFeature() !== 'all') {
-      filtered = filtered.filter(tc => tc.feature === this.selectedFeature());
+    // Filter by features (multi-select)
+    if (this.selectedFeatures().length > 0) {
+      filtered = filtered.filter(tc => this.selectedFeatures().includes(tc.feature || ''));
     }
     
     return filtered;
+  }
+  
+  // Filter management methods
+  toggleFilter(filterType: string) {
+    if (this.activeFilter() === filterType) {
+      this.activeFilter.set('');
+    } else {
+      this.activeFilter.set(filterType);
+    }
+  }
+  
+  showTypeFilter(): boolean {
+    return this.activeFilter() === 'type';
+  }
+  
+  showPriorityFilter(): boolean {
+    return this.activeFilter() === 'priority';
+  }
+  
+  showFeatureFilter(): boolean {
+    return this.activeFilter() === 'feature';
+  }
+  
+  getFilterDisplay(type: string): string {
+    switch(type) {
+      case 'type':
+        return this.selectedTypes().length === 0 ? 'any' : this.selectedTypes().join(', ');
+      case 'priority':
+        return this.selectedPriorities().length === 0 ? 'any' : this.selectedPriorities().join(', ');
+      case 'feature':
+        return this.selectedFeatures().length === 0 ? 'any' : this.selectedFeatures().join(', ');
+      default:
+        return 'any';
+    }
+  }
+  
+  // Type filter methods
+  getTypeOptions(): string[] {
+    const options = ['Positive', 'Negative', 'Boundary', 'Performance'];
+    if (!this.typeSearchTerm.trim()) return options;
+    return options.filter(t => t.toLowerCase().includes(this.typeSearchTerm.toLowerCase()));
+  }
+  
+  toggleType(type: string) {
+    const current = this.selectedTypes();
+    if (current.includes(type)) {
+      this.selectedTypes.set(current.filter(t => t !== type));
+    } else {
+      this.selectedTypes.set([...current, type]);
+    }
+  }
+  
+  isTypeSelected(type: string): boolean {
+    return this.selectedTypes().includes(type);
+  }
+  
+  clearTypes() {
+    this.selectedTypes.set([]);
+  }
+  
+  getSelectedTypesCount(): number {
+    return this.selectedTypes().length;
+  }
+  
+  // Priority filter methods
+  getPriorityOptions(): string[] {
+    const options = ['P1', 'P2', 'P3'];
+    if (!this.prioritySearchTerm.trim()) return options;
+    return options.filter(p => p.toLowerCase().includes(this.prioritySearchTerm.toLowerCase()));
+  }
+  
+  togglePriority(priority: string) {
+    const current = this.selectedPriorities();
+    if (current.includes(priority)) {
+      this.selectedPriorities.set(current.filter(p => p !== priority));
+    } else {
+      this.selectedPriorities.set([...current, priority]);
+    }
+  }
+  
+  isPrioritySelected(priority: string): boolean {
+    return this.selectedPriorities().includes(priority);
+  }
+  
+  clearPriorities() {
+    this.selectedPriorities.set([]);
+  }
+  
+  getSelectedPrioritiesCount(): number {
+    return this.selectedPriorities().length;
+  }
+  
+  // Feature filter methods
+  getFilteredFeatures(): string[] {
+    const allFeatures = this.getUniqueFeatures();
+    if (!this.featureSearchTerm.trim()) return allFeatures;
+    return allFeatures.filter(f => f.toLowerCase().includes(this.featureSearchTerm.toLowerCase()));
+  }
+  
+  toggleFeature(feature: string) {
+    const current = this.selectedFeatures();
+    if (current.includes(feature)) {
+      this.selectedFeatures.set(current.filter(f => f !== feature));
+    } else {
+      this.selectedFeatures.set([...current, feature]);
+    }
+  }
+  
+  isFeatureSelected(feature: string): boolean {
+    return this.selectedFeatures().includes(feature);
+  }
+  
+  clearFeatures() {
+    this.selectedFeatures.set([]);
+  }
+  
+  getSelectedFeaturesCount(): number {
+    return this.selectedFeatures().length;
+  }
+  
+  clearAllFilters() {
+    this.selectedTypes.set([]);
+    this.selectedPriorities.set([]);
+    this.selectedFeatures.set([]);
+    this.activeFilter.set('');
+    this.searchTerm = '';
   }
 
   getUniqueFeatures(): string[] {
