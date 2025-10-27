@@ -164,12 +164,12 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .management-header {
-      background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
-      color: white;
+      background-color: white;
+      border: 1px solid #dadce0;
       padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 30px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -189,30 +189,32 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .breadcrumb-link {
-      color: rgba(255, 255, 255, 0.8);
+      color: #5f6368;
       text-decoration: none;
       display: flex;
       align-items: center;
       gap: 5px;
       transition: color 0.2s;
+      font-size: 14px;
     }
 
     .breadcrumb-link:hover {
-      color: white;
+      color: #202124;
     }
 
     .breadcrumb-separator {
-      color: rgba(255, 255, 255, 0.6);
+      color: #5f6368;
     }
 
     .breadcrumb-current {
-      color: white;
+      color: #202124;
       font-weight: 500;
+      font-size: 14px;
     }
 
     .page-title {
       margin: 0;
-      font-size: 2rem;
+      font-size: 24px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -224,21 +226,24 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       align-items: center;
       gap: 8px;
       padding: 10px 20px;
-      background: rgba(255, 255, 255, 0.2);
+      background: #1a73e8;
       color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 6px;
+      border: none;
+      border-radius: 24px;
       cursor: pointer;
       font-size: 14px;
+      font-weight: 500;
       transition: all 0.2s;
+      text-decoration: none;
     }
 
     .add-btn:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.3);
+      background: #1557b0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 
     .add-btn:disabled {
-      background: rgba(255, 255, 255, 0.1);
+      background: #dadce0;
       cursor: not-allowed;
     }
 
@@ -251,7 +256,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       width: 40px;
       height: 40px;
       border: 4px solid #f3f3f3;
-      border-top: 4px solid #4caf50;
+      border-top: 4px solid #1a73e8;
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin: 0 auto 20px;
@@ -418,18 +423,20 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .retry-btn {
-      background: #4caf50;
+      background: #1a73e8;
       color: white;
       border: none;
       padding: 10px 20px;
-      border-radius: 6px;
+      border-radius: 24px;
       cursor: pointer;
       font-weight: 500;
       margin-top: 15px;
+      transition: all 0.2s;
     }
 
     .retry-btn:hover {
-      background: #388e3c;
+      background: #1557b0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 
     /* Modal Styles */
@@ -571,12 +578,13 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .btn-submit {
-      background: #4caf50;
+      background: #1a73e8;
       color: white;
     }
 
     .btn-submit:hover:not(:disabled) {
-      background: #388e3c;
+      background: #1557b0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 
     .btn-submit:disabled {
