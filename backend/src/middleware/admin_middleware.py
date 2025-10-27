@@ -77,3 +77,4 @@ def get_current_user_role() -> str | None:
         logger.error(f"Error getting user role: {e}")
         return None
 
+

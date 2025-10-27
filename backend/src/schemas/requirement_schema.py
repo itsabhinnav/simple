@@ -48,3 +48,4 @@ class RequirementUpdateSchema(BaseModel):
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
 
+

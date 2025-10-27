@@ -130,7 +130,7 @@ class HybridDatabaseService:
                     elif local_version < remote_version:
                         logger.info(f"Remote has newer changes (v{remote_version} > v{local_version}), copying from remote...")
                         shutil.copy2(remote_db_path, local_db_path)
-                        logger.info(f"✓ Copied remote database to: {local_db_path}")
+                        logger.info(f"[OK] Copied remote database to: {local_db_path}")
                     # If versions are equal, check timestamps for conflicts
                     else:
                         time_diff = remote_mtime - local_mtime
@@ -139,7 +139,7 @@ class HybridDatabaseService:
                         if time_diff > 1:
                             logger.warning(f"Startup version conflict (both v{local_version}): remote is {time_diff:.1f}s newer - fetching remote...")
                             shutil.copy2(remote_db_path, local_db_path)
-                            logger.info(f"✓ Copied remote database to resolve conflict: {local_db_path}")
+                            logger.info(f"[OK] Copied remote database to resolve conflict: {local_db_path}")
                         elif time_diff < -1:
                             logger.warning(f"Startup version conflict (both v{local_version}): local is {abs(time_diff):.1f}s newer - syncing local to remote...")
                             self.sync_local_to_remote()
@@ -187,7 +187,7 @@ class HybridDatabaseService:
             if local_db_path.exists():
                 remote_db_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(local_db_path, remote_db_path)
-                logger.info(f"✓ Copied local database to remote: {remote_db_path}")
+                logger.info(f"[OK] Copied local database to remote: {remote_db_path}")
                 
                 # Commit to Git
                 git_token = None
@@ -201,7 +201,7 @@ class HybridDatabaseService:
                 
                 commit_success = self.remote_db.commit_changes("Periodic sync: update from local database", git_token)
                 if commit_success:
-                    logger.info("✓ Changes committed to Git repository")
+                    logger.info("[OK] Changes committed to Git repository")
                 else:
                     logger.warning("Failed to commit changes to Git")
             else:
@@ -268,7 +268,7 @@ class HybridDatabaseService:
                     logger.info(f"Remote has newer changes (v{remote_version} > v{local_version}) - copying from remote...")
                     local_db_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(remote_db_path, local_db_path)
-                    logger.info(f"✓ Copied remote database to local: {local_db_path}")
+                    logger.info(f"[OK] Copied remote database to local: {local_db_path}")
                 elif remote_version < local_version:
                     # This should not happen as local changes are synced immediately
                     # Sync local to remote to fix inconsistency
@@ -420,7 +420,7 @@ class HybridDatabaseService:
                         logger.warning(f"Remote is newer (v{remote_version} > v{local_version}) before write. Fetching remote first...")
                         import shutil
                         shutil.copy2(remote_db_path, local_db_path)
-                        logger.info("✓ Fetched remote changes before write")
+                        logger.info("[OK] Fetched remote changes before write")
             except Exception as sync_error:
                 logger.warning(f"Failed to sync remote before write: {sync_error}")
             
@@ -447,7 +447,7 @@ class HybridDatabaseService:
                     if local_db_path.exists():
                         remote_db_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(local_db_path, remote_db_path)
-                        logger.info("✓ Local changes synced to remote")
+                        logger.info("[OK] Local changes synced to remote")
                         
                         # Commit to Git
                         commit_message = self._generate_commit_message(query)
@@ -457,7 +457,7 @@ class HybridDatabaseService:
                         
                         commit_success = self.remote_db.commit_changes(commit_message, git_token)
                         if commit_success:
-                            logger.info(f"✓ Changes committed to Git as {username if username else 'system'}")
+                            logger.info(f"[OK] Changes committed to Git as {username if username else 'system'}")
                         else:
                             logger.warning("Failed to commit changes to Git")
                 except Exception as commit_error:

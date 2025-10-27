@@ -38,3 +38,4 @@ def create_admin_blueprint() -> Blueprint:
     
     return admin_bp
 
+

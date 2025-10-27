@@ -38,3 +38,4 @@ def before_request():
     g.current_user = user
     g.current_username = user.get('username') if user else None
 
+
