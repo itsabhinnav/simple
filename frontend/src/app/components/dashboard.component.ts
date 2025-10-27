@@ -42,6 +42,10 @@ export class DashboardComponent implements OnInit {
   signupForm: FormGroup;
 
   constructor() {
+    // Initialize auth state before component renders
+    const isAuth = this.authService.isAuthenticated();
+    this.isAuthenticated.set(isAuth);
+    
     this.loginForm = this.formBuilder.group({
       username: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
       password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]]
@@ -61,15 +65,11 @@ export class DashboardComponent implements OnInit {
   }
 
   ngOnInit() {
-    // Set initial auth state immediately to prevent flash
-    const isAuth = this.authService.isAuthenticated();
-    this.isAuthenticated.set(isAuth);
-    
-    // Set initialized synchronously to prevent flicker
+    // Set initialized immediately (auth already checked in constructor)
     this.isInitialized.set(true);
     
     // Load stats if authenticated
-    if (isAuth) {
+    if (this.isAuthenticated()) {
       this.loadDashboardStats();
     }
   }
