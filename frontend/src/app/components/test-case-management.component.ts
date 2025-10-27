@@ -53,26 +53,40 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
         <div class="filter-tabs">
           <input 
             type="text" 
-            placeholder="Search work..." 
-            class="global-search-input">
+            placeholder="Search test cases..." 
+            class="global-search-input"
+            [(ngModel)]="searchTerm">
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn" [class.active]="showTypeFilter()" (click)="toggleFilter('type')">
-              Type = {{ getFilterDisplay('type') }}
+            <button class="filter-btn-blue" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature')">
+              feature ▼
+              <span class="filter-count" *ngIf="selectedFeatures().length > 0">+{{ selectedFeatures().length }}</span>
+            </button>
+          </div>
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn-blue" [class.active]="showScreenIdFilter()" (click)="toggleFilter('screenId')">
+              Screen ID ▼
+              <span class="filter-count" *ngIf="selectedScreenIds().length > 0">+{{ selectedScreenIds().length }}</span>
+            </button>
+          </div>
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn-blue" [class.active]="showTypeFilter()" (click)="toggleFilter('type')">
+              test type ▼
               <span class="filter-count" *ngIf="selectedTypes().length > 0">+{{ selectedTypes().length }}</span>
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn" [class.active]="showPriorityFilter()" (click)="toggleFilter('priority')">
-              Priority = {{ getFilterDisplay('priority') }}
-              <span class="filter-count" *ngIf="selectedPriorities().length > 0">+{{ selectedPriorities().length }}</span>
+            <button class="filter-btn-blue" [class.active]="showTestSuiteTypeFilter()" (click)="toggleFilter('testsuiteType')">
+              TestSuite Type ▼
+              <span class="filter-count" *ngIf="selectedTestSuiteTypes().length > 0">+{{ selectedTestSuiteTypes().length }}</span>
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
-            <button class="filter-btn" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature')">
-              Feature = {{ getFilterDisplay('feature') }}
-              <span class="filter-count" *ngIf="selectedFeatures().length > 0">+{{ selectedFeatures().length }}</span>
+            <button class="filter-btn-blue" [class.active]="showRequirementTypeFilter()" (click)="toggleFilter('requirementType')">
+              Requirement Type ▼
+              <span class="filter-count" *ngIf="selectedRequirementTypes().length > 0">+{{ selectedRequirementTypes().length }}</span>
             </button>
           </div>
+          <button class="filter-btn-more" (click)="toggleMoreFilters()">More filters ▼</button>
           <button class="clear-filters-btn" (click)="clearAllFilters()">Clear filters</button>
         </div>
 
@@ -127,6 +141,60 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
           <div class="filter-footer">
             <button class="filter-clear" (click)="clearFeatures()">Clear selection</button>
             <span class="filter-count-info">{{ getSelectedFeaturesCount() }} of {{ getFilteredFeatures().length }}</span>
+          </div>
+        </div>
+
+        <!-- Screen ID Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showScreenIdFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header">
+            <span>Screen ID = (equals)</span>
+          </div>
+          <input type="text" placeholder="Search Screen ID" class="filter-search" [(ngModel)]="screenIdSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let screenId of getFilteredScreenIds()" class="filter-option">
+              <input type="checkbox" [checked]="isScreenIdSelected(screenId)" (change)="toggleScreenId(screenId)">
+              <span class="filter-label">{{ screenId }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearScreenIds()">Clear selection</button>
+            <span class="filter-count-info">{{ getSelectedScreenIdsCount() }} of {{ getFilteredScreenIds().length }}</span>
+          </div>
+        </div>
+
+        <!-- TestSuite Type Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showTestSuiteTypeFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header">
+            <span>TestSuite Type = (equals)</span>
+          </div>
+          <input type="text" placeholder="Search TestSuite Type" class="filter-search" [(ngModel)]="testSuiteTypeSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let type of getFilteredTestSuiteTypes()" class="filter-option">
+              <input type="checkbox" [checked]="isTestSuiteTypeSelected(type)" (change)="toggleTestSuiteType(type)">
+              <span class="filter-label">{{ type }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearTestSuiteTypes()">Clear selection</button>
+            <span class="filter-count-info">{{ getSelectedTestSuiteTypesCount() }} of {{ getFilteredTestSuiteTypes().length }}</span>
+          </div>
+        </div>
+
+        <!-- Requirement Type Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showRequirementTypeFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header">
+            <span>Requirement Type = (equals)</span>
+          </div>
+          <input type="text" placeholder="Search Requirement Type" class="filter-search" [(ngModel)]="requirementTypeSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let type of getFilteredRequirementTypes()" class="filter-option">
+              <input type="checkbox" [checked]="isRequirementTypeSelected(type)" (change)="toggleRequirementType(type)">
+              <span class="filter-label">{{ type }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearRequirementTypes()">Clear selection</button>
+            <span class="filter-count-info">{{ getSelectedRequirementTypesCount() }} of {{ getFilteredRequirementTypes().length }}</span>
           </div>
         </div>
       </div>
@@ -613,7 +681,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       min-width: 200px;
       padding: 8px 12px;
       border: 1px solid #ddd;
-      border-radius: 6px;
+      border-radius: 4px;
       font-size: 14px;
     }
 
@@ -621,13 +689,36 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       position: relative;
     }
 
-    .filter-btn {
+    .filter-btn-blue {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      background: #1a73e8;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .filter-btn-blue:hover {
+      background: #1557b0;
+    }
+
+    .filter-btn-blue.active {
+      background: #1557b0;
+    }
+
+    .filter-btn-more {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
       border: 1px solid #ddd;
-      border-radius: 6px;
+      border-radius: 4px;
       background: white;
       color: #333;
       font-size: 14px;
@@ -635,19 +726,13 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       transition: all 0.2s;
     }
 
-    .filter-btn:hover {
+    .filter-btn-more:hover {
       background: #f5f5f5;
     }
 
-    .filter-btn.active {
-      background: #e3f2fd;
-      border-color: #1a73e8;
-      color: #1a73e8;
-    }
-
     .filter-count {
-      background: #1a73e8;
-      color: white;
+      background: #fff;
+      color: #1a73e8;
       border-radius: 12px;
       padding: 2px 6px;
       font-size: 11px;
@@ -655,17 +740,18 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .clear-filters-btn {
-      padding: 6px 12px;
+      padding: 8px 16px;
       background: none;
-      border: none;
-      color: #1a73e8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      color: #333;
       cursor: pointer;
       font-size: 14px;
-      transition: color 0.2s;
+      transition: all 0.2s;
     }
 
     .clear-filters-btn:hover {
-      color: #1557b0;
+      background: #f5f5f5;
     }
 
     .filter-panel {
@@ -975,12 +1061,19 @@ export class TestCaseManagementComponent implements OnInit {
   selectedTypes = signal<string[]>([]);
   selectedPriorities = signal<string[]>([]);
   selectedFeatures = signal<string[]>([]);
+  selectedScreenIds = signal<string[]>([]);
+  selectedTestSuiteTypes = signal<string[]>([]);
+  selectedRequirementTypes = signal<string[]>([]);
   
   typeSearchTerm = '';
   prioritySearchTerm = '';
   featureSearchTerm = '';
+  screenIdSearchTerm = '';
+  testSuiteTypeSearchTerm = '';
+  requirementTypeSearchTerm = '';
   
   activeFilter = signal<string>('');
+  showMoreFilters = signal(false);
 
   testCaseForm: FormGroup;
 
@@ -1069,7 +1162,38 @@ export class TestCaseManagementComponent implements OnInit {
       filtered = filtered.filter(tc => this.selectedFeatures().includes(tc.feature || ''));
     }
     
+    // Filter by screen IDs (multi-select)
+    if (this.selectedScreenIds().length > 0) {
+      filtered = filtered.filter(tc => this.selectedScreenIds().includes(tc.screen_id || ''));
+    }
+    
+    // Filter by test suite types (multi-select)
+    if (this.selectedTestSuiteTypes().length > 0) {
+      filtered = filtered.filter(tc => this.selectedTestSuiteTypes().includes(tc.testsuite_type || ''));
+    }
+    
+    // Filter by requirement types (multi-select)
+    if (this.selectedRequirementTypes().length > 0) {
+      filtered = filtered.filter(tc => this.selectedRequirementTypes().includes(tc.requirement_type || ''));
+    }
+    
     return filtered;
+  }
+  
+  toggleMoreFilters() {
+    this.showMoreFilters.set(!this.showMoreFilters());
+  }
+  
+  showScreenIdFilter(): boolean {
+    return this.activeFilter() === 'screenId';
+  }
+  
+  showTestSuiteTypeFilter(): boolean {
+    return this.activeFilter() === 'testsuiteType';
+  }
+  
+  showRequirementTypeFilter(): boolean {
+    return this.activeFilter() === 'requirementType';
   }
   
   // Filter management methods
@@ -1194,8 +1318,100 @@ export class TestCaseManagementComponent implements OnInit {
     this.selectedTypes.set([]);
     this.selectedPriorities.set([]);
     this.selectedFeatures.set([]);
+    this.selectedScreenIds.set([]);
+    this.selectedTestSuiteTypes.set([]);
+    this.selectedRequirementTypes.set([]);
     this.activeFilter.set('');
     this.searchTerm = '';
+  }
+
+  // Screen ID filter methods
+  getFilteredScreenIds(): string[] {
+    const allScreenIds = this.getUniqueScreenIds();
+    if (!this.screenIdSearchTerm.trim()) return allScreenIds;
+    return allScreenIds.filter(s => s.toLowerCase().includes(this.screenIdSearchTerm.toLowerCase()));
+  }
+
+  getUniqueScreenIds(): string[] {
+    const screenIds = this.testCases().map(tc => tc.screen_id).filter((s): s is string => s !== undefined && s !== null && s !== '');
+    return [...new Set(screenIds)];
+  }
+
+  toggleScreenId(screenId: string) {
+    const current = this.selectedScreenIds();
+    if (current.includes(screenId)) {
+      this.selectedScreenIds.set(current.filter(s => s !== screenId));
+    } else {
+      this.selectedScreenIds.set([...current, screenId]);
+    }
+  }
+
+  isScreenIdSelected(screenId: string): boolean {
+    return this.selectedScreenIds().includes(screenId);
+  }
+
+  clearScreenIds() {
+    this.selectedScreenIds.set([]);
+  }
+
+  getSelectedScreenIdsCount(): number {
+    return this.selectedScreenIds().length;
+  }
+
+  // TestSuite Type filter methods
+  getFilteredTestSuiteTypes(): string[] {
+    const options = ['Sanity', 'Smoke', 'Regression', 'Functional', 'Non-Functional'];
+    if (!this.testSuiteTypeSearchTerm.trim()) return options;
+    return options.filter(t => t.toLowerCase().includes(this.testSuiteTypeSearchTerm.toLowerCase()));
+  }
+
+  toggleTestSuiteType(type: string) {
+    const current = this.selectedTestSuiteTypes();
+    if (current.includes(type)) {
+      this.selectedTestSuiteTypes.set(current.filter(t => t !== type));
+    } else {
+      this.selectedTestSuiteTypes.set([...current, type]);
+    }
+  }
+
+  isTestSuiteTypeSelected(type: string): boolean {
+    return this.selectedTestSuiteTypes().includes(type);
+  }
+
+  clearTestSuiteTypes() {
+    this.selectedTestSuiteTypes.set([]);
+  }
+
+  getSelectedTestSuiteTypesCount(): number {
+    return this.selectedTestSuiteTypes().length;
+  }
+
+  // Requirement Type filter methods
+  getFilteredRequirementTypes(): string[] {
+    const options = ['Functional', 'HMI', 'Safety', 'Performance', 'Usability'];
+    if (!this.requirementTypeSearchTerm.trim()) return options;
+    return options.filter(r => r.toLowerCase().includes(this.requirementTypeSearchTerm.toLowerCase()));
+  }
+
+  toggleRequirementType(type: string) {
+    const current = this.selectedRequirementTypes();
+    if (current.includes(type)) {
+      this.selectedRequirementTypes.set(current.filter(t => t !== type));
+    } else {
+      this.selectedRequirementTypes.set([...current, type]);
+    }
+  }
+
+  isRequirementTypeSelected(type: string): boolean {
+    return this.selectedRequirementTypes().includes(type);
+  }
+
+  clearRequirementTypes() {
+    this.selectedRequirementTypes.set([]);
+  }
+
+  getSelectedRequirementTypesCount(): number {
+    return this.selectedRequirementTypes().length;
   }
 
   getUniqueFeatures(): string[] {
