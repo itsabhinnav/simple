@@ -65,6 +65,28 @@
     </div>
   </header>
   
+  <!-- Quick Actions Bar (Below Navbar) -->
+  <div class="quick-actions-global" *ngIf="currentUser()">
+    <div class="quick-actions-bar">
+      <button class="action-btn" (click)="createRequirement()">
+        <span class="action-icon">+</span>
+        <span>New Requirement</span>
+      </button>
+      <button class="action-btn" (click)="createTestCase()">
+        <span class="action-icon">+</span>
+        <span>New Test Case</span>
+      </button>
+      <button class="action-btn secondary" routerLink="/requirements">
+        <span>📋</span>
+        <span>All Requirements</span>
+      </button>
+      <button class="action-btn secondary" routerLink="/test-cases">
+        <span>🧪</span>
+        <span>All Test Cases</span>
+      </button>
+    </div>
+  </div>
+  
   <main class="app-main">
     <router-outlet></router-outlet>
   </main>

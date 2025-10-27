@@ -11,7 +11,7 @@ import { TestCase } from './services/test-case.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule],
+  imports: [RouterOutlet, CommonModule, RouterModule],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
