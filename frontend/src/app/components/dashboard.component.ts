@@ -23,6 +23,7 @@ export class DashboardComponent implements OnInit {
   private testCaseService = inject(TestCaseService);
 
   isAuthenticated = signal(false);
+  isInitialized = signal(false);
   activeTab = signal<'login' | 'signup'>('login');
   error = signal<string | null>(null);
   isLoggingIn = signal(false);
