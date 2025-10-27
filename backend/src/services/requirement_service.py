@@ -86,13 +86,13 @@ class RequirementService(IRequirementService):
             assignee_val = (requirement_data.assignee or '').replace("'", "''")
             tags_val = (requirement_data.tags or '').replace("'", "''")
             
-            # Prepare query - only use columns that exist
+            # Prepare query with all fields
             query = f"""
                 INSERT INTO requirements 
-                (requirement_id, title, description, priority, status, created_by)
+                (requirement_id, title, description, given, when_action, then_result, priority, status, assignee, tags, created_by)
                 VALUES 
-                ('{req_id_val}', '{title_val}', '{desc_val}', 
-                 '{requirement_data.priority or 'P2'}', '{requirement_data.status or 'Draft'}', '{created_by}')
+                ('{req_id_val}', '{title_val}', '{desc_val}', '{given_val}', '{when_val}', '{then_val}', 
+                 '{requirement_data.priority or 'P2'}', '{requirement_data.status or 'Draft'}', '{assignee_val}', '{tags_val}', '{created_by}')
             """
             
             result = self.database_service.execute_query(query, "default")
