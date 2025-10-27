@@ -355,6 +355,43 @@ import { TestCaseService, TestCaseCreateRequest } from '../services/test-case.se
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    .alert {
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    .alert-error {
+      background-color: #ffebee;
+      border: 1px solid #e57373;
+      color: #c62828;
+    }
+
+    .alert-success {
+      background-color: #e8f5e9;
+      border: 1px solid #81c784;
+      color: #2e7d32;
+    }
+
+    .alert strong {
+      font-weight: 600;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   `]
 })
 export class CreateTestCaseComponent implements OnInit {
