@@ -1,3 +1,6 @@
 [submodule "backend/remote"]
 	path = backend/remote
 	url = https://gitlab.com/android-devops/sakura-db.git
+[submodule "backend/data/remote/dev"]
+	path = backend/data/remote/dev
+	url = https://gitlab.com/android-devops/sakura-db.git
