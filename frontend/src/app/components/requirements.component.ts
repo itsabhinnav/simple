@@ -237,21 +237,20 @@ export class RequirementsComponent implements OnInit {
   getStatusClass(status: string): string {
     const statusMap: { [key: string]: string } = {
       'Draft': 'status-draft',
-      'Active': 'status-active',
-      'In Progress': 'status-progress',
-      'Review': 'status-review',
-      'Completed': 'status-completed',
-      'Archived': 'status-archived'
+      'Approved': 'status-active',
+      'Implemented': 'status-progress',
+      'Tested': 'status-review',
+      'Closed': 'status-completed'
     };
     return statusMap[status] || 'status-default';
   }
 
   getPriorityClass(priority: string): string {
     const priorityMap: { [key: string]: string } = {
-      'Low': 'priority-low',
-      'Medium': 'priority-medium',
-      'High': 'priority-high',
-      'Critical': 'priority-critical'
+      'P4': 'priority-low',
+      'P3': 'priority-medium',
+      'P2': 'priority-high',
+      'P1': 'priority-critical'
     };
     return priorityMap[priority] || 'priority-default';
   }

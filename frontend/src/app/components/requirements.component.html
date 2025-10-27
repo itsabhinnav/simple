@@ -37,18 +37,17 @@
       <select [(ngModel)]="selectedStatus" (ngModelChange)="selectedStatus.set($event)" class="filter-select">
         <option value="all">All Statuses</option>
         <option value="Draft">Draft</option>
-        <option value="Active">Active</option>
-        <option value="In Progress">In Progress</option>
-        <option value="Review">Review</option>
-        <option value="Completed">Completed</option>
-        <option value="Archived">Archived</option>
+        <option value="Approved">Approved</option>
+        <option value="Implemented">Implemented</option>
+        <option value="Tested">Tested</option>
+        <option value="Closed">Closed</option>
       </select>
       <select [(ngModel)]="selectedPriority" (ngModelChange)="selectedPriority.set($event)" class="filter-select">
         <option value="all">All Priorities</option>
-        <option value="Low">Low</option>
-        <option value="Medium">Medium</option>
-        <option value="High">High</option>
-        <option value="Critical">Critical</option>
+        <option value="P1">P1</option>
+        <option value="P2">P2</option>
+        <option value="P3">P3</option>
+        <option value="P4">P4</option>
       </select>
       <select [(ngModel)]="selectedAssignee" (ngModelChange)="selectedAssignee.set($event)" class="filter-select">
         <option value="all">All Assignees</option>
