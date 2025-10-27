@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { RequirementService } from '../services/requirement.service';
@@ -12,7 +12,7 @@ import { RequirementCreateRequest } from './requirements.component';
   template: `
     <div class="create-page-container">
       <div class="page-header">
-        <button class="back-btn" routerLink="/">
+        <button class="back-btn" (click)="goBack()">
           ← Back
         </button>
         <h1>Create New Requirement</h1>
@@ -170,7 +170,7 @@ import { RequirementCreateRequest } from './requirements.component';
             <button 
               type="button" 
               class="btn-cancel" 
-              routerLink="/">
+              (click)="goBack()">
               Cancel
             </button>
             <button 
@@ -389,11 +389,16 @@ export class CreateRequirementComponent implements OnInit {
   private requirementService = inject(RequirementService);
   private formBuilder = inject(FormBuilder);
   private router = inject(Router);
+  private location = inject(Location);
 
   isSubmitting = signal(false);
   requirementForm: FormGroup;
   errorMessage = signal<string | null>(null);
   successMessage = signal<string | null>(null);
+
+  goBack() {
+    this.location.back();
+  }
 
   constructor() {
     this.requirementForm = this.formBuilder.group({
