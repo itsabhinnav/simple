@@ -48,77 +48,82 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
         <button (click)="loadTestCases()" class="retry-btn">Retry</button>
       </div>
 
-      <!-- Test Cases Table -->
-      <div *ngIf="!isLoading() && !error()" class="table-container">
-        <div class="table-header">
-          <h3>Test Cases ({{ testCases().length }})</h3>
-          <div class="search-box">
-            <input 
-              type="text" 
-              placeholder="Search test cases..." 
-              [(ngModel)]="searchTerm"
-              class="search-input">
-          </div>
+      <!-- Filters -->
+      <div class="filters-section">
+        <div class="search-filter">
+          <input 
+            type="text" 
+            placeholder="Search test cases..." 
+            [(ngModel)]="searchTerm"
+            class="search-input">
         </div>
-
-        <div class="table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Test Case ID</th>
-                <th>Feature</th>
-                <th>Priority</th>
-                <th>Test Type</th>
-                <th>Complexity</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let testCase of filteredTestCases()">
-                <td>{{ testCase.test_case_id }}</td>
-                <td>{{ testCase.feature || 'N/A' }}</td>
-                <td>
-                  <span class="priority-badge" [class]="'priority-' + (testCase.priority || 'P3')">
-                    {{ testCase.priority || 'P3' }}
-                  </span>
-                </td>
-                <td>{{ testCase.test_type || 'N/A' }}</td>
-                <td>
-                  <span class="complexity-badge" [class]="testCase.test_complexity?.toLowerCase()">
-                    {{ testCase.test_complexity || 'Low' }}
-                  </span>
-                </td>
-                <td>
-                  <span class="status-badge" [class]="testCase.has_requirements ? 'has-requirements' : 'no-requirements'">
-                    {{ testCase.has_requirements ? 'Has Requirements' : 'No Requirements' }}
-                  </span>
-                </td>
-                <td class="actions">
-                  <button 
-                    class="btn-edit" 
-                    (click)="openEditModal(testCase)"
-                    title="Edit Test Case">
-                    <i class="icon-edit"></i>
-                  </button>
-                  <button 
-                    class="btn-delete" 
-                    (click)="confirmDelete(testCase)"
-                    title="Delete Test Case">
-                    <i class="icon-delete"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="select-filters">
+          <select [(ngModel)]="selectedType" (ngModelChange)="selectedType.set($event)" class="filter-select">
+            <option value="all">All Types</option>
+            <option value="Positive">Positive</option>
+            <option value="Negative">Negative</option>
+            <option value="Boundary">Boundary</option>
+            <option value="Performance">Performance</option>
+          </select>
+          <select [(ngModel)]="selectedPriority" (ngModelChange)="selectedPriority.set($event)" class="filter-select">
+            <option value="all">All Priorities</option>
+            <option value="P1">P1 - High</option>
+            <option value="P2">P2 - Medium</option>
+            <option value="P3">P3 - Low</option>
+          </select>
+          <select [(ngModel)]="selectedFeature" (ngModelChange)="selectedFeature.set($event)" class="filter-select">
+            <option value="all">All Features</option>
+            <option *ngFor="let feature of getUniqueFeatures()" [value]="feature">{{ feature }}</option>
+          </select>
         </div>
+      </div>
 
+      <!-- Test Cases Board (JIRA-like) -->
+      <div *ngIf="!isLoading() && !error()" class="board-container">
+        <div class="board-header">
+          <h3>Test Cases ({{ filteredTestCases().length }})</h3>
+        </div>
+        
         <!-- Empty State -->
         <div *ngIf="filteredTestCases().length === 0" class="empty-state">
           <i class="icon-empty"></i>
           <h3>No Test Cases Found</h3>
-          <p *ngIf="searchTerm">No test cases match your search criteria.</p>
-          <p *ngIf="!searchTerm">No test cases available. Create your first test case!</p>
+          <p *ngIf="searchTerm || selectedType() !== 'all' || selectedPriority() !== 'all' || selectedFeature() !== 'all'">
+            No test cases match your filter criteria.
+          </p>
+          <p *ngIf="!searchTerm && selectedType() === 'all' && selectedPriority() === 'all' && selectedFeature() === 'all'">
+            No test cases available. Create your first test case!
+          </p>
+        </div>
+
+        <!-- Test Cases Grid -->
+        <div *ngIf="filteredTestCases().length > 0" class="requirements-grid">
+          <div *ngFor="let tc of filteredTestCases()" class="requirement-card">
+            <div class="card-header">
+              <span class="req-id">{{ tc.test_case_id }}</span>
+              <span class="priority-badge" [class]="getPriorityClass(tc.priority)">
+                {{ tc.priority || 'P3' }}
+              </span>
+            </div>
+            <h3 class="card-title">{{ tc.test_objective || tc.test_name || 'Test Case' }}</h3>
+            <p class="card-description" *ngIf="tc.feature">Feature: {{ tc.feature }}</p>
+            <p class="card-description" *ngIf="tc.preconditions">{{ tc.preconditions }}</p>
+            
+            <div class="card-footer">
+              <span class="type-badge">
+                {{ tc.test_type || 'N/A' }}
+              </span>
+              <span class="feature-badge" *ngIf="tc.feature">{{ tc.feature }}</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn-edit" (click)="openEditModal(tc)" title="Edit">
+                <i class="icon-edit"></i>
+              </button>
+              <button class="btn-delete" (click)="confirmDelete(tc)" title="Delete">
+                <i class="icon-delete"></i>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -160,7 +165,6 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       max-width: 1400px;
       margin: 0 auto;
       padding: 20px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
     .management-header {
@@ -639,6 +643,9 @@ export class TestCaseManagementComponent implements OnInit {
   testCaseToDelete = signal<TestCase | null>(null);
   currentEditingTestCase = signal<TestCase | null>(null);
   searchTerm = '';
+  selectedType = signal<string>('all');
+  selectedPriority = signal<string>('all');
+  selectedFeature = signal<string>('all');
 
   testCaseForm: FormGroup;
 
@@ -699,17 +706,49 @@ export class TestCaseManagementComponent implements OnInit {
   }
 
   filteredTestCases(): TestCase[] {
-    if (!this.searchTerm.trim()) {
-      return this.testCases();
+    let filtered = this.testCases();
+    
+    // Text search
+    if (this.searchTerm.trim()) {
+      const term = this.searchTerm.toLowerCase();
+      filtered = filtered.filter(testCase => 
+        testCase.test_case_id.toLowerCase().includes(term) ||
+        (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
+        (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
+        (testCase.procedure && testCase.procedure.toLowerCase().includes(term))
+      );
     }
     
-    const term = this.searchTerm.toLowerCase();
-    return this.testCases().filter(testCase => 
-      testCase.test_case_id.toLowerCase().includes(term) ||
-      (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
-      (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
-      (testCase.procedure && testCase.procedure.toLowerCase().includes(term))
-    );
+    // Filter by type
+    if (this.selectedType() !== 'all') {
+      filtered = filtered.filter(tc => tc.test_type === this.selectedType());
+    }
+    
+    // Filter by priority
+    if (this.selectedPriority() !== 'all') {
+      filtered = filtered.filter(tc => tc.priority === this.selectedPriority());
+    }
+    
+    // Filter by feature
+    if (this.selectedFeature() !== 'all') {
+      filtered = filtered.filter(tc => tc.feature === this.selectedFeature());
+    }
+    
+    return filtered;
+  }
+
+  getUniqueFeatures(): string[] {
+    const features = this.testCases().map(tc => tc.feature).filter(f => f);
+    return [...new Set(features)];
+  }
+
+  getPriorityClass(priority: string | undefined): string {
+    if (!priority) return 'priority-default';
+    const p = priority.toUpperCase();
+    if (p.includes('P1') || p.includes('HIGH')) return 'priority-high';
+    if (p.includes('P2') || p.includes('MEDIUM')) return 'priority-medium';
+    if (p.includes('P3') || p.includes('LOW')) return 'priority-low';
+    return 'priority-default';
   }
 
   openCreateModal() {
