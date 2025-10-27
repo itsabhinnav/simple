@@ -100,6 +100,7 @@ export class RequirementsComponent implements OnInit {
     
     this.requirementService.getRequirements().subscribe({
       next: (requirements) => {
+        console.log('Loaded requirements:', requirements);
         this.requirements.set(requirements || []);
         this.isLoading.set(false);
       },
@@ -264,7 +265,12 @@ export class RequirementsComponent implements OnInit {
     return [...new Set(assignees)];
   }
 
-  navigateToDetail(id: number) {
+  navigateToDetail(id: number | undefined) {
+    if (!id) {
+      console.error('Cannot navigate: requirement ID is undefined');
+      return;
+    }
+    console.log('Navigating to requirement detail:', id);
     this.router.navigate(['/requirements', id]);
   }
 

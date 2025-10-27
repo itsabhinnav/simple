@@ -66,7 +66,10 @@ export class RequirementService {
     return this.http.get<ApiResponse<Requirement[]>>(`${this.baseUrl}/requirements`)
       .pipe(
         map(response => {
-          return response.data || [];
+          console.log('API Response:', response);
+          const data = response.data || [];
+          console.log('Mapped requirements:', data);
+          return data;
         }),
         catchError((error) => {
           console.error('Error loading requirements:', error);
@@ -79,6 +82,18 @@ export class RequirementService {
     return this.http.get<ApiResponse<Requirement>>(`${this.baseUrl}/requirements/${id}`)
       .pipe(
         map(response => response.data || null),
+        catchError(() => of(null))
+      );
+  }
+
+  getRequirementByRequirementId(requirementId: string): Observable<Requirement | null> {
+    return this.http.get<ApiResponse<Requirement[]>>(`${this.baseUrl}/requirements`)
+      .pipe(
+        map(response => {
+          const requirements = response.data || [];
+          const req = requirements.find(r => r.requirement_id === requirementId);
+          return req || null;
+        }),
         catchError(() => of(null))
       );
   }

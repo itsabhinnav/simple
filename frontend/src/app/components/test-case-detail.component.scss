@@ -1,72 +1,99 @@
-@import '../../styles.scss';
-
 .detail-container {
-  padding: 24px;
-  background: $background-primary;
-  min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
 .detail-header {
+  background-color: white;
+  border: 1px solid #dadce0;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+
+  .header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
 
   .breadcrumb {
     font-size: 14px;
-    color: $text-secondary;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .breadcrumb-link {
-    color: $primary-color;
+    color: #5f6368;
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
     transition: color 0.2s;
+    font-size: 14px;
 
     &:hover {
-      color: darken($primary-color, 10%);
+      color: #202124;
     }
   }
 
   .breadcrumb-separator {
-    margin: 0 8px;
-    color: $text-secondary;
+    color: #5f6368;
   }
 
   .breadcrumb-current {
-    color: $text-primary;
-    font-weight: 600;
+    color: #202124;
+    font-weight: 500;
+  }
+
+  .page-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #202124;
   }
 
   .header-actions {
     display: flex;
-    gap: 12px;
+    gap: 8px;
 
     button {
-      padding: 8px 16px;
+      padding: 10px 20px;
       border: none;
-      border-radius: 6px;
+      border-radius: 24px;
       cursor: pointer;
       font-size: 14px;
+      font-weight: 500;
       display: flex;
       align-items: center;
       gap: 8px;
       transition: all 0.2s;
+      text-decoration: none;
 
-      &.btn-edit {
-        background: $primary-color;
-        color: white;
+      &.back-btn {
+        background: var(--color-gray-200);
+        color: #202124;
+        border: 1px solid var(--color-gray-300);
 
         &:hover {
-          background: darken($primary-color, 10%);
+          background: var(--color-gray-300);
         }
       }
 
-      &.btn-delete {
-        background: #f44336;
-        color: white;
+      &.delete-btn {
+        background: #ffebee;
+        color: #c62828;
 
         &:hover {
-          background: darken(#f44336, 10%);
+          background: #ffcdd2;
         }
       }
     }
@@ -87,28 +114,28 @@
   .spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid $background-secondary;
-    border-top-color: $primary-color;
+    border: 4px solid #f3f3f3;
+    border-top-color: #1a73e8;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
 
   p {
     margin-top: 16px;
-    color: $text-secondary;
+    color: #666;
   }
 
   .retry-btn {
     margin-top: 16px;
     padding: 8px 16px;
-    background: $primary-color;
+    background: #1a73e8;
     color: white;
     border: none;
     border-radius: 6px;
     cursor: pointer;
 
     &:hover {
-      background: darken($primary-color, 10%);
+      background: #1557b0;
     }
   }
 }
@@ -116,30 +143,46 @@
 .detail-content {
   .detail-card {
     background: white;
+    border: 1px solid #dadce0;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
 
   .card-header {
-    padding: 24px;
-    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
-    color: white;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e0e0e0;
 
-    .title-section {
-      margin-bottom: 16px;
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
 
-      .detail-title {
-        font-size: 24px;
-        font-weight: 600;
-        margin: 0 0 8px 0;
-      }
+    .title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
 
-      .detail-id {
-        font-size: 14px;
-        opacity: 0.9;
-        font-family: monospace;
-      }
+    .card-title {
+      font-size: 24px;
+      font-weight: 500;
+      margin: 0;
+      color: #202124;
+    }
+
+    .req-id {
+      font-size: 14px;
+      color: #5f6368;
+      font-family: monospace;
+    }
+
+    .badges-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .badges {
@@ -156,7 +199,7 @@
         backdrop-filter: blur(10px);
       }
 
-      .status-pass {
+      .status-pass, .status-default {
         background: rgba(76, 175, 80, 0.3);
       }
 
@@ -175,31 +218,48 @@
       .status-progress {
         background: rgba(33, 150, 243, 0.3);
       }
+
+      .priority-low, .priority-default {
+        background: rgba(76, 175, 80, 0.3);
+      }
+
+      .priority-medium {
+        background: rgba(255, 152, 0, 0.3);
+      }
+
+      .priority-high {
+        background: rgba(244, 67, 54, 0.3);
+      }
+
+      .priority-critical {
+        background: rgba(198, 40, 40, 0.4);
+      }
     }
   }
 
   .card-body {
-    padding: 24px;
+    padding: 0;
   }
 
   .detail-section {
     margin-bottom: 24px;
 
     .section-title {
-      font-size: 16px;
+      font-size: 18px;
       font-weight: 600;
-      color: $text-primary;
+      color: #202124;
       margin-bottom: 12px;
     }
 
     .section-content {
-      color: $text-secondary;
+      color: #5f6368;
       line-height: 1.6;
+      font-size: 14px;
     }
   }
 
   .gwt-section {
-    background: $background-secondary;
+    background: #f5f5f5;
     padding: 20px;
     border-radius: 8px;
 
@@ -223,7 +283,7 @@
 
       .gwt-content {
         margin: 0;
-        color: $text-secondary;
+        color: #666;
         padding-left: 4px;
       }
     }
@@ -233,8 +293,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: 24px;
-    padding-top: 16px;
-    border-top: 1px solid $border-color;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 20px;
 
     .meta-item {
       display: flex;
@@ -243,19 +304,49 @@
 
       .meta-label {
         font-size: 12px;
-        color: $text-secondary;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        color: #5f6368;
+        font-weight: 500;
       }
 
       .meta-value {
         font-size: 14px;
-        color: $text-primary;
+        color: #202124;
+        font-weight: 500;
+
+        .requirement-link {
+          color: #1a73e8;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          
+          &:hover {
+            color: #1557b0;
+            text-decoration: underline;
+          }
+        }
       }
     }
   }
 }
+
+// Priority and Status Badge Styles
+.priority-low { background: #e8f5e8; color: #2e7d32; }
+.priority-medium { background: #fff3e0; color: #f57c00; }
+.priority-high { background: #ffebee; color: #c62828; }
+.priority-default { background: #f5f5f5; color: #757575; }
+
+.status-pass { background: #e8f5e8; color: #2e7d32; }
+.status-fail { background: #ffebee; color: #c62828; }
+.status-blocked { background: #fff3e0; color: #f57c00; }
+.status-progress { background: #e3f2fd; color: #1976d2; }
+.status-default { background: #fafafa; color: #757575; }
+
+.icon-error::before { content: "❌"; }
+.icon-back::before { content: "←"; }
+.icon-delete::before { content: "🗑️"; }
+.icon-test-cases::before { content: "🧪"; }
+.icon-database::before { content: "💾"; }
+.icon-requirements::before { content: "📋"; }
 
 @keyframes spin {
   to {

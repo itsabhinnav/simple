@@ -90,7 +90,7 @@
 
     <!-- Requirements Grid -->
     <div *ngIf="filteredRequirements().length > 0" class="requirements-grid">
-      <div *ngFor="let req of filteredRequirements()" class="requirement-card" (click)="navigateToDetail(req.id!)">
+      <div *ngFor="let req of filteredRequirements()" class="requirement-card" (click)="navigateToDetail(req.id)">
         <div class="card-header">
           <span class="req-id">{{ req.requirement_id }}</span>
           <span class="priority-badge" [class]="getPriorityClass(req.priority)">

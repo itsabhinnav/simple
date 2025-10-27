@@ -1,7 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { RequirementService, Requirement } from '../services/requirement.service';
+import { TestCaseService, TestCase } from '../services/test-case.service';
 
 @Component({
   selector: 'app-requirement-detail',
@@ -12,10 +13,14 @@ import { RequirementService, Requirement } from '../services/requirement.service
 })
 export class RequirementDetailComponent implements OnInit {
   private requirementService = inject(RequirementService);
+  private testCaseService = inject(TestCaseService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   requirement = signal<Requirement | null>(null);
+  linkedTestCases = signal<TestCase[]>([]);
   isLoading = signal(false);
+  isLoadingTestCases = signal(false);
   error = signal<string | null>(null);
   requirementId = signal<number | null>(null);
 
@@ -35,6 +40,7 @@ export class RequirementDetailComponent implements OnInit {
       next: (requirement) => {
         if (requirement) {
           this.requirement.set(requirement);
+          this.loadLinkedTestCases(requirement.requirement_id);
         } else {
           this.error.set('Requirement not found');
         }
@@ -46,6 +52,30 @@ export class RequirementDetailComponent implements OnInit {
         console.error('Error loading requirement:', err);
       }
     });
+  }
+
+  loadLinkedTestCases(requirementId: string) {
+    this.isLoadingTestCases.set(true);
+    
+    this.testCaseService.getTestCases().subscribe({
+      next: (testCases) => {
+        // Filter test cases that are linked to this requirement
+        const linked = testCases.filter(tc => 
+          tc.associated_requirement_id === requirementId
+        );
+        this.linkedTestCases.set(linked);
+        this.isLoadingTestCases.set(false);
+      },
+      error: (err) => {
+        console.error('Error loading linked test cases:', err);
+        this.linkedTestCases.set([]);
+        this.isLoadingTestCases.set(false);
+      }
+    });
+  }
+
+  navigateToTestCase(testCaseId: string) {
+    this.router.navigate(['/test-cases', testCaseId]);
   }
 
   getStatusClass(status: string): string {
@@ -69,6 +99,12 @@ export class RequirementDetailComponent implements OnInit {
     return priorityMap[priority] || 'priority-default';
   }
 
+  goBack() {
+    if (typeof window !== 'undefined') {
+      window.history.back();
+    }
+  }
+
   deleteRequirement() {
     if (!this.requirementId() || !confirm('Are you sure you want to delete this requirement?')) {
       return;
@@ -76,7 +112,9 @@ export class RequirementDetailComponent implements OnInit {
 
     this.requirementService.deleteRequirement(this.requirementId()!).subscribe({
       next: () => {
-        window.history.back();
+        if (typeof window !== 'undefined') {
+          window.history.back();
+        }
       },
       error: (err) => {
         this.error.set('Failed to delete requirement');
@@ -85,4 +123,5 @@ export class RequirementDetailComponent implements OnInit {
     });
   }
 }
+
 

@@ -1,22 +1,28 @@
 <div class="detail-container">
   <!-- Header -->
   <header class="detail-header">
-    <nav class="breadcrumb">
-      <a routerLink="/" class="breadcrumb-link">
-        <i class="icon-database"></i>
-        Dashboard
-      </a>
-      <span class="breadcrumb-separator">›</span>
-      <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
-      <span class="breadcrumb-separator">›</span>
-      <span class="breadcrumb-current">{{ testCase()?.test_case_id || 'Detail' }}</span>
-    </nav>
+    <div class="header-left">
+      <nav class="breadcrumb">
+        <a routerLink="/" class="breadcrumb-link">
+          <i class="icon-database"></i>
+          Dashboard
+        </a>
+        <span class="breadcrumb-separator">›</span>
+        <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-current">{{ testCase()?.test_case_id || 'Detail' }}</span>
+      </nav>
+      <h1 class="page-title">
+        <i class="icon-test-cases"></i>
+        Test Case Details
+      </h1>
+    </div>
     <div class="header-actions">
-      <button class="btn-edit" routerLink="/test-cases" title="Back">
+      <button class="back-btn" (click)="goBack()" title="Back">
         <i class="icon-back"></i>
         Back
       </button>
-      <button class="btn-delete" (click)="deleteTestCase()" title="Delete">
+      <button class="delete-btn" (click)="deleteTestCase()" title="Delete">
         <i class="icon-delete"></i>
         Delete
       </button>
@@ -41,45 +47,46 @@
     <div class="detail-card">
       <!-- Card Header -->
       <div class="card-header">
-        <div class="title-section">
-          <h1 class="detail-title">{{ testCase()?.title }}</h1>
-          <span class="detail-id">{{ testCase()?.test_case_id }}</span>
-        </div>
-        <div class="badges">
-          <span class="priority-badge" [class]="getPriorityClass(testCase()?.priority || '')">
-            {{ testCase()?.priority }}
-          </span>
-          <span class="status-badge" [class]="getStatusClass(testCase()?.status || '')">
-            {{ testCase()?.status }}
-          </span>
+        <div class="header-top">
+          <div class="title-group">
+            <h2 class="card-title">{{ testCase()?.test_objective || 'Test Case' }}</h2>
+            <span class="req-id">{{ testCase()?.test_case_id }}</span>
+          </div>
+          <div class="badges-group">
+            <span class="priority-badge" [class]="getPriorityClass(testCase()?.priority || '')" *ngIf="testCase()?.priority">
+              {{ testCase()?.priority }}
+            </span>
+            <span class="status-badge" [class]="getTypeClass(testCase()?.test_type || '')" *ngIf="testCase()?.test_type">
+              {{ testCase()?.test_type }}
+            </span>
+          </div>
         </div>
       </div>
 
       <!-- Card Body -->
       <div class="card-body">
-        <!-- Description -->
-        <div class="detail-section" *ngIf="testCase()?.description">
-          <h3 class="section-title">Description</h3>
-          <p class="section-content">{{ testCase()?.description }}</p>
+        <!-- Test Objective -->
+        <div class="detail-section" *ngIf="testCase()?.test_objective">
+          <h3 class="section-title">Test Objective</h3>
+          <p class="section-content">{{ testCase()?.test_objective }}</p>
         </div>
 
-        <!-- GIVEN-WHEN-THEN -->
-        <div class="detail-section gwt-section" *ngIf="testCase()?.given || testCase()?.when_action || testCase()?.then_result">
-          <h3 class="section-title">Test Steps</h3>
-          <div class="gwt-container">
-            <div class="gwt-item" *ngIf="testCase()?.given">
-              <span class="gwt-label">GIVEN</span>
-              <p class="gwt-content">{{ testCase()?.given }}</p>
-            </div>
-            <div class="gwt-item" *ngIf="testCase()?.when_action">
-              <span class="gwt-label">WHEN</span>
-              <p class="gwt-content">{{ testCase()?.when_action }}</p>
-            </div>
-            <div class="gwt-item" *ngIf="testCase()?.then_result">
-              <span class="gwt-label">THEN</span>
-              <p class="gwt-content">{{ testCase()?.then_result }}</p>
-            </div>
-          </div>
+        <!-- Preconditions -->
+        <div class="detail-section" *ngIf="testCase()?.preconditions">
+          <h3 class="section-title">Preconditions</h3>
+          <p class="section-content">{{ testCase()?.preconditions }}</p>
+        </div>
+
+        <!-- Procedure -->
+        <div class="detail-section" *ngIf="testCase()?.procedure">
+          <h3 class="section-title">Procedure</h3>
+          <p class="section-content">{{ testCase()?.procedure }}</p>
+        </div>
+
+        <!-- Expected Behavior -->
+        <div class="detail-section" *ngIf="testCase()?.expected_behavior">
+          <h3 class="section-title">Expected Behavior</h3>
+          <p class="section-content">{{ testCase()?.expected_behavior }}</p>
         </div>
 
         <!-- Metadata -->
@@ -88,21 +95,35 @@
             <span class="meta-label">Requirement Type:</span>
             <span class="meta-value">{{ testCase()?.requirement_type }}</span>
           </div>
-          <div class="meta-item" *ngIf="testCase()?.requirement_id">
+          <div class="meta-item" *ngIf="testCase()?.associated_requirement_id">
             <span class="meta-label">Requirement ID:</span>
-            <span class="meta-value">{{ testCase()?.requirement_id }}</span>
+            <span class="meta-value">
+              <a (click)="navigateToRequirement(testCase()!.associated_requirement_id!)" 
+                 class="requirement-link" 
+                 title="View requirement details">
+                📋 {{ testCase()?.associated_requirement_id }}
+              </a>
+            </span>
           </div>
           <div class="meta-item" *ngIf="testCase()?.feature">
             <span class="meta-label">Feature:</span>
             <span class="meta-value">{{ testCase()?.feature }}</span>
           </div>
-          <div class="meta-item" *ngIf="testCase()?.assignee">
-            <span class="meta-label">Assignee:</span>
-            <span class="meta-value">👤 {{ testCase()?.assignee }}</span>
+          <div class="meta-item" *ngIf="testCase()?.screen_id">
+            <span class="meta-label">Screen ID:</span>
+            <span class="meta-value">{{ testCase()?.screen_id }}</span>
           </div>
-          <div class="meta-item" *ngIf="testCase()?.tags">
-            <span class="meta-label">Tags:</span>
-            <span class="meta-value">{{ testCase()?.tags }}</span>
+          <div class="meta-item" *ngIf="testCase()?.test_type">
+            <span class="meta-label">Test Type:</span>
+            <span class="meta-value">{{ testCase()?.test_type }}</span>
+          </div>
+          <div class="meta-item" *ngIf="testCase()?.region">
+            <span class="meta-label">Region:</span>
+            <span class="meta-value">{{ testCase()?.region }}</span>
+          </div>
+          <div class="meta-item" *ngIf="testCase()?.brand">
+            <span class="meta-label">Brand:</span>
+            <span class="meta-value">{{ testCase()?.brand }}</span>
           </div>
           <div class="meta-item" *ngIf="testCase()?.created_at">
             <span class="meta-label">Created:</span>

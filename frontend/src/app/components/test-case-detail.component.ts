@@ -1,7 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { TestCaseService, TestCase } from '../services/test-case.service';
+import { RequirementService } from '../services/requirement.service';
 
 @Component({
   selector: 'app-test-case-detail',
@@ -12,7 +13,9 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 })
 export class TestCaseDetailComponent implements OnInit {
   private testCaseService = inject(TestCaseService);
+  private requirementService = inject(RequirementService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   testCase = signal<TestCase | null>(null);
   isLoading = signal(false);
@@ -62,12 +65,27 @@ export class TestCaseDetailComponent implements OnInit {
 
   getPriorityClass(priority: string): string {
     const priorityMap: { [key: string]: string } = {
-      'P4': 'priority-low',
-      'P3': 'priority-medium',
-      'P2': 'priority-high',
-      'P1': 'priority-critical'
+      'P3': 'priority-low',
+      'P2': 'priority-medium',
+      'P1': 'priority-high',
     };
     return priorityMap[priority] || 'priority-default';
+  }
+
+  getTypeClass(testType: string): string {
+    const typeMap: { [key: string]: string } = {
+      'Positive': 'status-pass',
+      'Negative': 'status-fail',
+      'Boundary': 'status-blocked',
+      'Performance': 'status-progress'
+    };
+    return typeMap[testType] || 'status-default';
+  }
+
+  goBack() {
+    if (typeof window !== 'undefined') {
+      window.history.back();
+    }
   }
 
   deleteTestCase() {
@@ -77,11 +95,37 @@ export class TestCaseDetailComponent implements OnInit {
 
     this.testCaseService.deleteTestCase(String(this.testCaseId()!)).subscribe({
       next: () => {
-        window.history.back();
+        if (typeof window !== 'undefined') {
+          window.history.back();
+        }
       },
       error: (err) => {
         this.error.set('Failed to delete test case');
         console.error('Error deleting test case:', err);
+      }
+    });
+  }
+
+  navigateToRequirement(requirementId: string) {
+    if (!requirementId) {
+      console.error('Cannot navigate: requirement ID is empty');
+      return;
+    }
+
+    // Get the requirement by requirement_id to find its numeric id
+    this.requirementService.getRequirementByRequirementId(requirementId).subscribe({
+      next: (requirement) => {
+        if (requirement && requirement.id) {
+          console.log('Navigating to requirement detail:', requirement.id);
+          this.router.navigate(['/requirements', requirement.id]);
+        } else {
+          console.error('Requirement not found:', requirementId);
+          alert(`Requirement ${requirementId} not found`);
+        }
+      },
+      error: (err) => {
+        console.error('Error loading requirement:', err);
+        alert(`Failed to load requirement ${requirementId}`);
       }
     });
   }
