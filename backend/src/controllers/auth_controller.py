@@ -65,10 +65,9 @@ class AuthController:
             user_dict.pop('git_token', None)  # Remove plain git token
             
             # Manually insert the user since we need password_hash
-            # Use the local database service to ensure user is created in the correct database
-            from src.infrastructure.dependency_injection import get_local_database_service
-            local_database_service = get_local_database_service()
-            database_service = local_database_service
+            # Use the hybrid database service for version tracking and sync
+            from src.infrastructure.dependency_injection import get_hybrid_database_service
+            database_service = get_hybrid_database_service()
             
             # Use parameterized query to prevent SQL injection
             # For SQLite databases, we need to use execute_query with proper parameters
