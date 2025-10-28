@@ -96,7 +96,7 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
                 <td><span class="type-badge">{{ dt.design_type || '-' }}</span></td>
                 <td><span class="priority-badge" [class]="getPriorityClass(dt.priority)">{{ dt.priority || 'P3' }}</span></td>
                 <td><span class="status-badge" [class]="getStatusClass(dt.status)">{{ dt.status || 'Draft' }}</span></td>
-                <td>{{ dt.requirement_id || '-' }}</td>
+                <td>{{ dt.linked_requirement_id || '-' }}</td>
                 <td (click)="$event.stopPropagation()">
                   <button class="btn-edit" (click)="openEditModal(dt)">Edit</button>
                   <button class="btn-delete" (click)="confirmDelete(dt)">Delete</button>

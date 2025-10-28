@@ -102,6 +102,18 @@
           </div>
         </div>
 
+        <!-- Linked Designs -->
+        <div class="detail-section" *ngIf="linkedDesigns().length > 0">
+          <h3 class="section-title">Linked Designs</h3>
+          <div class="linked-items">
+            <div *ngFor="let design of linkedDesigns()" class="linked-item" (click)="navigateToDesign(design.design_ticket_id)">
+              <span class="linked-icon">🎨</span>
+              <span class="linked-id">{{ design.design_ticket_id }}</span>
+              <span class="linked-title">{{ design.title || 'Design' }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Metadata -->
         <div class="detail-meta">
           <div class="meta-item" *ngIf="requirement()?.requirement_type">

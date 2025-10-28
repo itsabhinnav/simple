@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { RequirementService, Requirement } from '../services/requirement.service';
 import { TestCaseService, TestCase } from '../services/test-case.service';
+import { DesignTicketService, DesignTicket } from '../services/design-ticket.service';
 
 @Component({
   selector: 'app-requirement-detail',
@@ -14,13 +15,16 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 export class RequirementDetailComponent implements OnInit {
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
+  private designTicketService = inject(DesignTicketService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
   requirement = signal<Requirement | null>(null);
   linkedTestCases = signal<TestCase[]>([]);
+  linkedDesigns = signal<DesignTicket[]>([]);
   isLoading = signal(false);
   isLoadingTestCases = signal(false);
+  isLoadingDesigns = signal(false);
   error = signal<string | null>(null);
   requirementId = signal<number | null>(null);
 
@@ -41,6 +45,7 @@ export class RequirementDetailComponent implements OnInit {
         if (requirement) {
           this.requirement.set(requirement);
           this.loadLinkedTestCases(requirement.requirement_id);
+          this.loadLinkedDesigns(requirement.requirement_id);
         } else {
           this.error.set('Requirement not found');
         }
@@ -74,8 +79,32 @@ export class RequirementDetailComponent implements OnInit {
     });
   }
 
+  loadLinkedDesigns(requirementId: string) {
+    this.isLoadingDesigns.set(true);
+    
+    this.designTicketService.getDesignTickets().subscribe({
+      next: (designs) => {
+        // Filter designs that are linked to this requirement
+        const linked = designs.filter(design => 
+          design.linked_requirement_id === requirementId
+        );
+        this.linkedDesigns.set(linked);
+        this.isLoadingDesigns.set(false);
+      },
+      error: (err) => {
+        console.error('Error loading linked designs:', err);
+        this.linkedDesigns.set([]);
+        this.isLoadingDesigns.set(false);
+      }
+    });
+  }
+
   navigateToTestCase(testCaseId: string) {
     this.router.navigate(['/test-cases', testCaseId]);
+  }
+
+  navigateToDesign(designTicketId: string) {
+    this.router.navigate(['/design-tickets', designTicketId]);
   }
 
   getStatusClass(status: string): string {

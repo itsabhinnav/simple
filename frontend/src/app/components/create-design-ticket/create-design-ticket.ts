@@ -116,11 +116,11 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
             </div>
 
             <div class="form-group">
-              <label for="requirement_id">Linked Requirement ID</label>
+              <label for="linked_requirement_id">Linked Requirement ID</label>
               <input 
                 type="text" 
-                id="requirement_id"
-                formControlName="requirement_id"
+                id="linked_requirement_id"
+                formControlName="linked_requirement_id"
                 class="form-input"
                 placeholder="e.g., REQ-001">
               <div class="field-hint">
@@ -435,7 +435,7 @@ export class CreateDesignTicket implements OnInit {
       image_url: [''],
       priority: ['P2', [Validators.required]],
       status: ['Draft', [Validators.required]],
-      requirement_id: [''],
+      linked_requirement_id: [''],
       assignee: [''],
       tags: ['']
     });

@@ -14,7 +14,7 @@ export interface DesignTicket {
   image_url?: string;
   priority: string;
   status: string;
-  requirement_id?: string;
+  linked_requirement_id?: string;
   assignee?: string;
   tags?: string;
   created_by?: string;
@@ -31,7 +31,7 @@ export interface DesignTicketCreateRequest {
   image_url?: string;
   priority: string;
   status: string;
-  requirement_id?: string;
+  linked_requirement_id?: string;
   assignee?: string;
   tags?: string;
 }
@@ -44,7 +44,7 @@ export interface DesignTicketUpdateRequest {
   image_url?: string;
   priority?: string;
   status?: string;
-  requirement_id?: string;
+  linked_requirement_id?: string;
   assignee?: string;
   tags?: string;
 }
