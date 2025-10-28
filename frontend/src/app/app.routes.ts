@@ -8,6 +8,7 @@ import { CreateRequirementComponent } from './components/create-requirement.comp
 import { CreateTestCaseComponent } from './components/create-test-case.component';
 import { RequirementDetailComponent } from './components/requirement-detail.component';
 import { TestCaseDetailComponent } from './components/test-case-detail.component';
+import { SplitViewComponent } from './components/split-view.component';
 import { AuthGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -20,5 +21,6 @@ export const routes: Routes = [
   { path: 'test-cases', component: TestCaseManagementComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/create', component: CreateTestCaseComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/:id', component: TestCaseDetailComponent, canActivate: [AuthGuard] },
+  { path: 'split-view', component: SplitViewComponent, canActivate: [AuthGuard] },
   { path: '**', redirectTo: '' }
 ];
