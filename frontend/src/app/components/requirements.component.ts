@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -95,7 +95,8 @@ export class RequirementsComponent implements OnInit {
     this.loadRequirements();
     
     // Redirect to browse view when selected
-    this.currentView.subscribe(view => {
+    effect(() => {
+      const view = this.currentView();
       if (view === 'browse') {
         this.router.navigate(['/split-view']);
       }
