@@ -311,30 +311,43 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
     .split-content {
       display: grid;
-      grid-template-columns: 400px 1fr;
+      grid-template-columns: 450px 1fr;
       gap: 20px;
       flex: 1;
       overflow: hidden;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      background: #f5f5f5;
+      padding: 20px;
     }
 
     .list-panel {
       background: white;
-      border: 1px solid #dadce0;
+      border: 2px solid #333;
       border-radius: 8px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .list-header {
       padding: 16px;
-      border-bottom: 1px solid #dadce0;
+      border-bottom: 2px solid #dadce0;
+      background: white;
+      margin: 0;
     }
 
     .list-header h3 {
       margin: 0 0 12px 0;
       font-size: 16px;
       font-weight: 600;
+    }
+
+    .list-items {
+      padding: 8px 0;
+      overflow-y: auto;
+      flex: 1;
     }
 
     .search-input {
@@ -346,24 +359,32 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
     }
 
     .list-items {
-      flex: 1;
+      padding: 8px 0;
       overflow-y: auto;
+      flex: 1;
     }
 
     .list-item {
       padding: 16px;
-      border-bottom: 1px solid #f0f0f0;
+      border: 1px solid #dadce0;
       cursor: pointer;
       transition: all 0.2s;
+      background: white;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      margin-left: 8px;
+      margin-right: 8px;
     }
 
     .list-item:hover {
-      background: #f9f9f9;
+      background: #f5f5f5;
+      border-color: #1a73e8;
     }
 
     .list-item.active {
       background: #e8f0fe;
-      border-left: 4px solid #1a73e8;
+      border: 2px solid #1a73e8;
+      box-shadow: 0 2px 4px rgba(26, 115, 232, 0.2);
     }
 
     .item-id {
@@ -395,10 +416,11 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
     .detail-panel {
       background: white;
-      border: 1px solid #dadce0;
+      border: 2px solid #333;
       border-radius: 8px;
       overflow-y: auto;
       padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .detail-card {
