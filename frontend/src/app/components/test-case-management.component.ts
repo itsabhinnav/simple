@@ -1188,6 +1188,7 @@ export class TestCaseManagementComponent implements OnInit {
   isLoading = signal(false);
   error = signal<string | null>(null);
   showModal = signal(false);
+  currentView = signal<'grid' | 'table' | 'browse'>('table');
   
   // Computed signal for filtered test cases
   filteredTestCases = computed(() => {
@@ -1242,7 +1243,6 @@ export class TestCaseManagementComponent implements OnInit {
   isDeleting = signal(false);
   testCaseToDelete = signal<TestCase | null>(null);
   currentEditingTestCase = signal<TestCase | null>(null);
-  currentView = signal<'grid' | 'table' | 'browse'>('grid');
   searchTerm = signal('');
   selectedTypes = signal<string[]>([]);
   selectedPriorities = signal<string[]>([]);

@@ -71,7 +71,7 @@ export class RequirementsComponent implements OnInit {
   showModal = signal(false);
   isEditMode = signal(false);
   isSubmitting = signal(false);
-  currentView = signal<'grid' | 'table' | 'browse'>('grid');
+  currentView = signal<'grid' | 'table' | 'browse'>('table');
   
   requirementToEdit = signal<Requirement | null>(null);
   requirementForm: FormGroup;

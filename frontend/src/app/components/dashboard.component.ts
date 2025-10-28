@@ -5,6 +5,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractContro
 import { AuthService } from '../services/auth.service';
 import { RequirementService } from '../services/requirement.service';
 import { TestCaseService } from '../services/test-case.service';
+import { DesignTicketService, DesignTicket } from '../services/design-ticket.service';
 import { Requirement } from '../services/requirement.service';
 import { TestCase } from '../services/test-case.service';
 
@@ -21,6 +22,7 @@ export class DashboardComponent implements OnInit {
   private formBuilder = inject(FormBuilder);
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
+  private designTicketService = inject(DesignTicketService);
 
   isAuthenticated = signal(false);
   isInitialized = signal(false);
@@ -32,11 +34,13 @@ export class DashboardComponent implements OnInit {
   // Dashboard stats
   requirementsCount = signal(0);
   testCasesCount = signal(0);
+  designTicketsCount = signal(0);
   isLoadingStats = signal(false);
   
   // Recent items
   recentRequirements = signal<Requirement[]>([]);
   recentTestCases = signal<TestCase[]>([]);
+  recentDesignTickets = signal<DesignTicket[]>([]);
 
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -95,10 +99,21 @@ export class DashboardComponent implements OnInit {
         // Get recent test cases (last 5)
         const recent = testCases.slice(0, 5);
         this.recentTestCases.set(recent);
+      },
+      error: () => this.testCasesCount.set(0)
+    });
+    
+    // Load design tickets count
+    this.designTicketService.getDesignTickets().subscribe({
+      next: (designTickets) => {
+        this.designTicketsCount.set(designTickets.length);
+        // Get recent design tickets (last 5)
+        const recent = designTickets.slice(0, 5);
+        this.recentDesignTickets.set(recent);
         this.isLoadingStats.set(false);
       },
       error: () => {
-        this.testCasesCount.set(0);
+        this.designTicketsCount.set(0);
         this.isLoadingStats.set(false);
       }
     });
@@ -118,6 +133,10 @@ export class DashboardComponent implements OnInit {
 
   createTestCase() {
     this.router.navigate(['/test-cases/create']);
+  }
+
+  createDesignTicket() {
+    this.router.navigate(['/design-tickets/create']);
   }
 
 

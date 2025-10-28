@@ -265,6 +265,17 @@ class ApplicationContainer:
             )
         )
         
+        # Register design ticket service
+        from src.services.design_ticket_service import IDesignTicketService, DesignTicketService
+        
+        self.container.register_singleton(
+            IDesignTicketService,
+            DesignTicketService,
+            factory=lambda: DesignTicketService(
+                database_service=self.container.get(HybridDatabaseService)
+            )
+        )
+        
         logger.info("Configuration-based application services configured successfully")
     
     async def initialize(self):
@@ -404,6 +415,12 @@ def get_requirement_service():
     """Get the requirement service."""
     from src.services.requirement_service import IRequirementService
     return get_container().container.get(IRequirementService)
+
+
+def get_design_ticket_service():
+    """Get the design ticket service."""
+    from src.services.design_ticket_service import IDesignTicketService
+    return get_container().container.get(IDesignTicketService)
 
 
 def get_user_repository() -> IUserRepository:

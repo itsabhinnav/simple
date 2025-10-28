@@ -30,19 +30,15 @@ else:
     print("[INFO] Network restrictions disabled (set ENABLE_NETWORK_RESTRICTIONS=true to enable)")
 
 from src.infrastructure.dependency_injection import (
-    get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service
+    get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service,
+    get_requirement_service, get_design_ticket_service
 )
-
-# Import requirement service getter
-def get_requirement_service():
-    from src.services.requirement_service import IRequirementService
-    from src.infrastructure.dependency_injection import get_container
-    return get_container().container.get(IRequirementService)
 from src.controllers.user_controller import create_user_blueprint
 from src.controllers.test_case_controller import create_test_case_blueprint
 from src.controllers.auth_controller import create_auth_blueprint
 from src.controllers.admin_controller import create_admin_blueprint
 from src.controllers.requirement_controller import create_requirement_blueprint
+from src.controllers.design_ticket_controller import create_design_ticket_blueprint
 from src.middleware.error_handlers import (
     setup_error_handlers, setup_request_logging, 
     setup_cors_headers, setup_request_validation, setup_api_documentation
@@ -100,6 +96,7 @@ def register_api_routes(app: Flask) -> None:
     user_service = get_user_service()
     test_case_service = get_test_case_service()
     requirement_service = get_requirement_service()
+    design_ticket_service = get_design_ticket_service()
     
     # Create and register blueprints
     auth_bp = create_auth_blueprint(user_service)
@@ -107,12 +104,14 @@ def register_api_routes(app: Flask) -> None:
     test_case_bp = create_test_case_blueprint(test_case_service)
     admin_bp = create_admin_blueprint()
     requirement_bp = create_requirement_blueprint(requirement_service)
+    design_ticket_bp = create_design_ticket_blueprint(design_ticket_service)
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(test_case_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(requirement_bp)
+    app.register_blueprint(design_ticket_bp)
     
     logger.info("API routes registered successfully")
 

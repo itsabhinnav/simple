@@ -9,6 +9,8 @@ import { CreateTestCaseComponent } from './components/create-test-case.component
 import { RequirementDetailComponent } from './components/requirement-detail.component';
 import { TestCaseDetailComponent } from './components/test-case-detail.component';
 import { SplitViewComponent } from './components/split-view.component';
+import { DesignTicketManagementComponent } from './components/design-ticket-management/design-ticket-management';
+import { CreateDesignTicket } from './components/create-design-ticket/create-design-ticket';
 import { AuthGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -21,6 +23,9 @@ export const routes: Routes = [
   { path: 'test-cases', component: TestCaseManagementComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/create', component: CreateTestCaseComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/:id', component: TestCaseDetailComponent, canActivate: [AuthGuard] },
+  { path: 'design-tickets', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
+  { path: 'design-tickets/create', component: CreateDesignTicket, canActivate: [AuthGuard] },
+  { path: 'design-tickets/:id', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'split-view', component: SplitViewComponent, canActivate: [AuthGuard] },
   { path: '**', redirectTo: '' }
 ];

@@ -3,14 +3,33 @@
     <div class="header-content">
       <h1 routerLink="/" style="cursor: pointer;">🌸 {{ title() }}</h1>
       <div class="header-center" *ngIf="currentUser()">
-        <div class="search-container-header">
+        <div class="search-container-header" [class.active]="searchQuery() && searchResults().length > 0">
           <input 
             type="text" 
             class="search-input-header"
             placeholder="Search"
             [value]="searchQuery()"
-            (input)="onSearch($any($event.target).value)">
+            (input)="onSearch($any($event.target).value)"
+            (blur)="handleSearchBlur($event)"
+            (focus)="handleSearchFocus()">
           <span class="search-icon-header">🔍</span>
+          
+          <!-- Search Results Dropdown -->
+          <div class="search-results-dropdown" *ngIf="searchQuery() && searchResults().length > 0 && showSearchResults()" (mousedown)="$event.preventDefault()">
+            <div class="result-item-header" *ngFor="let item of searchResults()" (mousedown)="navigateToItem(item, $event)">
+              <div class="result-type" *ngIf="'requirement_id' in item">📋 Requirement</div>
+              <div class="result-type" *ngIf="'test_case_id' in item">🧪 Test Case</div>
+              <div class="result-type" *ngIf="'design_ticket_id' in item">🎨 Design Ticket</div>
+              
+              <div class="result-content">
+                <div class="result-id" *ngIf="'requirement_id' in item">{{ item.requirement_id }}</div>
+                <div class="result-id" *ngIf="'test_case_id' in item">{{ item.test_case_id }}</div>
+                <div class="result-id" *ngIf="'design_ticket_id' in item">{{ item.design_ticket_id }}</div>
+                <div class="result-title" *ngIf="'title' in item">{{ item.title }}</div>
+                <div class="result-objective" *ngIf="'test_objective' in item">{{ item.test_objective }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="header-right">
@@ -41,25 +60,17 @@
                   <small>Create a new test case</small>
                 </span>
               </button>
+              <button class="menu-item" (click)="createDesignTicket()">
+                <span class="menu-icon">🎨</span>
+                <span class="menu-text">
+                  <strong>Design Ticket</strong>
+                  <small>Create a design ticket</small>
+                </span>
+              </button>
             </div>
           </div>
           <span class="user-name">{{ currentUser()?.username }}</span>
           <button class="btn-logout" (click)="logout()">Logout</button>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Search Results Dropdown -->
-    <div class="search-results-dropdown" *ngIf="currentUser() && searchQuery() && searchResults().length > 0">
-      <div class="results-list" *ngFor="let item of searchResults()" class="result-item-header">
-        <div class="result-type" *ngIf="'requirement_id' in item">📋 Requirement</div>
-        <div class="result-type" *ngIf="'test_case_id' in item">🧪 Test Case</div>
-        
-        <div class="result-content">
-          <div class="result-id" *ngIf="'requirement_id' in item">{{ item.requirement_id }}</div>
-          <div class="result-id" *ngIf="'test_case_id' in item">{{ item.test_case_id }}</div>
-          <div class="result-title" *ngIf="'title' in item">{{ item.title }}</div>
-          <div class="result-objective" *ngIf="'test_objective' in item">{{ item.test_objective }}</div>
         </div>
       </div>
     </div>

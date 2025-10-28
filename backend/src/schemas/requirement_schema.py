@@ -17,6 +17,7 @@ class RequirementSchema(BaseModel):
     status: Optional[str] = Field(None, max_length=20)  # Draft, Active, Completed, Archived
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None  # Comma-separated tags
+    design_ticket_id: Optional[str] = Field(None, max_length=100)  # Linked design ticket
     created_by: Optional[str] = Field(None, max_length=100)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -34,6 +35,7 @@ class RequirementCreateSchema(BaseModel):
     status: Optional[str] = Field('Draft', max_length=20)
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
+    design_ticket_id: Optional[str] = Field(None, max_length=100)
 
 
 class RequirementUpdateSchema(BaseModel):
@@ -47,5 +49,6 @@ class RequirementUpdateSchema(BaseModel):
     status: Optional[str] = Field(None, max_length=20)
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
+    design_ticket_id: Optional[str] = Field(None, max_length=100)
 
 
