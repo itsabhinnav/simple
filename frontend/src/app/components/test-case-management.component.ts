@@ -26,13 +26,26 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
             Test Case Management
           </h1>
         </div>
-        <button 
-          class="add-btn" 
-          routerLink="/test-cases/create"
-          [disabled]="isLoading()">
-          <i class="icon-plus"></i>
-          Add New Test Case
-        </button>
+        <div class="header-right">
+          <div class="view-toggle">
+            <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
+              <i class="icon-grid">⊞</i>
+            </button>
+            <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
+              <i class="icon-table">☰</i>
+            </button>
+            <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
+              <i class="icon-browse">📍</i>
+            </button>
+          </div>
+          <button 
+            class="add-btn" 
+            routerLink="/test-cases/create"
+            [disabled]="isLoading()">
+            <i class="icon-plus"></i>
+            Add New Test Case
+          </button>
+        </div>
       </header>
 
       <!-- Loading State -->
@@ -217,8 +230,39 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
           </p>
         </div>
 
-        <!-- Test Cases Grid -->
-        <div *ngIf="filteredTestCases().length > 0" class="requirements-grid">
+        <!-- Table View -->
+        <div *ngIf="filteredTestCases().length > 0 && currentView() === 'table'" class="table-view-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Test Case ID</th>
+                <th>Objective</th>
+                <th>Type</th>
+                <th>Priority</th>
+                <th>Feature</th>
+                <th>Screen ID</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let tc of filteredTestCases()" (click)="navigateToDetail(tc.test_case_id)" style="cursor: pointer;">
+                <td><strong>{{ tc.test_case_id }}</strong></td>
+                <td>{{ tc.test_objective }}</td>
+                <td><span class="type-badge">{{ tc.test_type || '-' }}</span></td>
+                <td><span class="priority-badge" [class]="getPriorityClass(tc.priority)">{{ tc.priority || 'P3' }}</span></td>
+                <td>{{ tc.feature || '-' }}</td>
+                <td>{{ tc.screen_id || '-' }}</td>
+                <td (click)="$event.stopPropagation()">
+                  <button class="btn-edit" (click)="openEditModal(tc)">Edit</button>
+                  <button class="btn-delete" (click)="confirmDelete(tc)">Delete</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Grid View -->
+        <div *ngIf="filteredTestCases().length > 0 && currentView() === 'grid'" class="requirements-grid">
           <div *ngFor="let tc of filteredTestCases()" class="requirement-card" (click)="navigateToDetail(tc.test_case_id)">
             <div class="card-header">
               <span class="req-id">{{ tc.test_case_id }}</span>
@@ -1061,6 +1105,7 @@ export class TestCaseManagementComponent implements OnInit {
   isDeleting = signal(false);
   testCaseToDelete = signal<TestCase | null>(null);
   currentEditingTestCase = signal<TestCase | null>(null);
+  currentView = signal<'grid' | 'table' | 'browse'>('grid');
   searchTerm = '';
   selectedTypes = signal<string[]>([]);
   selectedPriorities = signal<string[]>([]);
@@ -1118,6 +1163,13 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
+    
+    // Redirect to browse view when selected
+    this.currentView.subscribe(view => {
+      if (view === 'browse') {
+        this.router.navigate(['/split-view']);
+      }
+    });
     
     // Close filter dropdowns when clicking outside
     document.addEventListener('click', (event) => {

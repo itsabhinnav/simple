@@ -71,6 +71,7 @@ export class RequirementsComponent implements OnInit {
   showModal = signal(false);
   isEditMode = signal(false);
   isSubmitting = signal(false);
+  currentView = signal<'grid' | 'table' | 'browse'>('grid');
   
   requirementToEdit = signal<Requirement | null>(null);
   requirementForm: FormGroup;
@@ -92,6 +93,13 @@ export class RequirementsComponent implements OnInit {
 
   ngOnInit() {
     this.loadRequirements();
+    
+    // Redirect to browse view when selected
+    this.currentView.subscribe(view => {
+      if (view === 'browse') {
+        this.router.navigate(['/split-view']);
+      }
+    });
   }
 
   loadRequirements() {

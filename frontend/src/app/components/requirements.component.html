@@ -15,13 +15,26 @@
         Requirements Management
       </h1>
     </div>
-    <button 
-      class="add-btn" 
-      routerLink="/requirements/create"
-      [disabled]="isLoading()">
-      <i class="icon-plus"></i>
-      Create Requirement
-    </button>
+    <div class="header-right">
+      <div class="view-toggle">
+        <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
+          <i class="icon-grid">⊞</i>
+        </button>
+        <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
+          <i class="icon-table">☰</i>
+        </button>
+        <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
+          <i class="icon-browse">📍</i>
+        </button>
+      </div>
+      <button 
+        class="add-btn" 
+        routerLink="/requirements/create"
+        [disabled]="isLoading()">
+        <i class="icon-plus"></i>
+        Create Requirement
+      </button>
+    </div>
   </header>
 
   <!-- Filters -->
@@ -88,8 +101,37 @@
       </p>
     </div>
 
-    <!-- Requirements Grid -->
-    <div *ngIf="filteredRequirements().length > 0" class="requirements-grid">
+    <!-- Table View -->
+    <div *ngIf="filteredRequirements().length > 0 && currentView() === 'table'" class="table-view-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Assignee</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let req of filteredRequirements()" (click)="navigateToDetail(req.id)" style="cursor: pointer;">
+            <td><strong>{{ req.requirement_id }}</strong></td>
+            <td>{{ req.title }}</td>
+            <td><span class="status-badge" [class]="getStatusClass(req.status)">{{ req.status }}</span></td>
+            <td><span class="priority-badge" [class]="getPriorityClass(req.priority)">{{ req.priority }}</span></td>
+            <td>{{ req.assignee || '-' }}</td>
+            <td (click)="$event.stopPropagation()">
+              <button class="btn-edit" (click)="openEditModal(req)">Edit</button>
+              <button class="btn-delete" (click)="deleteRequirement(req.id!)">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Grid View -->
+    <div *ngIf="filteredRequirements().length > 0 && currentView() === 'grid'" class="requirements-grid">
       <div *ngFor="let req of filteredRequirements()" class="requirement-card" (click)="navigateToDetail(req.id)">
         <div class="card-header">
           <span class="req-id">{{ req.requirement_id }}</span>
