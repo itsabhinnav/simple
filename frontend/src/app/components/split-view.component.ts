@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -42,11 +42,12 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
         <!-- Left Panel - List View -->
         <div class="list-panel">
           <div class="list-header">
-            <h3>{{ viewType === 'requirements' ? 'Requirements' : 'Test Cases' }} ({{ getCurrentItems().length }})</h3>
+              <h3>{{ viewType === 'requirements' ? 'Requirements' : 'Test Cases' }} ({{ viewType === 'requirements' ? filteredRequirements().length : filteredTestCases().length }})</h3>
             <input 
               type="text" 
               placeholder="Search..." 
-              [(ngModel)]="searchTerm"
+              [ngModel]="searchTerm()"
+              (ngModelChange)="searchTerm.set($event)"
               class="search-input">
           </div>
           
@@ -80,7 +81,7 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
             </div>
           </div>
 
-          <div *ngIf="getCurrentItems().length === 0" class="empty-state">
+          <div *ngIf="(viewType === 'requirements' ? filteredRequirements().length : filteredTestCases().length) === 0" class="empty-state">
             <p>No {{ viewType === 'requirements' ? 'requirements' : 'test cases' }} found</p>
           </div>
         </div>
@@ -607,8 +608,27 @@ export class SplitViewComponent implements OnInit {
   testCases = signal<TestCase[]>([]);
   selectedRequirement = signal<Requirement | null>(null);
   selectedTestCase = signal<TestCase | null>(null);
-  searchTerm = '';
+  searchTerm = signal('');
   viewType: 'requirements' | 'test-cases' = 'requirements';
+  
+  // Computed signals for filtered results
+  filteredRequirements = computed(() => {
+    const term = this.searchTerm().toLowerCase();
+    return this.requirements().filter(r => 
+      r.title.toLowerCase().includes(term) ||
+      r.requirement_id.toLowerCase().includes(term) ||
+      (r.description && r.description.toLowerCase().includes(term))
+    );
+  });
+  
+  filteredTestCases = computed(() => {
+    const term = this.searchTerm().toLowerCase();
+    return this.testCases().filter(tc => 
+      (tc.test_case_id && tc.test_case_id.toLowerCase().includes(term)) ||
+      (tc.test_objective && tc.test_objective.toLowerCase().includes(term)) ||
+      (tc.feature && tc.feature.toLowerCase().includes(term))
+    );
+  });
 
   ngOnInit() {
     this.loadRequirements();
@@ -656,24 +676,6 @@ export class SplitViewComponent implements OnInit {
 
   getSelectedItem(): any {
     return this.viewType === 'requirements' ? this.selectedRequirement() : this.selectedTestCase();
-  }
-
-  filteredRequirements(): Requirement[] {
-    const term = this.searchTerm.toLowerCase();
-    return this.requirements().filter(r => 
-      r.title.toLowerCase().includes(term) ||
-      r.requirement_id.toLowerCase().includes(term) ||
-      (r.description && r.description.toLowerCase().includes(term))
-    );
-  }
-
-  filteredTestCases(): TestCase[] {
-    const term = this.searchTerm.toLowerCase();
-    return this.testCases().filter(tc => 
-      (tc.test_case_id && tc.test_case_id.toLowerCase().includes(term)) ||
-      (tc.test_objective && tc.test_objective.toLowerCase().includes(term)) ||
-      (tc.feature && tc.feature.toLowerCase().includes(term))
-    );
   }
 
   selectRequirement(req: Requirement) {

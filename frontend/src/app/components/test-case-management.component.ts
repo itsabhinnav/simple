@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, effect } from '@angular/core';
+import { Component, OnInit, inject, signal, effect, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -1187,6 +1187,54 @@ export class TestCaseManagementComponent implements OnInit {
   isLoading = signal(false);
   error = signal<string | null>(null);
   showModal = signal(false);
+  
+  // Computed signal for filtered test cases
+  filteredTestCases = computed(() => {
+    let filtered = this.testCases();
+    
+    // Text search
+    if (this.searchTerm.trim()) {
+      const term = this.searchTerm.toLowerCase();
+      filtered = filtered.filter(testCase => 
+        testCase.test_case_id.toLowerCase().includes(term) ||
+        (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
+        (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
+        (testCase.procedure && testCase.procedure.toLowerCase().includes(term))
+      );
+    }
+    
+    // Filter by types (multi-select)
+    if (this.selectedTypes().length > 0) {
+      filtered = filtered.filter(tc => this.selectedTypes().includes(tc.test_type || ''));
+    }
+    
+    // Filter by priorities (multi-select)
+    if (this.selectedPriorities().length > 0) {
+      filtered = filtered.filter(tc => this.selectedPriorities().includes(tc.priority || ''));
+    }
+    
+    // Filter by features (multi-select)
+    if (this.selectedFeatures().length > 0) {
+      filtered = filtered.filter(tc => this.selectedFeatures().includes(tc.feature || ''));
+    }
+    
+    // Filter by screen IDs (multi-select)
+    if (this.selectedScreenIds().length > 0) {
+      filtered = filtered.filter(tc => this.selectedScreenIds().includes(tc.screen_id || ''));
+    }
+    
+    // Filter by test suite types (multi-select)
+    if (this.selectedTestSuiteTypes().length > 0) {
+      filtered = filtered.filter(tc => this.selectedTestSuiteTypes().includes(tc.testsuite_type || ''));
+    }
+    
+    // Filter by requirement types (multi-select)
+    if (this.selectedRequirementTypes().length > 0) {
+      filtered = filtered.filter(tc => this.selectedRequirementTypes().includes(tc.requirement_type || ''));
+    }
+    
+    return filtered;
+  });
   isEditMode = signal(false);
   isSubmitting = signal(false);
   showDeleteModal = signal(false);
