@@ -217,7 +217,7 @@ class ApplicationConfig:
         # Storage configuration
         storage = StorageConfig(
             provider=StorageProvider(os.getenv("STORAGE_PROVIDER", "git")),
-            base_url=os.getenv("STORAGE_BASE_URL", "https://gitlab.com/android-devops/sakura-db"),
+            base_url=os.getenv("STORAGE_BASE_URL", os.getenv("GITLAB_URL", "https://gitlab.com/android-devops/sakura-db")),
             username=os.getenv("STORAGE_USERNAME", "admin"),
             password=os.getenv("STORAGE_PASSWORD", "password"),
             repository=os.getenv("STORAGE_REPOSITORY", "android-devops/sakura-db"),
@@ -390,7 +390,7 @@ class DevelopmentConfig(ApplicationConfig):
             ),
             storage=StorageConfig(
                 provider=StorageProvider.GIT,
-                base_url="https://gitlab.com/android-devops/sakura-db",
+                base_url=os.getenv("STORAGE_BASE_URL", os.getenv("GITLAB_URL", "https://gitlab.com/android-devops/sakura-db")),
                 username="admin",
                 password="password",
                 repository="android-devops/sakura-db",

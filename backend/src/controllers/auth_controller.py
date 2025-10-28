@@ -418,7 +418,7 @@ class AuthController:
             from src.infrastructure.configuration_manager import get_config_manager
             
             config = get_config_manager()
-            repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura")
+            repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura-db")
             local_repo_path = config.get_config("storage.local_repo_path", "data/remote/dev")
             
             # Trigger sync in background thread

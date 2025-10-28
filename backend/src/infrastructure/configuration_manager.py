@@ -243,22 +243,24 @@ class ConfigurationManager(IConfigurationProvider):
         # Environment variables (highest priority)
         self.add_source(EnvironmentConfigSource())
         
-        # File-based configuration
+        # File-based configuration - ONLY use config.yaml (unified configuration)
         config_files = [
-            f"backend/config/{self.environment}.json",
-            f"backend/config/{self.environment}.yaml",
-            f"config/{self.environment}.json",
-            f"config/{self.environment}.yaml",
-            "backend/config/default.json",
-            "backend/config/default.yaml",
-            "config/default.json",
-            "config/default.yaml"
+            "backend/config/config.yaml",  # Unified configuration file (primary)
+            "config/config.yaml",  # Fallback location
+            "backend/config.yaml",  # Legacy location
+            "config.yaml",  # Fallback location
         ]
         
+        config_loaded = False
         for config_file in config_files:
             if Path(config_file).exists():
                 self.add_source(FileConfigSource(config_file))
+                logger.info(f"Configuration loaded from: {config_file}")
+                config_loaded = True
                 break
+        
+        if not config_loaded:
+            logger.warning("No config.yaml found. Using default configuration from code.")
     
     def add_source(self, source: ConfigurationSource):
         """Add a configuration source"""
@@ -449,7 +451,11 @@ class ConfigurationManager(IConfigurationProvider):
     
     def get_storage_base_url(self) -> str:
         """Get storage base URL"""
-        return self.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura-db")
+        url = self.get_config("storage.base_url")
+        if url is None:
+            logger.warning("storage.base_url not configured, using default")
+            url = "https://gitlab.com/android-devops/sakura-db"
+        return url
 
 
 # Global configuration manager instance

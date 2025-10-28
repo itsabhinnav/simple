@@ -12,8 +12,18 @@ logger = get_logger(__name__)
 class GitFileStorage(IGitFileStorage):
     """Git-based file storage implementation"""
     
-    def __init__(self, repo_url: str = "https://gitlab.com/android-devops/sakura-db", 
+    def __init__(self, repo_url: str = None, 
                  local_repo_path: str = "remote", data_path: str = "data"):
+        # Load repo_url from config if not provided
+        if repo_url is None:
+            try:
+                from src.infrastructure.configuration_manager import get_config_manager
+                config = get_config_manager()
+                repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura-db")
+            except Exception as e:
+                logger.warning(f"Could not load configuration: {e}")
+                repo_url = "https://gitlab.com/android-devops/sakura-db"
+        
         self.repo_url = repo_url
         self.local_repo_path = Path(local_repo_path)
         self.data_path = Path(data_path)

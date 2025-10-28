@@ -13,14 +13,17 @@ from typing import List, Set
 
 logger = logging.getLogger(__name__)
 
-# Allowed hosts and patterns
-ALLOWED_HOSTS: Set[str] = {
+# Default allowed hosts (can be overridden by configuration)
+DEFAULT_ALLOWED_HOSTS: Set[str] = {
     'localhost',
     '127.0.0.1',
     '::1',
     '0.0.0.0',
     'gitlab.com',
 }
+
+# Allowed hosts loaded from configuration
+ALLOWED_HOSTS: Set[str] = set(DEFAULT_ALLOWED_HOSTS)
 
 # Allowed ports for specific hosts
 ALLOWED_PORTS: Set[int] = {
@@ -195,6 +198,21 @@ def disable_network_restrictions():
     pass
 
 
+def load_allowed_hosts_from_config():
+    """Load allowed hosts from configuration"""
+    try:
+        from src.infrastructure.configuration_manager import get_config_manager
+        config = get_config_manager()
+        allowed_hosts = config.get_config("network.allowed_hosts", list(DEFAULT_ALLOWED_HOSTS))
+        
+        # Update global ALLOWED_HOSTS
+        global ALLOWED_HOSTS
+        ALLOWED_HOSTS = set(allowed_hosts)
+        logger.info(f"Loaded {len(ALLOWED_HOSTS)} allowed hosts from configuration")
+    except Exception as e:
+        logger.warning(f"Could not load allowed hosts from configuration: {e}, using defaults")
+        ALLOWED_HOSTS = set(DEFAULT_ALLOWED_HOSTS)
+
 def get_allowed_hosts() -> Set[str]:
     """Get list of allowed hosts"""
     return ALLOWED_HOSTS.copy()
@@ -249,6 +267,9 @@ def verify_network_isolation():
 # Initialize restrictions if this module is imported
 if __name__ != "__main__":
     try:
+        # Load allowed hosts from configuration
+        load_allowed_hosts_from_config()
+        # Enable network restrictions
         enable_network_restrictions()
     except Exception as e:
         logger.error(f"Could not initialize network restrictions: {e}")

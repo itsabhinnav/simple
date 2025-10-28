@@ -139,7 +139,7 @@ class ApplicationContainer:
                 IGitFileStorage,
                 GitFileStorage,
                 factory=lambda: GitFileStorage(
-                    repo_url=storage_config.get("base_url", "https://gitlab.com/android-devops/sakura-db"),
+                    repo_url=storage_config.get("base_url"),
                     local_repo_path=storage_config.get("local_repo_path", "remote"),
                     data_path=storage_config.get("data_path", "data")
                 )
@@ -163,7 +163,7 @@ class ApplicationContainer:
                 IGitFileStorage,
                 GitFileStorage,
                 factory=lambda: GitFileStorage(
-                    repo_url=storage_config.get("base_url", "http://localhost:8080"),
+                    repo_url=storage_config.get("base_url"),
                     local_repo_path=storage_config.get("local_repo_path", "remote"),
                     data_path=storage_config.get("data_path", "data")
                 )

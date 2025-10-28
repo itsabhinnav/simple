@@ -1,0 +1,147 @@
+# Sakura Unified Configuration
+# This is the single source of truth for all application configuration
+
+# Environment: development, production, or testing
+environment: development
+
+# Database Configuration
+database:
+  provider: hybrid  # sqlite, postgresql, mysql, mongodb, hybrid
+  name: sakura_db
+  
+  # Hybrid database settings
+  hybrid_mode: true
+  sync_interval: 300  # seconds
+  cache_expiry: 3600  # seconds
+  local_db_path: data/local/dev/database/sakura_db.db
+  
+  # SQLite settings (when using SQLite)
+  data_directory: data/local/dev
+  cache_directory: data/local/dev/database
+  
+  # PostgreSQL settings (when using PostgreSQL)
+  host: localhost
+  port: 5432
+  username: ""
+  password: ""
+  schema: public
+  connection_pool_size: 10
+  connection_timeout: 30
+  ssl_enabled: false
+  ssl_cert_path: null
+  
+  # Table names
+  table_names:
+    users: users
+    test_cases: test_cases
+    requirements: requirements
+
+# Remote Storage Configuration (GitLab/GitHub/Artifactory)
+storage:
+  provider: git  # git, artifactory, github, gitlab, local
+  
+  # Git/GitLab/GitHub settings
+  base_url: https://gitlab.com/android-devops/sakura-db
+  repository: android-devops/sakura-db
+  branch: main
+  local_repo_path: data/remote/dev
+  data_path: data/local/dev
+  
+  # Git authentication
+  username: admin
+  password: password
+  git_username: null
+  git_token: null
+  
+  # Artifactory settings (when using Artifactory)
+  artifactory_repo_type: generic-local
+  
+  # Connection settings
+  timeout: 30
+  retry_attempts: 3
+  retry_delay: 1.0
+  verify_ssl: true
+  api_version: v1
+
+# Authentication Configuration
+authentication:
+  # Default admin user
+  default_admin_username: admin
+  default_admin_password: password
+  default_admin_email: admin@sakura.com
+  
+  # Session settings
+  session_timeout: 3600  # 1 hour in seconds
+  max_login_attempts: 5
+  lockout_duration: 900  # 15 minutes in seconds
+  
+  # Reserved usernames that cannot be used
+  reserved_usernames:
+    - admin
+    - root
+    - system
+    - administrator
+    - sa
+  
+  # Password requirements
+  min_password_length: 8
+  require_special_chars: true
+  require_numbers: true
+  require_uppercase: true
+
+# Server Configuration
+server:
+  host: 0.0.0.0
+  port: 5000
+  debug: true
+  mock_mode: true
+  mock_server_port: 8080
+  
+  # CORS settings
+  cors_origins:
+    - "*"
+  cors_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+  cors_headers:
+    - Content-Type
+    - Authorization
+  
+  # Rate limiting
+  rate_limit_enabled: true
+  rate_limit_requests: 100
+  rate_limit_window: 3600  # 1 hour
+
+# Logging Configuration
+logging:
+  level: DEBUG  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: null
+  max_file_size: 10485760  # 10MB
+  backup_count: 5
+  enable_console: true
+  enable_file: false
+  structured_logging: false
+  log_json: false
+
+# Feature Flags
+features:
+  user_management: true
+  test_case_management: true
+  requirement_management: true
+  git_integration: true
+  artifactory_integration: false
+  advanced_logging: false
+
+# Network Restrictions
+network:
+  allowed_hosts:
+    - gitlab.com
+    - github.com
+    - artifactory.company.com
+    - localhost
+    - 127.0.0.1
+  restrict_network: false
+
