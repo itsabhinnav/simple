@@ -15,7 +15,7 @@ class DesignTicketSchema(BaseModel):
     image_url: Optional[str] = Field(None, max_length=1000)  # Path to uploaded image
     priority: Optional[str] = Field(None, max_length=20)  # High, Medium, Low
     status: Optional[str] = Field(None, max_length=20)  # Draft, Review, Approved, Archived
-    requirement_id: Optional[str] = Field(None, max_length=500)  # Linked requirement ID
+    linked_requirement_id: Optional[str] = Field(None, max_length=500)  # Linked requirement ID
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None  # Comma-separated tags
     created_by: Optional[str] = Field(None, max_length=100)
@@ -33,7 +33,7 @@ class DesignTicketCreateSchema(BaseModel):
     image_url: Optional[str] = Field(None, max_length=1000)
     priority: Optional[str] = Field(None, max_length=20)
     status: Optional[str] = Field('Draft', max_length=20)
-    requirement_id: Optional[str] = Field(None, max_length=500)
+    linked_requirement_id: Optional[str] = Field(None, max_length=500)
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
 
@@ -47,7 +47,7 @@ class DesignTicketUpdateSchema(BaseModel):
     image_url: Optional[str] = Field(None, max_length=1000)
     priority: Optional[str] = Field(None, max_length=20)
     status: Optional[str] = Field(None, max_length=20)
-    requirement_id: Optional[str] = Field(None, max_length=500)
+    linked_requirement_id: Optional[str] = Field(None, max_length=500)
     assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
 

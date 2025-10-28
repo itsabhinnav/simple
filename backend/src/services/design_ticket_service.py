@@ -45,7 +45,7 @@ class DesignTicketService(IDesignTicketService):
         """Get all design tickets"""
         try:
             query = """SELECT id, design_ticket_id, title, description, design_type, diagram_type, image_url,
-                       priority, status, requirement_id, assignee, tags, created_by, created_at, updated_at 
+                       priority, status, linked_requirement_id, assignee, tags, created_by, created_at, updated_at 
                        FROM design_tickets ORDER BY created_at DESC"""
             result = self.database_service.execute_query(query, "default")
             data = result.get('data', [])
@@ -61,7 +61,7 @@ class DesignTicketService(IDesignTicketService):
                 raise ValueError("Invalid design ticket ID")
             
             query = f"""SELECT id, design_ticket_id, title, description, design_type, diagram_type, image_url,
-                       priority, status, requirement_id, assignee, tags, created_by, 
+                       priority, status, linked_requirement_id, assignee, tags, created_by, 
                        created_at, updated_at FROM design_tickets WHERE id = {ticket_id}"""
             result = self.database_service.execute_query(query, "default")
             tickets = result.get('data', [])
@@ -81,7 +81,7 @@ class DesignTicketService(IDesignTicketService):
             
             # Build SQL query
             columns = ['design_ticket_id', 'title', 'description', 'design_type', 'diagram_type', 
-                      'image_url', 'priority', 'status', 'requirement_id', 'assignee', 'tags', 'created_by']
+                      'image_url', 'priority', 'status', 'linked_requirement_id', 'assignee', 'tags', 'created_by']
             values = [
                 ticket_data.design_ticket_id,
                 ticket_data.title,
@@ -91,7 +91,7 @@ class DesignTicketService(IDesignTicketService):
                 ticket_data.image_url,
                 ticket_data.priority,
                 ticket_data.status,
-                ticket_data.requirement_id,
+                ticket_data.linked_requirement_id,
                 ticket_data.assignee,
                 ticket_data.tags,
                 created_by
