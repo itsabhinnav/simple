@@ -28,7 +28,7 @@ def create_design_tickets_table(cursor):
             image_url TEXT,
             priority TEXT,
             status TEXT,
-            requirement_id TEXT,
+            linked_requirement_id TEXT,
             assignee TEXT,
             tags TEXT,
             created_by TEXT,
