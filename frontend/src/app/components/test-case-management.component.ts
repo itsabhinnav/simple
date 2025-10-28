@@ -29,13 +29,16 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
         <div class="header-right">
           <div class="view-toggle">
             <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
-              <i class="icon-grid">⊞</i>
+              <i class="icon-grid"></i>
+              Grid
             </button>
             <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
-              <i class="icon-table">☰</i>
+              <i class="icon-table"></i>
+              Table
             </button>
             <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
-              <i class="icon-browse">📍</i>
+              <i class="icon-browse"></i>
+              Browse
             </button>
           </div>
           <button 
@@ -348,6 +351,45 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       display: flex;
       flex-direction: column;
       gap: 10px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .view-btn {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 6px;
+      color: #5f6368;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .view-btn:hover {
+      background: #f5f5f5;
+      color: #202124;
+    }
+
+    .view-btn.active {
+      background: #1a73e8;
+      color: white;
     }
 
     .breadcrumb {
@@ -1086,6 +1128,54 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     .icon-edit::before { content: "✏️"; }
     .icon-delete::before { content: "🗑️"; }
     .icon-close::before { content: "✕"; }
+    .icon-grid::before { content: "⊞"; font-size: 12px; }
+    .icon-table::before { content: "☰"; font-size: 12px; }
+    .icon-browse::before { content: "📍"; font-size: 12px; }
+    .icon-database::before { content: "📊"; }
+
+    /* Table View Styles */
+    .table-view-container {
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .data-table th {
+      background: #f5f5f5;
+      color: #333;
+      font-weight: 600;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .data-table tbody tr:hover {
+      background: #f9f9f9;
+    }
+
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .type-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-block;
+    }
   `]
 })
 export class TestCaseManagementComponent implements OnInit {

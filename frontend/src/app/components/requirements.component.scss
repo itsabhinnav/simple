@@ -37,7 +37,7 @@
 }
 
 .view-btn {
-  padding: 8px 12px;
+  padding: 8px 16px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -47,7 +47,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .view-btn:hover {
@@ -504,9 +505,9 @@
 .icon-delete::before { content: "🗑️"; }
 .icon-close::before { content: "✕"; }
 .icon-database::before { content: "💾"; }
-.icon-grid::before { content: ""; }
-.icon-table::before { content: ""; }
-.icon-browse::before { content: ""; }
+.icon-grid::before { content: "⊞"; }
+.icon-table::before { content: "☰"; }
+.icon-browse::before { content: "📍"; }
 
 /* Table View Styles */
 .table-view-container {
