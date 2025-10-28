@@ -398,21 +398,23 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
     .item-id {
       font-weight: 600;
       color: #1a73e8;
-      font-size: 14px;
-      margin-bottom: 4px;
+      font-size: 13px;
+      margin-bottom: 6px;
     }
 
     .item-title {
-      font-size: 14px;
+      font-size: 15px;
       color: #333;
-      margin-bottom: 8px;
-      line-height: 1.4;
+      margin-bottom: 10px;
+      line-height: 1.5;
+      font-weight: 500;
     }
 
     .item-meta {
       display: flex;
-      gap: 6px;
+      gap: 8px;
       flex-wrap: wrap;
+      margin-top: 8px;
     }
 
     .badge {
@@ -662,24 +664,15 @@ export class SplitViewComponent implements OnInit {
   ngOnInit() {
     this.loadRequirements();
     this.loadTestCases();
-    
-    // Auto-select first item after data loads
-    setTimeout(() => {
-      if (this.viewType === 'requirements' && this.requirements().length > 0 && !this.selectedRequirement()) {
-        this.selectRequirement(this.requirements()[0]);
-      } else if (this.viewType === 'test-cases' && this.testCases().length > 0 && !this.selectedTestCase()) {
-        this.selectTestCase(this.testCases()[0]);
-      }
-    }, 500);
   }
 
   loadRequirements() {
     this.requirementService.getRequirements().subscribe({
       next: (reqs) => {
         this.requirements.set(reqs || []);
-        // Auto-select first requirement
-        if (reqs && reqs.length > 0 && !this.selectedRequirement()) {
-          setTimeout(() => this.selectRequirement(reqs[0]), 100);
+        // Auto-select first requirement when requirements load
+        if (this.viewType === 'requirements' && reqs && reqs.length > 0 && !this.selectedRequirement()) {
+          this.selectRequirement(reqs[0]);
         }
       },
       error: () => {}
@@ -690,9 +683,9 @@ export class SplitViewComponent implements OnInit {
     this.testCaseService.getTestCases().subscribe({
       next: (tcs) => {
         this.testCases.set(tcs || []);
-        // Auto-select first test case
-        if (tcs && tcs.length > 0 && !this.selectedTestCase()) {
-          setTimeout(() => this.selectTestCase(tcs[0]), 100);
+        // Auto-select first test case when test cases load
+        if (this.viewType === 'test-cases' && tcs && tcs.length > 0 && !this.selectedTestCase()) {
+          this.selectTestCase(tcs[0]);
         }
       },
       error: () => {}
