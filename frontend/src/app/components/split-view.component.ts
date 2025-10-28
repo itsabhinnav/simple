@@ -608,23 +608,44 @@ export class SplitViewComponent implements OnInit {
   selectedRequirement = signal<Requirement | null>(null);
   selectedTestCase = signal<TestCase | null>(null);
   searchTerm = '';
-  viewType: 'requirements' | 'test-cases' = 'test-cases';
+  viewType: 'requirements' | 'test-cases' = 'requirements';
 
   ngOnInit() {
     this.loadRequirements();
     this.loadTestCases();
+    
+    // Auto-select first item after data loads
+    setTimeout(() => {
+      if (this.viewType === 'requirements' && this.requirements().length > 0 && !this.selectedRequirement()) {
+        this.selectRequirement(this.requirements()[0]);
+      } else if (this.viewType === 'test-cases' && this.testCases().length > 0 && !this.selectedTestCase()) {
+        this.selectTestCase(this.testCases()[0]);
+      }
+    }, 500);
   }
 
   loadRequirements() {
     this.requirementService.getRequirements().subscribe({
-      next: (reqs) => this.requirements.set(reqs || []),
+      next: (reqs) => {
+        this.requirements.set(reqs || []);
+        // Auto-select first requirement
+        if (reqs && reqs.length > 0 && !this.selectedRequirement()) {
+          setTimeout(() => this.selectRequirement(reqs[0]), 100);
+        }
+      },
       error: () => {}
     });
   }
 
   loadTestCases() {
     this.testCaseService.getTestCases().subscribe({
-      next: (tcs) => this.testCases.set(tcs || []),
+      next: (tcs) => {
+        this.testCases.set(tcs || []);
+        // Auto-select first test case
+        if (tcs && tcs.length > 0 && !this.selectedTestCase()) {
+          setTimeout(() => this.selectTestCase(tcs[0]), 100);
+        }
+      },
       error: () => {}
     });
   }
