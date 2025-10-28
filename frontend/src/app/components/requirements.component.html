@@ -16,20 +16,6 @@
       </h1>
     </div>
     <div class="header-right">
-      <div class="view-toggle">
-        <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
-          <i class="icon-grid"></i>
-          Grid
-        </button>
-        <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
-          <i class="icon-table"></i>
-          Table
-        </button>
-        <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
-          <i class="icon-browse"></i>
-          Browse
-        </button>
-      </div>
       <button 
         class="add-btn" 
         routerLink="/requirements/create"
@@ -37,6 +23,17 @@
         <i class="icon-plus"></i>
         Create Requirement
       </button>
+      <div class="view-toggle">
+        <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
+          <i class="icon-grid"></i>
+        </button>
+        <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
+          <i class="icon-table"></i>
+        </button>
+        <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
+          <i class="icon-browse"></i>
+        </button>
+      </div>
     </div>
   </header>
 

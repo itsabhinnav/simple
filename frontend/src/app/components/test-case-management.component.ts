@@ -27,20 +27,6 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
           </h1>
         </div>
         <div class="header-right">
-          <div class="view-toggle">
-            <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
-              <i class="icon-grid"></i>
-              Grid
-            </button>
-            <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
-              <i class="icon-table"></i>
-              Table
-            </button>
-            <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
-              <i class="icon-browse"></i>
-              Browse
-            </button>
-          </div>
           <button 
             class="add-btn" 
             routerLink="/test-cases/create"
@@ -48,6 +34,17 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
             <i class="icon-plus"></i>
             Add New Test Case
           </button>
+          <div class="view-toggle">
+            <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
+              <i class="icon-grid"></i>
+            </button>
+            <button class="view-btn" [class.active]="currentView() === 'table'" (click)="currentView.set('table')" title="Table View">
+              <i class="icon-table"></i>
+            </button>
+            <button class="view-btn" [class.active]="currentView() === 'browse'" (click)="currentView.set('browse')" title="Browse View">
+              <i class="icon-browse"></i>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -368,7 +365,7 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
     }
 
     .view-btn {
-      padding: 8px 16px;
+      padding: 8px;
       border: none;
       background: transparent;
       cursor: pointer;
@@ -377,9 +374,10 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       transition: all 0.2s;
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 14px;
-      font-weight: 500;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      font-size: 16px;
     }
 
     .view-btn:hover {
