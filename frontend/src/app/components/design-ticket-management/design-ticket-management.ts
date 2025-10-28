@@ -19,11 +19,11 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
               Dashboard
             </a>
             <span class="breadcrumb-separator">›</span>
-            <span class="breadcrumb-current">Design Tickets</span>
+            <span class="breadcrumb-current">Designs</span>
           </nav>
           <h1 class="page-title">
             <i class="icon-design">🎨</i>
-            Design Ticket Management
+            Design Management
           </h1>
         </div>
         <div class="header-right">
@@ -32,7 +32,7 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
             routerLink="/design-tickets/create"
             [disabled]="isLoading()">
             <i class="icon-plus">➕</i>
-            Add New Design Ticket
+            Add New Design
           </button>
           <div class="view-toggle">
             <button class="view-btn" [class.active]="currentView() === 'grid'" (click)="currentView.set('grid')" title="Grid View">
@@ -48,7 +48,7 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
       <!-- Loading State -->
       <div *ngIf="isLoading()" class="loading-container">
         <div class="spinner"></div>
-        <p>Loading design tickets...</p>
+        <p>Loading designs...</p>
       </div>
 
       <!-- Error State -->
@@ -58,20 +58,20 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
         <button (click)="loadDesignTickets()" class="retry-btn">Retry</button>
       </div>
 
-      <!-- Design Tickets Board -->
+      <!-- Designs Board -->
       <div *ngIf="!isLoading() && !error()" class="board-container">
         <div class="board-header">
-          <h3>Design Tickets ({{ filteredDesignTickets().length }})</h3>
+          <h3>Designs ({{ filteredDesignTickets().length }})</h3>
         </div>
         
         <!-- Empty State -->
         <div *ngIf="filteredDesignTickets().length === 0" class="empty-state">
           <div class="empty-icon">🎨</div>
-          <h2>No Design Tickets Found</h2>
-          <p class="empty-description">Design tickets help you document system designs, diagrams, and visual specifications.</p>
+          <h2>No Designs Found</h2>
+          <p class="empty-description">Designs help you document system designs, diagrams, and visual specifications.</p>
           <button class="empty-action-btn" routerLink="/design-tickets/create">
             <span>➕</span>
-            Create Your First Design Ticket
+            Create Your First Design
           </button>
         </div>
 
@@ -80,7 +80,7 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
           <table class="data-table">
             <thead>
               <tr>
-                <th>Design Ticket ID</th>
+                <th>Design ID</th>
                 <th>Title</th>
                 <th>Design Type</th>
                 <th>Priority</th>
@@ -576,7 +576,7 @@ export class DesignTicketManagementComponent implements OnInit {
         this.isLoading.set(false);
       },
       error: (err) => {
-        this.error.set('Failed to load design tickets');
+        this.error.set('Failed to load designs');
         this.isLoading.set(false);
         console.error('Error loading design tickets:', err);
       }
@@ -603,11 +603,11 @@ export class DesignTicketManagementComponent implements OnInit {
         if (success) {
           this.loadDesignTickets();
         } else {
-          alert('Failed to delete design ticket');
+          alert('Failed to delete design');
         }
       },
       error: (err) => {
-        alert('Error deleting design ticket');
+        alert('Error deleting design');
         console.error(err);
       }
     });

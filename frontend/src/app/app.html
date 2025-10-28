@@ -19,7 +19,7 @@
             <div class="result-item-header" *ngFor="let item of searchResults()" (mousedown)="navigateToItem(item, $event)">
               <div class="result-type" *ngIf="'requirement_id' in item">📋 Requirement</div>
               <div class="result-type" *ngIf="'test_case_id' in item">🧪 Test Case</div>
-              <div class="result-type" *ngIf="'design_ticket_id' in item">🎨 Design Ticket</div>
+              <div class="result-type" *ngIf="'design_ticket_id' in item">🎨 Design</div>
               
               <div class="result-content">
                 <div class="result-id" *ngIf="'requirement_id' in item">{{ item.requirement_id }}</div>
@@ -63,8 +63,8 @@
               <button class="menu-item" (click)="createDesignTicket()">
                 <span class="menu-icon">🎨</span>
                 <span class="menu-text">
-                  <strong>Design Ticket</strong>
-                  <small>Create a design ticket</small>
+                  <strong>Design</strong>
+                  <small>Create a new design</small>
                 </span>
               </button>
             </div>

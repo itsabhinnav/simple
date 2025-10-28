@@ -14,7 +14,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
         <button class="back-btn" (click)="goBack()">
           ← Back
         </button>
-        <h1>Create New Design Ticket</h1>
+        <h1>Create New Design</h1>
       </div>
 
       <!-- Error Message -->
@@ -33,7 +33,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
             <h2 class="section-title">Basic Information</h2>
             
             <div class="form-group">
-              <label for="design_ticket_id">Design Ticket ID *</label>
+              <label for="design_ticket_id">Design ID *</label>
               <input 
                 type="text" 
                 id="design_ticket_id"
@@ -41,7 +41,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
                 class="form-input"
                 placeholder="e.g., DT-001">
               <div *ngIf="designTicketForm.get('design_ticket_id')?.invalid && designTicketForm.get('design_ticket_id')?.touched" class="error-message">
-                Design Ticket ID is required
+                Design ID is required
               </div>
             </div>
 
@@ -52,7 +52,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
                 id="title"
                 formControlName="title"
                 class="form-input"
-                placeholder="Enter design ticket title">
+                placeholder="Enter design title">
               <div *ngIf="designTicketForm.get('title')?.invalid && designTicketForm.get('title')?.touched" class="error-message">
                 Title is required
               </div>
@@ -65,7 +65,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
                 formControlName="description"
                 class="form-textarea"
                 rows="4"
-                placeholder="Describe the design ticket..."></textarea>
+                placeholder="Describe the design..."></textarea>
             </div>
           </div>
 
@@ -201,7 +201,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
               class="btn-submit"
               [disabled]="designTicketForm.invalid || isSubmitting()">
               <span *ngIf="isSubmitting()" class="spinner"></span>
-              {{ isSubmitting() ? 'Creating...' : 'Create Design Ticket' }}
+                     {{ isSubmitting() ? 'Creating...' : 'Create Design' }}
             </button>
           </div>
         </form>
@@ -468,9 +468,9 @@ export class CreateDesignTicket implements OnInit {
       },
       error: (err) => {
         this.isSubmitting.set(false);
-        const errorMsg = err.error?.message || err.message || 'Failed to create design ticket';
+        const errorMsg = err.error?.message || err.message || 'Failed to create design';
         this.errorMessage.set(errorMsg);
-        console.error('Error creating design ticket:', err);
+        console.error('Error creating design:', err);
       }
     });
   }
