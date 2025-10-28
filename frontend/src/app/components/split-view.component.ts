@@ -88,6 +88,13 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
         <!-- Right Panel - Detail View -->
         <div class="detail-panel">
+          <!-- Empty State when no item selected -->
+          <div *ngIf="(viewType === 'requirements' && !selectedRequirement()) || (viewType === 'test-cases' && !selectedTestCase())" class="empty-detail-state">
+            <i class="icon-empty"></i>
+            <h3>No item selected</h3>
+            <p>Select an item from the list to view its details</p>
+          </div>
+          
           <!-- Requirement Detail -->
           <div *ngIf="viewType === 'requirements' && selectedRequirement()" class="detail-content">
             <div class="detail-card">
@@ -553,6 +560,28 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
     .empty-state {
       padding: 40px;
       text-align: center;
+      color: #999;
+    }
+
+    .empty-detail-state {
+      padding: 60px 40px;
+      text-align: center;
+      color: #999;
+    }
+
+    .empty-detail-state i {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .empty-detail-state h3 {
+      margin: 0 0 8px 0;
+      color: #5f6368;
+    }
+
+    .empty-detail-state p {
+      margin: 0;
       color: #999;
     }
 
