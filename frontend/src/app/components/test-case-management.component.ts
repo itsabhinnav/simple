@@ -68,7 +68,8 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
             type="text" 
             placeholder="Search test cases..." 
             class="global-search-input"
-            [(ngModel)]="searchTerm">
+            [ngModel]="searchTerm()"
+            (ngModelChange)="searchTerm.set($event)">
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
             <button class="filter-btn-blue" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature', $event)">
               feature ▼
@@ -1193,8 +1194,8 @@ export class TestCaseManagementComponent implements OnInit {
     let filtered = this.testCases();
     
     // Text search
-    if (this.searchTerm.trim()) {
-      const term = this.searchTerm.toLowerCase();
+    if (this.searchTerm().trim()) {
+      const term = this.searchTerm().toLowerCase();
       filtered = filtered.filter(testCase => 
         testCase.test_case_id.toLowerCase().includes(term) ||
         (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
@@ -1242,7 +1243,7 @@ export class TestCaseManagementComponent implements OnInit {
   testCaseToDelete = signal<TestCase | null>(null);
   currentEditingTestCase = signal<TestCase | null>(null);
   currentView = signal<'grid' | 'table' | 'browse'>('grid');
-  searchTerm = '';
+  searchTerm = signal('');
   selectedTypes = signal<string[]>([]);
   selectedPriorities = signal<string[]>([]);
   selectedFeatures = signal<string[]>([]);
@@ -1334,53 +1335,6 @@ export class TestCaseManagementComponent implements OnInit {
     });
   }
 
-  filteredTestCases(): TestCase[] {
-    let filtered = this.testCases();
-    
-    // Text search
-    if (this.searchTerm.trim()) {
-      const term = this.searchTerm.toLowerCase();
-      filtered = filtered.filter(testCase => 
-        testCase.test_case_id.toLowerCase().includes(term) ||
-        (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
-        (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
-        (testCase.procedure && testCase.procedure.toLowerCase().includes(term))
-      );
-    }
-    
-    // Filter by types (multi-select)
-    if (this.selectedTypes().length > 0) {
-      filtered = filtered.filter(tc => this.selectedTypes().includes(tc.test_type || ''));
-    }
-    
-    // Filter by priorities (multi-select)
-    if (this.selectedPriorities().length > 0) {
-      filtered = filtered.filter(tc => this.selectedPriorities().includes(tc.priority || ''));
-    }
-    
-    // Filter by features (multi-select)
-    if (this.selectedFeatures().length > 0) {
-      filtered = filtered.filter(tc => this.selectedFeatures().includes(tc.feature || ''));
-    }
-    
-    // Filter by screen IDs (multi-select)
-    if (this.selectedScreenIds().length > 0) {
-      filtered = filtered.filter(tc => this.selectedScreenIds().includes(tc.screen_id || ''));
-    }
-    
-    // Filter by test suite types (multi-select)
-    if (this.selectedTestSuiteTypes().length > 0) {
-      filtered = filtered.filter(tc => this.selectedTestSuiteTypes().includes(tc.testsuite_type || ''));
-    }
-    
-    // Filter by requirement types (multi-select)
-    if (this.selectedRequirementTypes().length > 0) {
-      filtered = filtered.filter(tc => this.selectedRequirementTypes().includes(tc.requirement_type || ''));
-    }
-    
-    return filtered;
-  }
-  
   toggleMoreFilters() {
     this.showMoreFilters.set(!this.showMoreFilters());
   }
@@ -1537,7 +1491,7 @@ export class TestCaseManagementComponent implements OnInit {
     this.selectedTestSuiteTypes.set([]);
     this.selectedRequirementTypes.set([]);
     this.activeFilter.set('');
-    this.searchTerm = '';
+    this.searchTerm.set('');
   }
 
   // Screen ID filter methods
