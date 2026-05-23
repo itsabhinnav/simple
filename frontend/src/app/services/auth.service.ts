@@ -25,7 +25,7 @@ export interface SignupRequest {
   last_name?: string;
   role?: string;
   secret_key: string;
-  git_token: string;
+  git_token?: string;
 }
 
 export interface AuthResponse {
@@ -47,9 +47,13 @@ export class AuthService {
   private isInitialized = signal(false);
   
   constructor(private http: HttpClient) {
+    // Load token synchronously from storage
     this.loadTokenFromStorage();
-    // Mark as initialized after token is loaded
-    this.isInitialized.set(true);
+    // Defer the "ready" flip to the next macrotask so components don't render
+    // before signals settle, preventing a login flash on refresh.
+    setTimeout(() => {
+      this.isInitialized.set(true);
+    }, 0);
   }
   
   getIsInitialized(): boolean {

@@ -1290,6 +1290,14 @@ export class TestCaseManagementComponent implements OnInit {
       regulation: [''],
       testsuite_type: ['']
     });
+
+    // Redirect to browse view when selected
+    effect(() => {
+      const view = this.currentView();
+      if (view === 'browse') {
+        this.router.navigate(['/split-view']);
+      }
+    });
   }
 
   ngOnInit() {
@@ -1300,14 +1308,6 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
-    
-    // Redirect to browse view when selected
-    effect(() => {
-      const view = this.currentView();
-      if (view === 'browse') {
-        this.router.navigate(['/split-view']);
-      }
-    });
     
     // Close filter dropdowns when clicking outside
     document.addEventListener('click', (event) => {

@@ -238,12 +238,13 @@ class LocalDatabaseService:
             logger.error(f"Failed to increment database version: {e}")
             return self.get_database_version()
     
-    def execute_query(self, query: str, database_name: str = "default", **kwargs) -> Dict[str, Any]:
+    def execute_query(self, query: str, database_name: str = "default", params: tuple = (), **kwargs) -> Dict[str, Any]:
         """Execute a query on the local database
         
         Args:
             query: SQL query string
             database_name: Database name (ignored for local service)
+            params: Optional tuple of parameters for the query
             **kwargs: Additional parameters for compatibility
         """
         try:
@@ -252,8 +253,11 @@ class LocalDatabaseService:
             cursor = conn.cursor()
             
             try:
-                # Execute the query directly (no parameterized queries for raw SQL from auth controller)
-                cursor.execute(query)
+                # Execute the query with parameters if provided
+                if params:
+                    cursor.execute(query, params)
+                else:
+                    cursor.execute(query)
                 
                 # Determine if this is a SELECT query
                 if query.strip().upper().startswith('SELECT'):
@@ -415,6 +419,7 @@ class LocalDatabaseService:
             # Also clear remote table cache entries
             result2 = self.execute_query(
                 "DELETE FROM local_cache WHERE cache_key = ?",
+                "default",
                 (f"remote_{table_name}",)
             )
             

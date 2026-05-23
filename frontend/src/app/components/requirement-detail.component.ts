@@ -1,18 +1,21 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { RequirementService, Requirement } from '../services/requirement.service';
 import { TestCaseService, TestCase } from '../services/test-case.service';
 import { DesignTicketService, DesignTicket } from '../services/design-ticket.service';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 @Component({
   selector: 'app-requirement-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './requirement-detail.component.html',
   styleUrl: './requirement-detail.component.scss'
 })
-export class RequirementDetailComponent implements OnInit {
+export class RequirementDetailComponent implements OnInit, OnDestroy {
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
   private designTicketService = inject(DesignTicketService);
@@ -27,6 +30,11 @@ export class RequirementDetailComponent implements OnInit {
   isLoadingDesigns = signal(false);
   error = signal<string | null>(null);
   requirementId = signal<number | null>(null);
+  isSaving = signal(false);
+  saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  
+  private saveSubject = new Subject<{ field: string; value: any }>();
+  private saveSubscription?: Subscription;
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -34,6 +42,18 @@ export class RequirementDetailComponent implements OnInit {
       this.requirementId.set(+id);
       this.loadRequirement(+id);
     }
+
+    // Set up auto-save with debouncing
+    this.saveSubscription = this.saveSubject.pipe(
+      debounceTime(1000), // Wait 1 second after user stops typing
+      distinctUntilChanged((a, b) => a.field === b.field && a.value === b.value)
+    ).subscribe(({ field, value }) => {
+      this.saveField(field, value);
+    });
+  }
+
+  ngOnDestroy() {
+    this.saveSubscription?.unsubscribe();
   }
 
   loadRequirement(id: number) {
@@ -148,6 +168,72 @@ export class RequirementDetailComponent implements OnInit {
       error: (err) => {
         this.error.set('Failed to delete requirement');
         console.error('Error deleting requirement:', err);
+      }
+    });
+  }
+
+  onFieldChange(field: string, value: any) {
+    if (!this.requirement()) return;
+    
+    // Update local signal immediately for responsive UI
+    const current = this.requirement()!;
+    this.requirement.set({ ...current, [field]: value });
+    
+    // Queue save operation
+    this.saveSubject.next({ field, value });
+    
+    // Show saving status
+    this.saveStatus.set('saving');
+  }
+
+  private saveField(field: string, value: any) {
+    if (!this.requirementId() || !this.requirement()) return;
+
+    this.isSaving.set(true);
+    this.saveStatus.set('saving');
+
+    const updateData: any = {};
+    
+    // Map frontend field names to backend API field names
+    if (field === 'when_action') {
+      updateData.when = value;
+    } else if (field === 'then_result') {
+      updateData.then = value;
+    } else {
+      updateData[field] = value;
+    }
+
+    this.requirementService.updateRequirement(this.requirementId()!, updateData).subscribe({
+      next: (updatedRequirement) => {
+        if (updatedRequirement) {
+          // Update the requirement signal with fresh data from server
+          this.requirement.set({ ...this.requirement()!, ...updatedRequirement });
+          this.saveStatus.set('saved');
+          
+          // Clear saved status after 2 seconds
+          setTimeout(() => {
+            if (this.saveStatus() === 'saved') {
+              this.saveStatus.set('idle');
+            }
+          }, 2000);
+        }
+        this.isSaving.set(false);
+      },
+      error: (err) => {
+        console.error('Error saving field:', err);
+        this.saveStatus.set('error');
+        this.error.set(`Failed to save ${field}`);
+        this.isSaving.set(false);
+        
+        // Reload requirement to get server state
+        this.loadRequirement(this.requirementId()!);
+        
+        // Clear error status after 3 seconds
+        setTimeout(() => {
+          if (this.saveStatus() === 'error') {
+            this.saveStatus.set('idle');
+          }
+        }, 3000);
       }
     });
   }

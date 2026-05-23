@@ -27,7 +27,7 @@ class UserCreateSchema(BaseModel):
     last_name: Optional[str] = Field(None, max_length=50)
     role: Optional[str] = Field(None, max_length=20)
     secret_key: str = Field(..., min_length=3, max_length=50)
-    git_token: str = Field(..., min_length=10, max_length=200)  # Required Git access token
+    git_token: Optional[str] = Field(None, min_length=10, max_length=200)  # Optional Git access token
 
 
 class UserUpdateSchema(BaseModel):
@@ -43,4 +43,4 @@ class UserUpdateSchema(BaseModel):
 class LoginSchema(BaseModel):
     """Schema for user login"""
     username: str = Field(..., min_length=1, max_length=50)
-    password: str = Field(..., min_length=6, max_length=100)
+    password: str = Field(..., min_length=1, max_length=100)  # Allow shorter passwords for login (signup still requires 6+)

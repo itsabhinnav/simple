@@ -14,6 +14,7 @@ from src.interfaces.providers import IStorageProvider
 from src.implementations.git_file_storage import GitFileStorage
 from src.implementations.storage_providers import create_storage_provider
 from src.services.local_database_service import LocalDatabaseService
+from src.services.postgresql_database_service import PostgresDatabaseService
 from src.services.hybrid_database_service import HybridDatabaseService
 from src.services.git_database_service import GitDatabaseService
 from src.repositories.user_repository import IUserRepository, UserRepository
@@ -196,12 +197,23 @@ class ApplicationContainer:
             )
         )
         
-        # Register Local database service
-        self.container.register_singleton(
-            LocalDatabaseService,
-            LocalDatabaseService,
-            factory=lambda: LocalDatabaseService()
-        )
+        # Register primary database service based on configuration
+        db_provider = database_config.get("provider", "sqlite")
+        
+        if db_provider == "postgresql":
+            logger.info("Using PostgreSQL as the primary database")
+            self.container.register_singleton(
+                LocalDatabaseService,
+                PostgresDatabaseService,
+                factory=lambda: PostgresDatabaseService()
+            )
+        else:
+            logger.info("Using SQLite as the primary database")
+            self.container.register_singleton(
+                LocalDatabaseService,
+                LocalDatabaseService,
+                factory=lambda: LocalDatabaseService()
+            )
         
         # Register Hybrid database service
         self.container.register_singleton(
@@ -272,6 +284,16 @@ class ApplicationContainer:
             IDesignTicketService,
             DesignTicketService,
             factory=lambda: DesignTicketService(
+                database_service=self.container.get(HybridDatabaseService)
+            )
+        )
+
+        # Register specification service
+        from src.services.spec_service import ISpecService, SpecService
+        self.container.register_singleton(
+            ISpecService,
+            SpecService,
+            factory=lambda: SpecService(
                 database_service=self.container.get(HybridDatabaseService)
             )
         )
@@ -421,6 +443,12 @@ def get_design_ticket_service():
     """Get the design ticket service."""
     from src.services.design_ticket_service import IDesignTicketService
     return get_container().container.get(IDesignTicketService)
+
+
+def get_spec_service():
+    """Get the specification service."""
+    from src.services.spec_service import ISpecService
+    return get_container().container.get(ISpecService)
 
 
 def get_user_repository() -> IUserRepository:

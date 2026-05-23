@@ -12,20 +12,26 @@ import { SplitViewComponent } from './components/split-view.component';
 import { DesignTicketManagementComponent } from './components/design-ticket-management/design-ticket-management';
 import { CreateDesignTicket } from './components/create-design-ticket/create-design-ticket';
 import { AuthGuard } from './guards/auth.guard';
+import { AdminGuard } from './guards/admin.guard';
+import { SpecManagementComponent } from './components/spec-management.component';
 
 export const routes: Routes = [
-  { path: '', component: DashboardComponent },
+  // Authenticated dashboard
+  { path: '', component: DashboardComponent, canActivate: [AuthGuard] },
+  // Login route renders the same DashboardComponent (shows only login form)
+  { path: 'login', component: DashboardComponent },
   { path: 'forgot-password', component: ForgotPasswordComponent },
   { path: 'requirements', component: RequirementsComponent, canActivate: [AuthGuard] },
   { path: 'requirements/create', component: CreateRequirementComponent, canActivate: [AuthGuard] },
   { path: 'requirements/:id', component: RequirementDetailComponent, canActivate: [AuthGuard] },
-  { path: 'users', component: UserManagementComponent, canActivate: [AuthGuard] },
+  { path: 'users', component: UserManagementComponent, canActivate: [AuthGuard, AdminGuard] },
   { path: 'test-cases', component: TestCaseManagementComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/create', component: CreateTestCaseComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/:id', component: TestCaseDetailComponent, canActivate: [AuthGuard] },
   { path: 'design-tickets', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'design-tickets/create', component: CreateDesignTicket, canActivate: [AuthGuard] },
   { path: 'design-tickets/:id', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
+  { path: 'specs', component: SpecManagementComponent, canActivate: [AuthGuard] },
   { path: 'split-view', component: SplitViewComponent, canActivate: [AuthGuard] },
   { path: '**', redirectTo: '' }
 ];

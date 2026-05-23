@@ -327,7 +327,7 @@ class HybridDatabaseService:
             self.local_db.update_sync_status(table_name, "error", str(e))
             logger.error(f"Error syncing {table_name}: {e}")
     
-    def execute_query(self, query: str, database_name: str = "default", use_cache: bool = True) -> Dict[str, Any]:
+    def execute_query(self, query: str, database_name: str = "default", use_cache: bool = True, params: tuple = ()) -> Dict[str, Any]:
         """Execute query with hybrid strategy"""
         try:
             # Get current username from Flask's g object for authenticated requests
@@ -341,9 +341,9 @@ class HybridDatabaseService:
             query_upper = query.strip().upper()
             
             if query_upper.startswith('SELECT'):
-                return self._handle_read_query(query, database_name, use_cache)
+                return self._handle_read_query(query, database_name, use_cache, params)
             else:
-                return self._handle_write_query(query, database_name, username)
+                return self._handle_write_query(query, database_name, username, params)
                 
         except Exception as e:
             logger.error(f"Hybrid query execution failed: {e}")
@@ -353,11 +353,11 @@ class HybridDatabaseService:
                 "data": []
             }
     
-    def _handle_read_query(self, query: str, database_name: str, use_cache: bool) -> Dict[str, Any]:
+    def _handle_read_query(self, query: str, database_name: str, use_cache: bool, params: tuple = ()) -> Dict[str, Any]:
         """Handle read queries - execute on LOCAL database first"""
         try:
             # Always read from local database
-            result = self.local_db.execute_query(query, database_name)
+            result = self.local_db.execute_query(query, database_name, params=params)
             
             # Cache the result if enabled and successful
             if result.get("success") and use_cache:
@@ -377,7 +377,7 @@ class HybridDatabaseService:
                 "data": []
             }
     
-    def _handle_write_query(self, query: str, database_name: str, username: str = None) -> Dict[str, Any]:
+    def _handle_write_query(self, query: str, database_name: str, username: str = None, params: tuple = ()) -> Dict[str, Any]:
         """Handle write queries - execute on LOCAL database first, then sync to remote"""
         try:
             # Before write: check if remote has newer changes that need to be synced first
@@ -425,7 +425,7 @@ class HybridDatabaseService:
                 logger.warning(f"Failed to sync remote before write: {sync_error}")
             
             # Execute on LOCAL database first
-            result = self.local_db.execute_query(query, database_name)
+            result = self.local_db.execute_query(query, database_name, params=params)
             
             # If successful, increment database version and sync to remote
             if result.get("success"):

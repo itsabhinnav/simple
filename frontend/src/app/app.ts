@@ -8,11 +8,13 @@ import { TestCaseService } from './services/test-case.service';
 import { DesignTicketService, DesignTicket } from './services/design-ticket.service';
 import { Requirement } from './services/requirement.service';
 import { TestCase } from './services/test-case.service';
+import { TranslationService } from './services/translation.service';
+import { TranslatePipe } from './services/translate.pipe';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, RouterModule],
+  imports: [RouterOutlet, CommonModule, RouterModule, TranslatePipe],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -24,6 +26,7 @@ export class App implements OnInit {
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
   private designTicketService = inject(DesignTicketService);
+  translationService = inject(TranslationService);
   
   message = signal('Loading...');
   currentUser = signal<User | null>(null);
@@ -32,8 +35,17 @@ export class App implements OnInit {
   // Search functionality
   searchQuery = signal('');
   showCreateMenu = signal(false);
+  showLangMenu = signal(false);
   searchResults = signal<(Requirement | TestCase | DesignTicket)[]>([]);
   showSearchResults = signal(true);
+  
+  constructor() {
+    // Sync with AuthService currentUser changes (reactive)
+    effect(() => {
+      const user = this.authService.getCurrentUser();
+      this.currentUser.set(user);
+    });
+  }
   
   ngOnInit() {
     this.http.get<any>('http://localhost:5000/health').subscribe({
@@ -149,10 +161,21 @@ export class App implements OnInit {
 
   toggleCreateMenu() {
     this.showCreateMenu.set(!this.showCreateMenu());
+    this.showLangMenu.set(false);
   }
 
   closeCreateMenu() {
     this.showCreateMenu.set(false);
+  }
+
+  toggleLangMenu() {
+    this.showLangMenu.set(!this.showLangMenu());
+    this.showCreateMenu.set(false);
+  }
+
+  setLanguage(lang: 'en' | 'ja') {
+    this.translationService.setLanguage(lang);
+    this.showLangMenu.set(false);
   }
 
   createRequirement() {

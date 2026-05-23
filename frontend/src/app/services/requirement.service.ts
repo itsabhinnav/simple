@@ -17,6 +17,7 @@ export interface Requirement {
   status: string;
   assignee?: string;
   tags?: string;
+  linked_spec_id?: string;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
@@ -33,6 +34,7 @@ export interface RequirementCreateRequest {
   status: string;
   assignee?: string;
   tags?: string;
+  linked_spec_id?: string;
 }
 
 export interface RequirementUpdateRequest {
@@ -45,6 +47,7 @@ export interface RequirementUpdateRequest {
   status?: string;
   assignee?: string;
   tags?: string;
+  linked_spec_id?: string;
 }
 
 export interface ApiResponse<T> {

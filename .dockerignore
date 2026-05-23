@@ -1,0 +1,17 @@
+.git
+.gitignore
+.pytest_cache
+__pycache__
+frontend/node_modules
+frontend/.angular
+backend/__pycache__
+backend/.pytest_cache
+dist
+graphify-out
+tests
+*.md
+bootstrap.sh
+bootstrap.ps1
+deploy_lan.sh
+deploy_lan.ps1
+Dockerfile.unified

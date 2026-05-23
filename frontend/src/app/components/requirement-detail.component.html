@@ -18,6 +18,11 @@
       </h1>
     </div>
     <div class="header-actions">
+      <div class="save-status" *ngIf="saveStatus() !== 'idle'">
+        <span *ngIf="saveStatus() === 'saving'" class="status-saving">💾 Saving...</span>
+        <span *ngIf="saveStatus() === 'saved'" class="status-saved">✓ Saved</span>
+        <span *ngIf="saveStatus() === 'error'" class="status-error">✗ Error saving</span>
+      </div>
       <button class="back-btn" (click)="goBack()" title="Back">
         <i class="icon-back"></i>
         Back
@@ -49,16 +54,36 @@
       <div class="card-header">
         <div class="header-top">
           <div class="title-group">
-            <h2 class="card-title">{{ requirement()?.title }}</h2>
+            <input 
+              type="text" 
+              class="card-title editable-title" 
+              [value]="requirement()?.title || ''"
+              (input)="onFieldChange('title', $any($event.target).value)"
+              placeholder="Requirement title">
             <span class="req-id">{{ requirement()?.requirement_id }}</span>
           </div>
           <div class="badges-group">
-            <span class="priority-badge" [class]="getPriorityClass(requirement()?.priority || '')">
-              {{ requirement()?.priority }}
-            </span>
-            <span class="status-badge" [class]="getStatusClass(requirement()?.status || '')">
-              {{ requirement()?.status }}
-            </span>
+            <select 
+              class="priority-badge editable-select"
+              [value]="requirement()?.priority || ''"
+              (change)="onFieldChange('priority', $any($event.target).value)"
+              [class]="getPriorityClass(requirement()?.priority || '')">
+              <option value="P4">P4</option>
+              <option value="P3">P3</option>
+              <option value="P2">P2</option>
+              <option value="P1">P1</option>
+            </select>
+            <select 
+              class="status-badge editable-select"
+              [value]="requirement()?.status || ''"
+              (change)="onFieldChange('status', $any($event.target).value)"
+              [class]="getStatusClass(requirement()?.status || '')">
+              <option value="Draft">Draft</option>
+              <option value="Approved">Approved</option>
+              <option value="Implemented">Implemented</option>
+              <option value="Tested">Tested</option>
+              <option value="Closed">Closed</option>
+            </select>
           </div>
         </div>
       </div>
@@ -66,26 +91,42 @@
       <!-- Card Body -->
       <div class="card-body">
         <!-- Description -->
-        <div class="detail-section" *ngIf="requirement()?.description">
+        <div class="detail-section">
           <h3 class="section-title">Description</h3>
-          <p class="section-content">{{ requirement()?.description }}</p>
+          <textarea 
+            class="section-content editable-textarea"
+            [value]="requirement()?.description || ''"
+            (input)="onFieldChange('description', $any($event.target).value)"
+            placeholder="Enter description..."></textarea>
         </div>
 
         <!-- GIVEN-WHEN-THEN -->
-        <div class="detail-section gwt-section" *ngIf="requirement()?.given || requirement()?.when_action || requirement()?.then_result">
+        <div class="detail-section gwt-section">
           <h3 class="section-title">Acceptance Criteria</h3>
           <div class="gwt-container">
-            <div class="gwt-item" *ngIf="requirement()?.given">
+            <div class="gwt-item">
               <span class="gwt-label">GIVEN</span>
-              <p class="gwt-content">{{ requirement()?.given }}</p>
+              <textarea 
+                class="gwt-content editable-textarea"
+                [value]="requirement()?.given || ''"
+                (input)="onFieldChange('given', $any($event.target).value)"
+                placeholder="Given..."></textarea>
             </div>
-            <div class="gwt-item" *ngIf="requirement()?.when_action">
+            <div class="gwt-item">
               <span class="gwt-label">WHEN</span>
-              <p class="gwt-content">{{ requirement()?.when_action }}</p>
+              <textarea 
+                class="gwt-content editable-textarea"
+                [value]="requirement()?.when_action || ''"
+                (input)="onFieldChange('when_action', $any($event.target).value)"
+                placeholder="When..."></textarea>
             </div>
-            <div class="gwt-item" *ngIf="requirement()?.then_result">
+            <div class="gwt-item">
               <span class="gwt-label">THEN</span>
-              <p class="gwt-content">{{ requirement()?.then_result }}</p>
+              <textarea 
+                class="gwt-content editable-textarea"
+                [value]="requirement()?.then_result || ''"
+                (input)="onFieldChange('then_result', $any($event.target).value)"
+                placeholder="Then..."></textarea>
             </div>
           </div>
         </div>
@@ -116,17 +157,41 @@
 
         <!-- Metadata -->
         <div class="detail-meta">
-          <div class="meta-item" *ngIf="requirement()?.requirement_type">
+          <div class="meta-item">
             <span class="meta-label">Type:</span>
-            <span class="meta-value">{{ requirement()?.requirement_type }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="requirement()?.requirement_type || ''"
+              (input)="onFieldChange('requirement_type', $any($event.target).value)"
+              placeholder="Type">
           </div>
-          <div class="meta-item" *ngIf="requirement()?.assignee">
+          <div class="meta-item">
             <span class="meta-label">Assignee:</span>
-            <span class="meta-value">👤 {{ requirement()?.assignee }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="requirement()?.assignee || ''"
+              (input)="onFieldChange('assignee', $any($event.target).value)"
+              placeholder="Assignee">
           </div>
-          <div class="meta-item" *ngIf="requirement()?.tags">
+          <div class="meta-item">
             <span class="meta-label">Tags:</span>
-            <span class="meta-value">{{ requirement()?.tags }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="requirement()?.tags || ''"
+              (input)="onFieldChange('tags', $any($event.target).value)"
+              placeholder="Tags">
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Specification ID:</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="requirement()?.linked_spec_id || ''"
+              (input)="onFieldChange('linked_spec_id', $any($event.target).value)"
+              placeholder="SPEC_0001">
           </div>
           <div class="meta-item" *ngIf="requirement()?.created_at">
             <span class="meta-label">Created:</span>

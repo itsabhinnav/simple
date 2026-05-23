@@ -1,0 +1,165 @@
+<div class="detail-container">
+  <!-- Header -->
+  <header class="detail-header">
+    <div class="header-left">
+      <nav class="breadcrumb">
+        <a routerLink="/" class="breadcrumb-link">
+          <i class="icon-database"></i>
+          Dashboard
+        </a>
+        <span class="breadcrumb-separator">›</span>
+        <a routerLink="/requirements" class="breadcrumb-link">Requirements</a>
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-current">Create New</span>
+      </nav>
+      <h1 class="page-title">
+        <i class="icon-requirements"></i>
+        Create Requirement
+      </h1>
+    </div>
+    <div class="header-actions">
+      <div class="save-status" *ngIf="isSubmitting()">
+        <span class="status-saving">Creating...</span>
+      </div>
+      <button class="back-btn" (click)="goBack()" title="Back">
+        <i class="icon-back"></i>
+        Cancel
+      </button>
+      <button 
+        class="submit-btn" 
+        (click)="onSubmit()" 
+        [disabled]="requirementForm.invalid || isSubmitting()"
+        title="Create Requirement">
+        <i class="icon-save"></i>
+        {{ isSubmitting() ? 'Creating...' : 'Create' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage()" class="error-container">
+    <i class="icon-error"></i>
+    <p>{{ errorMessage() }}</p>
+  </div>
+
+  <!-- Success State -->
+  <div *ngIf="successMessage()" class="success-container">
+    <i class="icon-success"></i>
+    <p>{{ successMessage() }}</p>
+  </div>
+
+  <!-- Requirement Form -->
+  <div class="detail-content">
+    <form [formGroup]="requirementForm" (ngSubmit)="onSubmit()">
+      <div class="detail-card">
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="header-top">
+            <div class="title-group">
+              <input 
+                type="text" 
+                class="card-title editable-title" 
+                formControlName="title"
+                placeholder="Requirement title">
+              <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                <span class="req-id">{{ requirementForm.get('requirement_id')?.value || 'Generating ID...' }}</span>
+                <span *ngIf="isGeneratingId()" style="color: #5f6368; font-size: 12px;">Generating...</span>
+              </div>
+            </div>
+            <div class="badges-group">
+              <select 
+                class="priority-badge editable-select"
+                formControlName="priority"
+                [class]="getPriorityClass(requirementForm.get('priority')?.value || '')">
+                <option value="">Priority</option>
+                <option value="P4">P4</option>
+                <option value="P3">P3</option>
+                <option value="P2">P2</option>
+                <option value="P1">P1</option>
+              </select>
+              <select 
+                class="status-badge editable-select"
+                formControlName="status"
+                [class]="getStatusClass(requirementForm.get('status')?.value || '')">
+                <option value="Draft">Draft</option>
+                <option value="Approved">Approved</option>
+                <option value="Implemented">Implemented</option>
+                <option value="Tested">Tested</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          <!-- Description -->
+          <div class="detail-section">
+            <h3 class="section-title">Description</h3>
+            <textarea 
+              class="section-content editable-textarea"
+              formControlName="description"
+              placeholder="Enter description..."></textarea>
+          </div>
+
+          <!-- GIVEN-WHEN-THEN -->
+          <div class="detail-section gwt-section">
+            <h3 class="section-title">Acceptance Criteria</h3>
+            <div class="gwt-container">
+              <div class="gwt-item">
+                <span class="gwt-label">GIVEN</span>
+                <textarea 
+                  class="gwt-content editable-textarea"
+                  formControlName="given"
+                  placeholder="Given..."></textarea>
+              </div>
+              <div class="gwt-item">
+                <span class="gwt-label">WHEN</span>
+                <textarea 
+                  class="gwt-content editable-textarea"
+                  formControlName="when_action"
+                  placeholder="When..."></textarea>
+              </div>
+              <div class="gwt-item">
+                <span class="gwt-label">THEN</span>
+                <textarea 
+                  class="gwt-content editable-textarea"
+                  formControlName="then_result"
+                  placeholder="Then..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metadata -->
+          <div class="detail-meta">
+            <div class="meta-item">
+              <span class="meta-label">Type:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="requirement_type"
+                placeholder="Type">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Assignee:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="assignee"
+                placeholder="Assignee">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Tags:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="tags"
+                placeholder="Tags">
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+

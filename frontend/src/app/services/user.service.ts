@@ -42,6 +42,33 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface BulkImportSheetResult {
+  sheet: string;
+  target: string;
+  created: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ row?: number; id?: string; error: string }>;
+}
+
+export interface BulkImportFileResult {
+  file: string;
+  created: number;
+  skipped: number;
+  failed: number;
+  sheets: BulkImportSheetResult[];
+  errors: Array<{ sheet?: string; row?: number; id?: string; error: string }>;
+}
+
+export interface BulkImportResult {
+  files: BulkImportFileResult[];
+  totals: {
+    created: number;
+    skipped: number;
+    failed: number;
+  };
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -156,6 +183,25 @@ export class UserService {
           return false;
         }),
         catchError(() => of(false))
+      );
+  }
+
+  /**
+   * Import specs, requirements, test cases, or design tickets from Excel files.
+   */
+  bulkImport(target: string, files: File[]): Observable<BulkImportResult> {
+    const form = new FormData();
+    form.append('target', target);
+    files.forEach(file => form.append('files', file));
+
+    return this.http.post<ApiResponse<BulkImportResult>>(`${this.baseUrl}/admin/bulk-import`, form)
+      .pipe(
+        map(response => {
+          if (!response.success || !response.data) {
+            throw new Error(response.message || response.error || 'Bulk import failed');
+          }
+          return response.data;
+        })
       );
   }
 

@@ -10,8 +10,37 @@ from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Secret key for JWT - in production, use environment variable
-JWT_SECRET_KEY = secrets.token_urlsafe(32)
+import os
+from cryptography.fernet import Fernet
+import base64
+
+# Secret key for JWT
+JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+if not JWT_SECRET_KEY:
+    if os.environ.get('ENVIRONMENT') == 'production':
+        raise RuntimeError("JWT_SECRET_KEY must be set in production environment")
+    JWT_SECRET_KEY = 'dev-secret-key-change-in-prod'
+    logger.warning("Using default development JWT secret key. Set JWT_SECRET_KEY environment variable in production.")
+
+# Encryption key for sensitive tokens (like Git tokens)
+ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY')
+if not ENCRYPTION_KEY:
+    if os.environ.get('ENVIRONMENT') == 'production':
+        raise RuntimeError("ENCRYPTION_KEY must be set in production environment")
+    # For development, we use a fixed valid Fernet key
+    ENCRYPTION_KEY = "dev-encryption-key-must-be-32-bytes-long="
+    logger.warning("Using default development ENCRYPTION_KEY. Set ENCRYPTION_KEY environment variable in production.")
+
+try:
+    fernet = Fernet(ENCRYPTION_KEY)
+except Exception as e:
+    logger.error(f"Failed to initialize Fernet with ENCRYPTION_KEY: {e}")
+    if os.environ.get('ENVIRONMENT') == 'production':
+        raise
+    # Fallback to a newly generated key for this session if the provided one is invalid in dev
+    ENCRYPTION_KEY = Fernet.generate_key()
+    fernet = Fernet(ENCRYPTION_KEY)
+
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
 
@@ -51,10 +80,10 @@ class AuthController:
             # Hash the secret key
             secret_key_hash = generate_password_hash(user_data.secret_key)
             
-            # Encrypt the Git token (required) using base64 for simple encoding
-            import base64
-            git_token_bytes = user_data.git_token.encode('utf-8')
-            git_token_encrypted = base64.b64encode(git_token_bytes).decode('utf-8')
+            # Encrypt the Git token using Fernet (if provided)
+            git_token_encrypted = None
+            if user_data.git_token:
+                git_token_encrypted = fernet.encrypt(user_data.git_token.encode('utf-8')).decode('utf-8')
             
             # Create user dict
             user_dict = user_data.dict()
@@ -70,34 +99,24 @@ class AuthController:
             database_service = get_hybrid_database_service()
             
             # Use parameterized query to prevent SQL injection
-            # For SQLite databases, we need to use execute_query with proper parameters
-            # Since the database_service might not support parameterized queries directly,
-            # we'll escape the values to prevent SQL injection
-            import re
-            
-            def escape_sql_string(value):
-                """Escape SQL string to prevent injection"""
-                if value is None:
-                    return "''"
-                # Escape single quotes by doubling them
-                escaped = str(value).replace("'", "''")
-                return f"'{escaped}'"
-            
-            username = escape_sql_string(user_dict['username'])
-            email = escape_sql_string(user_dict['email'])
-            first_name = escape_sql_string(user_dict.get('first_name', ''))
-            last_name = escape_sql_string(user_dict.get('last_name', ''))
-            role = escape_sql_string(user_dict.get('role', 'user'))
-            
-            # Build query with escaped values to prevent SQL injection
-            query = f"""
+            query = """
                 INSERT INTO users (username, email, password_hash, secret_key_hash, git_token_encrypted, first_name, last_name, role)
-                VALUES ({username}, {email}, {escape_sql_string(password_hash)}, {escape_sql_string(secret_key_hash)}, 
-                        {escape_sql_string(git_token_encrypted)}, {first_name}, {last_name}, {role})
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
             
+            params = (
+                user_dict['username'],
+                user_dict['email'],
+                password_hash,
+                secret_key_hash,
+                git_token_encrypted,
+                user_dict.get('first_name', ''),
+                user_dict.get('last_name', ''),
+                user_dict.get('role', 'user')
+            )
+            
             logger.info(f"Executing signup query for user: {user_data.username}")
-            result = database_service.execute_query(query, "default")
+            result = database_service.execute_query(query, "default", params=params)
             
             # Check if query was successful
             if result.get("success") is False:
@@ -108,10 +127,9 @@ class AuthController:
             logger.info(f"Query executed successfully, row_id: {result.get('lastrowid')}")
             
             # Fetch the created user using the same database service to ensure consistency
-            escaped_username = user_dict['username'].replace("'", "''")
-            fetch_query = f"SELECT * FROM users WHERE username = '{escaped_username}'"
+            fetch_query = "SELECT * FROM users WHERE username = ?"
             logger.info(f"Fetching user with query: {fetch_query}")
-            fetch_result = database_service.execute_query(fetch_query, "default")
+            fetch_result = database_service.execute_query(fetch_query, "default", params=(user_dict['username'],))
             logger.info(f"Fetch result: success={fetch_result.get('success')}, data_count={len(fetch_result.get('data', []))}")
             
             if not fetch_result.get("success") or not fetch_result.get("data"):
@@ -363,29 +381,18 @@ class AuthController:
             password_hash = generate_password_hash(new_password)
             
             # Update the password
-            # Escape username to prevent SQL injection
-            def escape_sql_string(value):
-                """Escape SQL string to prevent injection"""
-                if value is None:
-                    return "''"
-                escaped = str(value).replace("'", "''")
-                return f"'{escaped}'"
-            
             # Use local database service for password updates
             from src.infrastructure.dependency_injection import get_local_database_service
             local_database_service = get_local_database_service()
             database_service = local_database_service
             
-            escaped_username = escape_sql_string(username)
-            escaped_password_hash = escape_sql_string(password_hash)
-            
-            query = f"""
+            query = """
                 UPDATE users 
-                SET password_hash = {escaped_password_hash}, updated_at = CURRENT_TIMESTAMP
-                WHERE username = {escaped_username}
+                SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE username = ?
             """
             
-            result = database_service.execute_query(query, "default")
+            result = database_service.execute_query(query, "default", params=(password_hash, username))
             
             if not result.get("success"):
                 raise Exception(result.get('error', 'Failed to reset password'))
@@ -410,8 +417,7 @@ class AuthController:
                 return
             
             # Decrypt Git token
-            import base64
-            git_token = base64.b64decode(git_token_encrypted.encode('utf-8')).decode('utf-8')
+            git_token = fernet.decrypt(git_token_encrypted.encode('utf-8')).decode('utf-8')
             
             # Import and use sync service
             from src.services.sync_remote_on_login import sync_remote_database

@@ -17,6 +17,7 @@ export interface Requirement {
   status: string;
   assignee?: string;
   tags?: string;
+  linked_spec_id?: string;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
@@ -33,6 +34,7 @@ export interface RequirementCreateRequest {
   status: string;
   assignee?: string;
   tags?: string;
+  linked_spec_id?: string;
 }
 
 export interface RequirementUpdateRequest {
@@ -45,6 +47,7 @@ export interface RequirementUpdateRequest {
   status?: string;
   assignee?: string;
   tags?: string;
+  linked_spec_id?: string;
 }
 
 @Component({
@@ -89,11 +92,7 @@ export class RequirementsComponent implements OnInit {
       assignee: [''],
       tags: ['']
     });
-  }
 
-  ngOnInit() {
-    this.loadRequirements();
-    
     // Redirect to browse view when selected
     effect(() => {
       const view = this.currentView();
@@ -101,6 +100,10 @@ export class RequirementsComponent implements OnInit {
         this.router.navigate(['/split-view']);
       }
     });
+  }
+
+  ngOnInit() {
+    this.loadRequirements();
   }
 
   loadRequirements() {

@@ -194,13 +194,19 @@ class UserService(IUserService):
     def _validate_user_creation(self, user_data: UserCreateSchema) -> None:
         """Validate user creation business rules"""
         # Add any business-specific validation rules here
+        # Allow master admin account to be created (handled by provisioning)
         if user_data.username.lower() in ['admin', 'root', 'system']:
+            # Check if this is the master admin being created via provisioning
+            # Master admin is created directly via database, not through this service
+            # So we still block it here to prevent regular users from creating admin accounts
             raise ValueError("Reserved usernames are not allowed")
     
     def _validate_user_update(self, user_data: UserUpdateSchema) -> None:
         """Validate user update business rules"""
         # Add any business-specific validation rules here
+        # Note: Master admin account can be updated, but username cannot be changed
         if user_data.username and user_data.username.lower() in ['admin', 'root', 'system']:
+            # Allow updates to existing admin account, but prevent changing username to admin
             raise ValueError("Reserved usernames are not allowed")
     
     def _mask_email(self, email: str) -> str:

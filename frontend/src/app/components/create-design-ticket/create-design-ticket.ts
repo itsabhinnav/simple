@@ -3,6 +3,7 @@ import { CommonModule, Location } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { DesignTicketService, DesignTicketCreateRequest } from '../../services/design-ticket.service';
+import { IdGeneratorService } from '../../services/id-generator.service';
 
 @Component({
   selector: 'app-create-design-ticket',
@@ -34,14 +35,21 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
             
             <div class="form-group">
               <label for="design_ticket_id">Design ID *</label>
-              <input 
-                type="text" 
-                id="design_ticket_id"
-                formControlName="design_ticket_id"
-                class="form-input"
-                placeholder="e.g., DT-001">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input 
+                  type="text" 
+                  id="design_ticket_id"
+                  formControlName="design_ticket_id"
+                  class="form-input"
+                  placeholder="Auto-generated"
+                  [readonly]="isGeneratingId()">
+                <span *ngIf="isGeneratingId()" style="color: #5f6368; font-size: 12px;">Generating...</span>
+              </div>
               <div *ngIf="designTicketForm.get('design_ticket_id')?.invalid && designTicketForm.get('design_ticket_id')?.touched" class="error-message">
                 Design ID is required
+              </div>
+              <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                ID is automatically generated in DT_XXXX format
               </div>
             </div>
 
@@ -416,6 +424,7 @@ import { DesignTicketService, DesignTicketCreateRequest } from '../../services/d
 })
 export class CreateDesignTicket implements OnInit {
   private designTicketService = inject(DesignTicketService);
+  private idGenerator = inject(IdGeneratorService);
   private formBuilder = inject(FormBuilder);
   private router = inject(Router);
   private location = inject(Location);
@@ -424,6 +433,7 @@ export class CreateDesignTicket implements OnInit {
   designTicketForm: FormGroup;
   errorMessage = signal<string | null>(null);
   successMessage = signal<string | null>(null);
+  isGeneratingId = signal(false);
 
   constructor() {
     this.designTicketForm = this.formBuilder.group({
@@ -441,7 +451,22 @@ export class CreateDesignTicket implements OnInit {
     });
   }
 
-  ngOnInit() {}
+  ngOnInit() {
+    // Auto-generate design ticket ID
+    this.isGeneratingId.set(true);
+    this.idGenerator.generateNextDesignTicketId().subscribe({
+      next: (nextId) => {
+        this.designTicketForm.patchValue({ design_ticket_id: nextId });
+        this.isGeneratingId.set(false);
+      },
+      error: (err) => {
+        console.error('Error generating ID:', err);
+        // Fallback to default ID
+        this.designTicketForm.patchValue({ design_ticket_id: 'DT_0001' });
+        this.isGeneratingId.set(false);
+      }
+    });
+  }
 
   goBack() {
     this.location.back();

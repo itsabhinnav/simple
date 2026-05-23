@@ -115,6 +115,17 @@ class TestAuthEndpoints:
         # Override the database path to use our test database
         db_service.local_db_path = Path(db_path)
         
+        # Override in DI container so controllers using get_hybrid_database_service point to this test db
+        from src.infrastructure.dependency_injection import get_container
+        from src.services.hybrid_database_service import HybridDatabaseService
+        container = get_container().container
+        container.register_instance(LocalDatabaseService, db_service)
+        
+        # Also ensure HybridDatabaseService uses the overridden LocalDatabaseService
+        if container.is_registered(HybridDatabaseService):
+            hybrid_service = container.get(HybridDatabaseService)
+            hybrid_service.local_db = db_service
+            
         # Create user repository and service
         user_repository = UserRepository(db_service)
         user_service = UserService(user_repository)
@@ -168,6 +179,31 @@ class TestAuthEndpoints:
         # Password hash should not be exposed
         assert 'password_hash' not in data['data']['user']
         assert 'password' not in data['data']['user']
+
+    def test_signup_success_without_git_token(self, client):
+        """Test successful user signup without providing a Git token"""
+        signup_data = {
+            "username": "newuser_notoken",
+            "email": "newuser_notoken@test.com",
+            "password": "password123",
+            "secret_key": "secret123",
+            "first_name": "NoToken",
+            "last_name": "User",
+            "role": "user"
+        }
+        
+        response = client.post('/api/auth/signup', json=signup_data, content_type='application/json')
+        
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'data' in data
+        assert 'token' in data['data']
+        assert 'user' in data['data']
+        assert data['data']['user']['username'] == "newuser_notoken"
+        assert data['data']['user']['email'] == "newuser_notoken@test.com"
+        assert 'git_token' not in data['data']['user']
+        assert 'git_token_encrypted' not in data['data']['user']
     
     def test_signup_duplicate_username(self, client):
         """Test signup with duplicate username"""
@@ -194,7 +230,7 @@ class TestAuthEndpoints:
         signup_data = {
             "username": "invaliduser",
             "email": "invalid@test.com"
-            # Missing password, secret_key, git_token
+            # Missing password, secret_key
         }
         
         response = client.post('/api/auth/signup', json=signup_data, content_type='application/json')

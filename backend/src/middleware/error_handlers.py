@@ -1,7 +1,17 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 import logging
+import os
 from typing import Dict, Any
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
+
+# Global limiter instance
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["1000 per day", "200 per hour"]
+)
 
 
 def setup_error_handlers(app: Flask) -> None:
@@ -117,12 +127,14 @@ def setup_request_validation(app: Flask) -> None:
         if request.method == 'OPTIONS':
             return
         
-        # Validate Content-Type for POST/PUT requests
-        if request.method in ['POST', 'PUT'] and request.is_json is False:
+        # Validate Content-Type for POST/PUT requests. File import endpoints use multipart forms.
+        content_type = request.content_type or ''
+        is_multipart = content_type.startswith('multipart/form-data')
+        if request.method in ['POST', 'PUT'] and request.is_json is False and not is_multipart:
             return jsonify({
                 "success": False,
                 "error": "Invalid Content-Type",
-                "message": "Content-Type must be application/json for POST/PUT requests"
+                "message": "Content-Type must be application/json or multipart/form-data for POST/PUT requests"
             }), 400
 
 
@@ -160,3 +172,21 @@ def setup_api_documentation(app: Flask) -> None:
                 }
             }
         })
+
+def setup_security_headers(app: Flask) -> None:
+    """Setup secure headers using Flask-Talisman"""
+    # Force HTTPS only if not in development and not explicitly disabled
+    is_dev = app.debug
+    force_https = os.environ.get('FORCE_HTTPS', str(not is_dev)).lower() == 'true'
+    
+    Talisman(
+        app,
+        force_https=force_https,
+        content_security_policy=None,  # Adjust CSP based on frontend needs
+        strict_transport_security=force_https
+    )
+
+
+def setup_rate_limiting(app: Flask) -> None:
+    """Setup rate limiting using Flask-Limiter"""
+    limiter.init_app(app)

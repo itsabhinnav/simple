@@ -64,6 +64,25 @@
   .header-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
+
+    .save-status {
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      
+      .status-saving {
+        color: #1a73e8;
+      }
+      
+      .status-saved {
+        color: #2e7d32;
+      }
+      
+      .status-error {
+        color: #c62828;
+      }
+    }
 
     button {
       padding: 10px 20px;
@@ -158,12 +177,16 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
     }
 
     .title-group {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      flex: 1;
+      min-width: 0; // Allow flex item to shrink below content size
     }
 
     .card-title {
@@ -171,18 +194,63 @@
       font-weight: 500;
       margin: 0;
       color: #202124;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      
+      &.editable-title {
+        border: none;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+        width: 100%;
+        padding: 4px 0;
+        transition: border-color 0.2s;
+        word-wrap: break-word;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        
+        &:focus {
+          outline: none;
+          border-bottom-color: #1a73e8;
+        }
+      }
     }
 
     .req-id {
       font-size: 14px;
       color: #5f6368;
       font-family: monospace;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
     .badges-group {
       display: flex;
       gap: 8px;
       align-items: center;
+      
+      .priority-badge,
+      .status-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        
+        &.editable-select {
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: border-color 0.2s, background-color 0.2s;
+          
+          &:hover {
+            border-color: rgba(0, 0, 0, 0.1);
+          }
+          
+          &:focus {
+            outline: none;
+            border-color: #1a73e8;
+          }
+        }
+      }
     }
 
     .badges {
@@ -197,6 +265,21 @@
         font-weight: 600;
         background: rgba(255, 255, 255, 0.2);
         backdrop-filter: blur(10px);
+        
+        &.editable-select {
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: border-color 0.2s, background-color 0.2s;
+          
+          &:hover {
+            border-color: rgba(0, 0, 0, 0.1);
+          }
+          
+          &:focus {
+            outline: none;
+            border-color: #1a73e8;
+          }
+        }
       }
 
       .status-pass, .status-default {
@@ -255,6 +338,26 @@
       color: #5f6368;
       line-height: 1.6;
       font-size: 14px;
+      
+      &.editable-textarea {
+        width: 100%;
+        min-height: 100px;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 12px;
+        font-family: inherit;
+        font-size: 14px;
+        color: #202124;
+        background: white;
+        resize: vertical;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        
+        &:focus {
+          outline: none;
+          border-color: #1a73e8;
+          box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
+        }
+      }
     }
   }
 
@@ -322,6 +425,23 @@
           &:hover {
             color: #1557b0;
             text-decoration: underline;
+          }
+        }
+        
+        &.editable-input {
+          border: 1px solid #e0e0e0;
+          border-radius: 4px;
+          padding: 6px 12px;
+          font-family: inherit;
+          font-size: 14px;
+          color: #202124;
+          background: white;
+          width: 100%;
+          transition: border-color 0.2s;
+          
+          &:focus {
+            outline: none;
+            border-color: #1a73e8;
           }
         }
       }

@@ -18,6 +18,11 @@
       </h1>
     </div>
     <div class="header-actions">
+      <div class="save-status" *ngIf="saveStatus() !== 'idle'">
+        <span *ngIf="saveStatus() === 'saving'" class="status-saving">💾 Saving...</span>
+        <span *ngIf="saveStatus() === 'saved'" class="status-saved">✓ Saved</span>
+        <span *ngIf="saveStatus() === 'error'" class="status-error">✗ Error saving</span>
+      </div>
       <button class="back-btn" (click)="goBack()" title="Back">
         <i class="icon-back"></i>
         Back
@@ -49,16 +54,36 @@
       <div class="card-header">
         <div class="header-top">
           <div class="title-group">
-            <h2 class="card-title">{{ testCase()?.test_objective || 'Test Case' }}</h2>
+            <input 
+              type="text" 
+              class="card-title editable-title" 
+              [value]="testCase()?.test_objective || ''"
+              (input)="onFieldChange('test_objective', $any($event.target).value)"
+              placeholder="Test objective">
             <span class="req-id">{{ testCase()?.test_case_id }}</span>
           </div>
           <div class="badges-group">
-            <span class="priority-badge" [class]="getPriorityClass(testCase()?.priority || '')" *ngIf="testCase()?.priority">
-              {{ testCase()?.priority }}
-            </span>
-            <span class="status-badge" [class]="getTypeClass(testCase()?.test_type || '')" *ngIf="testCase()?.test_type">
-              {{ testCase()?.test_type }}
-            </span>
+            <select 
+              class="priority-badge editable-select"
+              [value]="testCase()?.priority || ''"
+              (change)="onFieldChange('priority', $any($event.target).value)"
+              [class]="getPriorityClass(testCase()?.priority || '')">
+              <option value="">Priority</option>
+              <option value="P1">P1</option>
+              <option value="P2">P2</option>
+              <option value="P3">P3</option>
+            </select>
+            <select 
+              class="status-badge editable-select"
+              [value]="testCase()?.test_type || ''"
+              (change)="onFieldChange('test_type', $any($event.target).value)"
+              [class]="getTypeClass(testCase()?.test_type || '')">
+              <option value="">Test Type</option>
+              <option value="Positive">Positive</option>
+              <option value="Negative">Negative</option>
+              <option value="Boundary">Boundary</option>
+              <option value="Performance">Performance</option>
+            </select>
           </div>
         </div>
       </div>
@@ -66,27 +91,43 @@
       <!-- Card Body -->
       <div class="card-body">
         <!-- Test Objective -->
-        <div class="detail-section" *ngIf="testCase()?.test_objective">
+        <div class="detail-section">
           <h3 class="section-title">Test Objective</h3>
-          <p class="section-content">{{ testCase()?.test_objective }}</p>
+          <textarea 
+            class="section-content editable-textarea"
+            [value]="testCase()?.test_objective || ''"
+            (input)="onFieldChange('test_objective', $any($event.target).value)"
+            placeholder="Enter test objective..."></textarea>
         </div>
 
         <!-- Preconditions -->
-        <div class="detail-section" *ngIf="testCase()?.preconditions">
+        <div class="detail-section">
           <h3 class="section-title">Preconditions</h3>
-          <p class="section-content">{{ testCase()?.preconditions }}</p>
+          <textarea 
+            class="section-content editable-textarea"
+            [value]="testCase()?.preconditions || ''"
+            (input)="onFieldChange('preconditions', $any($event.target).value)"
+            placeholder="Enter preconditions..."></textarea>
         </div>
 
         <!-- Procedure -->
-        <div class="detail-section" *ngIf="testCase()?.procedure">
+        <div class="detail-section">
           <h3 class="section-title">Procedure</h3>
-          <p class="section-content">{{ testCase()?.procedure }}</p>
+          <textarea 
+            class="section-content editable-textarea"
+            [value]="testCase()?.procedure || ''"
+            (input)="onFieldChange('procedure', $any($event.target).value)"
+            placeholder="Enter procedure..."></textarea>
         </div>
 
         <!-- Expected Behavior -->
-        <div class="detail-section" *ngIf="testCase()?.expected_behavior">
+        <div class="detail-section">
           <h3 class="section-title">Expected Behavior</h3>
-          <p class="section-content">{{ testCase()?.expected_behavior }}</p>
+          <textarea 
+            class="section-content editable-textarea"
+            [value]="testCase()?.expected_behavior || ''"
+            (input)="onFieldChange('expected_behavior', $any($event.target).value)"
+            placeholder="Enter expected behavior..."></textarea>
         </div>
 
         <!-- Metadata -->
@@ -105,25 +146,50 @@
               </a>
             </span>
           </div>
-          <div class="meta-item" *ngIf="testCase()?.feature">
+          <div class="meta-item">
             <span class="meta-label">Feature:</span>
-            <span class="meta-value">{{ testCase()?.feature }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="testCase()?.feature || ''"
+              (input)="onFieldChange('feature', $any($event.target).value)"
+              placeholder="Feature">
           </div>
-          <div class="meta-item" *ngIf="testCase()?.screen_id">
+          <div class="meta-item">
             <span class="meta-label">Screen ID:</span>
-            <span class="meta-value">{{ testCase()?.screen_id }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="testCase()?.screen_id || ''"
+              (input)="onFieldChange('screen_id', $any($event.target).value)"
+              placeholder="Screen ID">
           </div>
-          <div class="meta-item" *ngIf="testCase()?.test_type">
-            <span class="meta-label">Test Type:</span>
-            <span class="meta-value">{{ testCase()?.test_type }}</span>
+          <div class="meta-item">
+            <span class="meta-label">Requirement Type:</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="testCase()?.requirement_type || ''"
+              (input)="onFieldChange('requirement_type', $any($event.target).value)"
+              placeholder="Requirement type">
           </div>
-          <div class="meta-item" *ngIf="testCase()?.region">
+          <div class="meta-item">
             <span class="meta-label">Region:</span>
-            <span class="meta-value">{{ testCase()?.region }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="testCase()?.region || ''"
+              (input)="onFieldChange('region', $any($event.target).value)"
+              placeholder="Region">
           </div>
-          <div class="meta-item" *ngIf="testCase()?.brand">
+          <div class="meta-item">
             <span class="meta-label">Brand:</span>
-            <span class="meta-value">{{ testCase()?.brand }}</span>
+            <input 
+              type="text" 
+              class="meta-value editable-input"
+              [value]="testCase()?.brand || ''"
+              (input)="onFieldChange('brand', $any($event.target).value)"
+              placeholder="Brand">
           </div>
           <div class="meta-item" *ngIf="testCase()?.created_at">
             <span class="meta-label">Created:</span>

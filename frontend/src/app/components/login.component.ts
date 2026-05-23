@@ -3,17 +3,18 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { TranslatePipe } from '../services/translate.pipe';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, TranslatePipe],
   template: `
     <div class="auth-container">
       <div class="auth-card">
         <div class="auth-header">
           <h1>Sakura</h1>
-          <p>Login to your account</p>
+          <p>{{ 'login.login_title' | translate }}</p>
         </div>
 
         <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form">
@@ -22,7 +23,7 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="form-group">
-            <label for="username">Username</label>
+            <label for="username">{{ 'login.username' | translate }}</label>
             <input 
               type="text" 
               id="username"
@@ -31,12 +32,12 @@ import { AuthService } from '../services/auth.service';
               placeholder="Enter your username"
               [class.error]="loginForm.get('username')?.invalid && loginForm.get('username')?.touched">
             <div *ngIf="loginForm.get('username')?.invalid && loginForm.get('username')?.touched" class="field-error">
-              Username is required
+              {{ 'login.username_required' | translate }}
             </div>
           </div>
 
           <div class="form-group">
-            <label for="password">Password</label>
+            <label for="password">{{ 'login.password' | translate }}</label>
             <input 
               type="password" 
               id="password"
@@ -45,7 +46,7 @@ import { AuthService } from '../services/auth.service';
               placeholder="Enter your password"
               [class.error]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched">
             <div *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched" class="field-error">
-              Password is required (min 6 characters)
+              {{ 'login.password_min' | translate }}
             </div>
           </div>
 
@@ -54,13 +55,13 @@ import { AuthService } from '../services/auth.service';
             class="btn-primary"
             [disabled]="loginForm.invalid || isLoading()">
             <span *ngIf="isLoading()" class="spinner-small"></span>
-            {{ isLoading() ? 'Logging in...' : 'Login' }}
+            {{ isLoading() ? ('login.logging_in' | translate) : ('login.login_button' | translate) }}
           </button>
         </form>
 
         <div class="auth-footer">
-          <p>Don't have an account? 
-            <a routerLink="/signup" class="link">Sign up</a>
+          <p>{{ 'login.no_account' | translate }}
+            <a routerLink="/signup" class="link">{{ 'login.signup_button' | translate }}</a>
           </p>
         </div>
       </div>
@@ -234,7 +235,7 @@ export class LoginComponent {
   constructor() {
     this.loginForm = this.formBuilder.group({
       username: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
-      password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]]
+      password: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(100)]]
     });
   }
 

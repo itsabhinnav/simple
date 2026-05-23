@@ -7,12 +7,14 @@ import { RequirementService } from '../services/requirement.service';
 import { TestCaseService } from '../services/test-case.service';
 import { DesignTicketService, DesignTicket } from '../services/design-ticket.service';
 import { Requirement } from '../services/requirement.service';
+import { SpecService } from '../services/spec.service';
 import { TestCase } from '../services/test-case.service';
+import { TranslatePipe } from '../services/translate.pipe';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, ReactiveFormsModule],
+  imports: [CommonModule, RouterModule, ReactiveFormsModule, TranslatePipe],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
@@ -23,7 +25,9 @@ export class DashboardComponent implements OnInit {
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
   private designTicketService = inject(DesignTicketService);
+  private specService = inject(SpecService);
 
+  // Local UI gates are derived from AuthService so we don't render stale state
   isAuthenticated = signal(false);
   isInitialized = signal(false);
   activeTab = signal<'login' | 'signup'>('login');
@@ -35,6 +39,7 @@ export class DashboardComponent implements OnInit {
   requirementsCount = signal(0);
   testCasesCount = signal(0);
   designTicketsCount = signal(0);
+  specsCount = signal(0);
   isLoadingStats = signal(false);
   
   // Recent items
@@ -46,13 +51,12 @@ export class DashboardComponent implements OnInit {
   signupForm: FormGroup;
 
   constructor() {
-    // Initialize auth state before component renders
-    const isAuth = this.authService.isAuthenticated();
-    this.isAuthenticated.set(isAuth);
+    // Derive auth state synchronously from AuthService (token is loaded in its ctor)
+    this.isAuthenticated.set(this.authService.isAuthenticated());
     
     this.loginForm = this.formBuilder.group({
       username: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
-      password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]]
+      password: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(100)]]
     });
 
         this.signupForm = this.formBuilder.group({
@@ -63,20 +67,23 @@ export class DashboardComponent implements OnInit {
           password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
           confirmPassword: ['', Validators.required],
           secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
-          git_token: ['', [Validators.required, Validators.minLength(10)]], // Required Git token
           role: ['user'] // Default role
         }, { validators: this.passwordMatchValidator });
   }
 
   ngOnInit() {
-    // Set initialized immediately (auth already checked in constructor)
-    this.isInitialized.set(true);
-    
-    // Load stats if authenticated
-    if (this.isAuthenticated()) {
+    // Mark initialized only after reading AuthService readiness
+    this.isInitialized.set(this.authService.getIsInitialized());
+
+    if (this.authService.isAuthenticated()) {
+      this.isAuthenticated.set(true);
       this.loadDashboardStats();
     }
   }
+
+  // Helpers so template can strictly use AuthService-backed state
+  authReady(): boolean { return this.authService.getIsInitialized(); }
+  authed(): boolean { return this.authService.isAuthenticated(); }
 
   loadDashboardStats() {
     this.isLoadingStats.set(true);
@@ -110,12 +117,32 @@ export class DashboardComponent implements OnInit {
         // Get recent design tickets (last 5)
         const recent = designTickets.slice(0, 5);
         this.recentDesignTickets.set(recent);
-        this.isLoadingStats.set(false);
       },
       error: () => {
         this.designTicketsCount.set(0);
+      }
+    });
+
+    // Load specifications count
+    this.specService.getSpecs().subscribe({
+      next: (specs) => {
+        this.specsCount.set(specs.length);
+        this.isLoadingStats.set(false);
+      },
+      error: () => {
+        this.specsCount.set(0);
         this.isLoadingStats.set(false);
       }
+    });
+  }
+
+  importSpecFile(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    this.specService.importSpecs(file).subscribe({
+      next: () => this.loadDashboardStats(),
+      error: (err) => console.error('Spec import failed', err)
     });
   }
 
@@ -142,7 +169,19 @@ export class DashboardComponent implements OnInit {
 
   isAdmin(): boolean {
     const user = this.authService.getCurrentUser();
-    return user?.role === 'admin';
+    const isAdmin = user?.role === 'admin';
+    console.log('isAdmin check:', { user, role: user?.role, isAdmin });
+    return isAdmin;
+  }
+
+  getCurrentUserRole(): string {
+    const user = this.authService.getCurrentUser();
+    return user?.role || 'none';
+  }
+
+  getCurrentUsername(): string {
+    const user = this.authService.getCurrentUser();
+    return user?.username || 'none';
   }
 
   showLogin() {
@@ -168,8 +207,10 @@ export class DashboardComponent implements OnInit {
     this.activeTab.set('login');
 
     this.authService.login(this.loginForm.value).subscribe({
-      next: () => {
+      next: (response) => {
         this.isLoggingIn.set(false);
+        // Update auth state
+        this.isAuthenticated.set(true);
         // Reload to update auth state across the app
         window.location.href = '/';
       },
@@ -198,7 +239,6 @@ export class DashboardComponent implements OnInit {
       first_name: this.signupForm.value.first_name || undefined,
       last_name: this.signupForm.value.last_name || undefined,
       secret_key: this.signupForm.value.secret_key,
-      git_token: this.signupForm.value.git_token || undefined,
       role: this.signupForm.value.role || 'user'
     };
 

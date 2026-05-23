@@ -1,0 +1,179 @@
+<div class="detail-container">
+  <!-- Header -->
+  <header class="detail-header">
+    <div class="header-left">
+      <nav class="breadcrumb">
+        <a routerLink="/" class="breadcrumb-link">
+          <i class="icon-database"></i>
+          Dashboard
+        </a>
+        <span class="breadcrumb-separator">›</span>
+        <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-current">Create New</span>
+      </nav>
+      <h1 class="page-title">
+        <i class="icon-test-cases"></i>
+        Create Test Case
+      </h1>
+    </div>
+    <div class="header-actions">
+      <div class="save-status" *ngIf="isSubmitting()">
+        <span class="status-saving">Creating...</span>
+      </div>
+      <button class="back-btn" (click)="goBack()" title="Back">
+        <i class="icon-back"></i>
+        Cancel
+      </button>
+      <button 
+        class="submit-btn" 
+        (click)="onSubmit()" 
+        [disabled]="testCaseForm.invalid || isSubmitting()"
+        title="Create Test Case">
+        <i class="icon-save"></i>
+        {{ isSubmitting() ? 'Creating...' : 'Create' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage()" class="error-container">
+    <i class="icon-error"></i>
+    <p>{{ errorMessage() }}</p>
+  </div>
+
+  <!-- Success State -->
+  <div *ngIf="successMessage()" class="success-container">
+    <i class="icon-success"></i>
+    <p>{{ successMessage() }}</p>
+  </div>
+
+  <!-- Test Case Form -->
+  <div class="detail-content">
+    <form [formGroup]="testCaseForm" (ngSubmit)="onSubmit()">
+      <div class="detail-card">
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="header-top">
+            <div class="title-group">
+              <input 
+                type="text" 
+                class="card-title editable-title" 
+                formControlName="test_objective"
+                placeholder="Test objective">
+              <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                <span class="req-id">{{ testCaseForm.get('test_case_id')?.value || 'Generating ID...' }}</span>
+                <span *ngIf="isGeneratingId()" style="color: #5f6368; font-size: 12px;">Generating...</span>
+              </div>
+            </div>
+            <div class="badges-group">
+              <select 
+                class="priority-badge editable-select"
+                formControlName="priority"
+                [class]="getPriorityClass(testCaseForm.get('priority')?.value || '')">
+                <option value="">Priority</option>
+                <option value="P4">P4</option>
+                <option value="P3">P3</option>
+                <option value="P2">P2</option>
+                <option value="P1">P1</option>
+              </select>
+              <select 
+                class="type-badge editable-select"
+                formControlName="test_type"
+                [class]="getTypeClass(testCaseForm.get('test_type')?.value || '')">
+                <option value="">Test Type</option>
+                <option value="Positive">Positive</option>
+                <option value="Negative">Negative</option>
+                <option value="Boundary">Boundary</option>
+                <option value="Performance">Performance</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          <!-- Preconditions -->
+          <div class="detail-section">
+            <h3 class="section-title">Preconditions</h3>
+            <textarea 
+              class="section-content editable-textarea"
+              formControlName="preconditions"
+              placeholder="Enter preconditions..."></textarea>
+          </div>
+
+          <!-- Procedure -->
+          <div class="detail-section">
+            <h3 class="section-title">Procedure</h3>
+            <textarea 
+              class="section-content editable-textarea"
+              formControlName="procedure"
+              placeholder="Enter procedure..."></textarea>
+          </div>
+
+          <!-- Expected Behavior -->
+          <div class="detail-section">
+            <h3 class="section-title">Expected Behavior</h3>
+            <textarea 
+              class="section-content editable-textarea"
+              formControlName="expected_behavior"
+              placeholder="Enter expected behavior..."></textarea>
+          </div>
+
+          <!-- Metadata -->
+          <div class="detail-meta">
+            <div class="meta-item">
+              <span class="meta-label">Feature:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="feature"
+                placeholder="Feature">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Screen ID:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="screen_id"
+                placeholder="Screen ID">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Requirement Type:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="requirement_type"
+                placeholder="Requirement type">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Region:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="region"
+                placeholder="Region">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Associated Requirement ID:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="associated_requirement_id"
+                placeholder="e.g., REQ_001">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Reference Document:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="reference_document"
+                placeholder="Reference document">
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+

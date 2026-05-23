@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=sakura_db
+      - POSTGRES_USER=sakura_user
+      - POSTGRES_PASSWORD=sakura_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+    environment:
+      - ENVIRONMENT=production
+      - DB_PROVIDER=postgresql
+      - DB_HOST=db
+      - DB_NAME=sakura_db
+      - DB_USER=sakura_user
+      - DB_PASSWORD=sakura_password
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-prod}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5000}
+      - FORCE_HTTPS=false
+    ports:
+      - "5000:5000"
+    volumes:
+      - backend-data:/app/data
+    depends_on:
+      - db
+    restart: always
+
+volumes:
+  backend-data:
+  postgres-data:

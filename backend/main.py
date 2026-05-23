@@ -9,7 +9,7 @@ It provides a Flask-based API for database management with Artifactory integrati
 import os
 import sys
 from pathlib import Path
-from flask import Flask, request
+from flask import Flask, request, send_from_directory, jsonify
 from flask_cors import CORS
 
 # Add src to Python path
@@ -31,7 +31,7 @@ else:
 
 from src.infrastructure.dependency_injection import (
     get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service,
-    get_requirement_service, get_design_ticket_service
+    get_requirement_service, get_design_ticket_service, get_spec_service
 )
 from src.controllers.user_controller import create_user_blueprint
 from src.controllers.test_case_controller import create_test_case_blueprint
@@ -39,9 +39,11 @@ from src.controllers.auth_controller import create_auth_blueprint
 from src.controllers.admin_controller import create_admin_blueprint
 from src.controllers.requirement_controller import create_requirement_blueprint
 from src.controllers.design_ticket_controller import create_design_ticket_blueprint
+from src.controllers.spec_controller import create_spec_blueprint
 from src.middleware.error_handlers import (
     setup_error_handlers, setup_request_logging, 
-    setup_cors_headers, setup_request_validation, setup_api_documentation
+    setup_cors_headers, setup_request_validation, setup_api_documentation,
+    setup_security_headers, setup_rate_limiting
 )
 from src.middleware.auth_middleware import get_current_username
 from src.infrastructure.logging_config import get_logger
@@ -56,13 +58,14 @@ def create_app() -> Flask:
     Returns:
         Flask: Configured Flask application instance
     """
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static')
     
     # Disable strict slashes to prevent redirects
     app.url_map.strict_slashes = False
     
     # Configure CORS
-    CORS(app, origins=["*"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+    cors_origins = ["*"] if app.debug else os.environ.get('ALLOWED_ORIGINS', 'https://sakura.company.com').split(',')
+    CORS(app, origins=cors_origins, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
          allow_headers=["Content-Type", "Authorization"], supports_credentials=True)
     
     # Setup middleware
@@ -71,6 +74,8 @@ def create_app() -> Flask:
     setup_cors_headers(app)
     setup_request_validation(app)
     setup_api_documentation(app)
+    setup_security_headers(app)
+    setup_rate_limiting(app)
     
     @app.before_request
     def inject_current_user():
@@ -85,6 +90,20 @@ def create_app() -> Flask:
     # Register legacy routes for backward compatibility
     register_legacy_routes(app)
     
+    # Serve static frontend files
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_frontend(path):
+        static_path = os.path.join(app.static_folder, path)
+        if path and os.path.isfile(static_path):
+            return send_from_directory(app.static_folder, path)
+        route_index = os.path.join(static_path, 'index.html')
+        if path and os.path.isdir(static_path) and os.path.isfile(route_index) and os.path.getsize(route_index) > 0:
+            return send_from_directory(static_path, 'index.html')
+
+        # For Angular routing, serve index.html for all other paths
+        return send_from_directory(app.static_folder, 'index.html')
+    
     logger.info("Flask application created successfully")
     return app
 
@@ -97,6 +116,7 @@ def register_api_routes(app: Flask) -> None:
     test_case_service = get_test_case_service()
     requirement_service = get_requirement_service()
     design_ticket_service = get_design_ticket_service()
+    spec_service = get_spec_service()
     
     # Create and register blueprints
     auth_bp = create_auth_blueprint(user_service)
@@ -105,6 +125,7 @@ def register_api_routes(app: Flask) -> None:
     admin_bp = create_admin_blueprint()
     requirement_bp = create_requirement_blueprint(requirement_service)
     design_ticket_bp = create_design_ticket_blueprint(design_ticket_service)
+    spec_bp = create_spec_blueprint(spec_service)
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
@@ -112,12 +133,30 @@ def register_api_routes(app: Flask) -> None:
     app.register_blueprint(admin_bp)
     app.register_blueprint(requirement_bp)
     app.register_blueprint(design_ticket_bp)
+    app.register_blueprint(spec_bp)
     
     logger.info("API routes registered successfully")
 
 
 def register_legacy_routes(app: Flask) -> None:
     """Register legacy routes for backward compatibility."""
+    
+    @app.route('/api/status')
+    def api_status():
+        """API status endpoint."""
+        return {
+            "status": "ok",
+            "message": "Sakura API is running",
+            "version": "1.0.0",
+            "endpoints": {
+                "health": "/health",
+                "api_docs": "/api/docs",
+                "auth": "/api/auth",
+                "users": "/api/users",
+                "test_cases": "/api/test-cases",
+                "requirements": "/api/requirements"
+            }
+        }
     
     @app.route('/health')
     def health_check():
@@ -418,6 +457,17 @@ def main():
     except Exception as e:
         print(f"[ERROR] Error initializing hybrid database service: {e}")
         print("[WARNING] Continuing with limited functionality...")
+    
+    # Provision master admin account
+    try:
+        from src.infrastructure.master_admin_provision import provision_master_admin
+        if provision_master_admin():
+            print("[SUCCESS] Master admin account provisioned")
+        else:
+            print("[WARNING] Failed to provision master admin account")
+    except Exception as e:
+        print(f"[ERROR] Error provisioning master admin account: {e}")
+        print("[WARNING] Continuing without master admin account...")
     
     # Get configuration
     host = os.environ.get('HOST', '0.0.0.0')

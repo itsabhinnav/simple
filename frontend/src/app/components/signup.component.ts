@@ -3,17 +3,18 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule, AbstractControl } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { TranslatePipe } from '../services/translate.pipe';
 
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, TranslatePipe],
   template: `
     <div class="auth-container">
       <div class="auth-card">
         <div class="auth-header">
           <h1>Sakura</h1>
-          <p>Create your account</p>
+          <p>{{ 'login.signup_title' | translate }}</p>
         </div>
 
         <form [formGroup]="signupForm" (ngSubmit)="onSubmit()" class="auth-form">
@@ -22,7 +23,7 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="form-group">
-            <label for="username">Username</label>
+            <label for="username">{{ 'login.username' | translate }}</label>
             <input 
               type="text" 
               id="username"
@@ -31,12 +32,12 @@ import { AuthService } from '../services/auth.service';
               placeholder="Choose a username"
               [class.error]="signupForm.get('username')?.invalid && signupForm.get('username')?.touched">
             <div *ngIf="signupForm.get('username')?.invalid && signupForm.get('username')?.touched" class="field-error">
-              Username is required (min 1 character)
+              {{ 'login.username_min' | translate }}
             </div>
           </div>
 
           <div class="form-group">
-            <label for="email">Email</label>
+            <label for="email">{{ 'login.email' | translate }}</label>
             <input 
               type="email" 
               id="email"
@@ -45,14 +46,14 @@ import { AuthService } from '../services/auth.service';
               placeholder="Enter your email"
               [class.error]="signupForm.get('email')?.invalid && signupForm.get('email')?.touched">
             <div *ngIf="signupForm.get('email')?.invalid && signupForm.get('email')?.touched" class="field-error">
-              <span *ngIf="signupForm.get('email')?.errors?.['required']">Email is required</span>
-              <span *ngIf="signupForm.get('email')?.errors?.['email']">Please enter a valid email</span>
+              <span *ngIf="signupForm.get('email')?.errors?.['required']">{{ 'login.email_required' | translate }}</span>
+              <span *ngIf="signupForm.get('email')?.errors?.['email']">{{ 'login.email_invalid' | translate }}</span>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="first_name">First Name (Optional)</label>
+              <label for="first_name">{{ 'login.first_name_opt' | translate }}</label>
               <input 
                 type="text" 
                 id="first_name"
@@ -62,7 +63,7 @@ import { AuthService } from '../services/auth.service';
             </div>
 
             <div class="form-group">
-              <label for="last_name">Last Name (Optional)</label>
+              <label for="last_name">{{ 'login.last_name_opt' | translate }}</label>
               <input 
                 type="text" 
                 id="last_name"
@@ -73,7 +74,7 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="form-group">
-            <label for="password">Password</label>
+            <label for="password">{{ 'login.password' | translate }}</label>
             <input 
               type="password" 
               id="password"
@@ -82,12 +83,12 @@ import { AuthService } from '../services/auth.service';
               placeholder="Create a password"
               [class.error]="signupForm.get('password')?.invalid && signupForm.get('password')?.touched">
             <div *ngIf="signupForm.get('password')?.invalid && signupForm.get('password')?.touched" class="field-error">
-              Password is required (min 6 characters)
+              {{ 'login.password_min' | translate }}
             </div>
           </div>
 
           <div class="form-group">
-            <label for="confirmPassword">Confirm Password</label>
+            <label for="confirmPassword">{{ 'login.confirm_password' | translate }}</label>
             <input 
               type="password" 
               id="confirmPassword"
@@ -96,13 +97,13 @@ import { AuthService } from '../services/auth.service';
               placeholder="Confirm your password"
               [class.error]="signupForm.get('confirmPassword')?.invalid && signupForm.get('confirmPassword')?.touched">
             <div *ngIf="signupForm.get('confirmPassword')?.invalid && signupForm.get('confirmPassword')?.touched" class="field-error">
-              <span *ngIf="signupForm.get('confirmPassword')?.errors?.['required']">Please confirm your password</span>
-              <span *ngIf="signupForm.get('confirmPassword')?.errors?.['passwordsDoNotMatch']">Passwords do not match</span>
+              <span *ngIf="signupForm.get('confirmPassword')?.errors?.['required']">{{ 'login.confirm_password_required' | translate }}</span>
+              <span *ngIf="signupForm.get('confirmPassword')?.errors?.['passwordsDoNotMatch']">{{ 'login.passwords_dont_match' | translate }}</span>
             </div>
           </div>
 
           <div class="form-group">
-            <label for="secret_key">Secret Key (for password recovery)</label>
+            <label for="secret_key">{{ 'login.secret_key' | translate }}</label>
             <input 
               type="text" 
               id="secret_key"
@@ -111,9 +112,9 @@ import { AuthService } from '../services/auth.service';
               placeholder="Enter a secret key to recover your password"
               [class.error]="signupForm.get('secret_key')?.invalid && signupForm.get('secret_key')?.touched">
             <div *ngIf="signupForm.get('secret_key')?.invalid && signupForm.get('secret_key')?.touched" class="field-error">
-              Secret key is required (min 3 characters)
+              {{ 'login.secret_key_min' | translate }}
             </div>
-            <div class="field-hint">Remember this key to recover your password if needed</div>
+            <div class="field-hint">{{ 'login.secret_hint' | translate }}</div>
           </div>
 
           <button 
@@ -121,13 +122,13 @@ import { AuthService } from '../services/auth.service';
             class="btn-primary"
             [disabled]="signupForm.invalid || isLoading()">
             <span *ngIf="isLoading()" class="spinner-small"></span>
-            {{ isLoading() ? 'Creating account...' : 'Sign Up' }}
+            {{ isLoading() ? ('login.creating_account' | translate) : ('login.signup_button' | translate) }}
           </button>
         </form>
 
         <div class="auth-footer">
-          <p>Already have an account? 
-            <a routerLink="/login" class="link">Login</a>
+          <p>{{ 'login.has_account' | translate }}
+            <a routerLink="/login" class="link">{{ 'login.login_button' | translate }}</a>
           </p>
         </div>
       </div>
@@ -326,7 +327,6 @@ export class SignupComponent {
       password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
       confirmPassword: ['', [Validators.required]],
       secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
-      git_token: ['', [Validators.required, Validators.minLength(10)]],
       role: ['user']
     }, { validators: this.passwordMatchValidator });
   }
@@ -358,7 +358,6 @@ export class SignupComponent {
       first_name: this.signupForm.value.first_name || undefined,
       last_name: this.signupForm.value.last_name || undefined,
       secret_key: this.signupForm.value.secret_key,
-      git_token: this.signupForm.value.git_token || undefined,
       role: this.signupForm.value.role || 'user'
     };
 

@@ -1,26 +1,26 @@
 <div class="landing-container">
   <!-- Loading State -->
-  <div *ngIf="!isInitialized()" class="loading-overlay">
+  <div *ngIf="!authReady()" class="loading-overlay">
     <div class="spinner"></div>
-    <p>Loading...</p>
+    <p>{{ 'dashboard.loading' | translate }}</p>
   </div>
   
-  <!-- Auth Section -->
-  <section class="auth-section" *ngIf="!isAuthenticated() && isInitialized()">
+  <!-- Auth Section: only on /login route -->
+  <section class="auth-section" *ngIf="authReady() && !authed()">
     <div class="auth-container-google">
       <!-- Header -->
       <div class="auth-header-top">
         <span class="logo-text">🌸 Sakura</span>
-        <span class="header-subtitle" *ngIf="activeTab() === 'login'">Sign in to Sakura</span>
-        <span class="header-subtitle" *ngIf="activeTab() === 'signup'">Create your Sakura Account</span>
+        <span class="header-subtitle" *ngIf="activeTab() === 'login'">{{ 'login.signin_title' | translate }}</span>
+        <span class="header-subtitle" *ngIf="activeTab() === 'signup'">{{ 'login.signup_title' | translate }}</span>
       </div>
 
       <!-- Two Column Layout -->
       <div class="auth-content-wrapper">
         <!-- Left: Info Section -->
         <div class="info-column">
-          <h1 class="info-title">Sign in</h1>
-          <p class="info-subtitle">to continue to <a href="#" class="site-link">Sakura</a></p>
+          <h1 class="info-title">{{ 'dashboard.signin' | translate }}</h1>
+          <p class="info-subtitle">{{ 'dashboard.continue_to' | translate }} <a href="#" class="site-link">Sakura</a></p>
         </div>
 
         <!-- Right: Form Section -->
@@ -33,7 +33,7 @@
           <div class="form-wrapper" *ngIf="activeTab() === 'login'">
             <form [formGroup]="loginForm" (ngSubmit)="onLogin()" class="signin-form">
               <div class="input-field-google">
-                <label for="login-username">Username</label>
+                <label for="login-username">{{ 'login.username' | translate }}</label>
                 <input 
                   type="text" 
                   id="login-username"
@@ -41,12 +41,12 @@
                   autocomplete="username"
                   class="google-input">
                 <div *ngIf="loginForm.get('username')?.invalid && loginForm.get('username')?.touched" class="field-error">
-                  Username is required
+                  {{ 'login.username_required' | translate }}
                 </div>
               </div>
 
               <div class="input-field-google">
-                <label for="login-password">Password</label>
+                <label for="login-password">{{ 'login.password' | translate }}</label>
                 <input 
                   type="password" 
                   id="login-password"
@@ -54,25 +54,25 @@
                   autocomplete="current-password"
                   class="google-input">
                 <div *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched" class="field-error">
-                  Password is required
+                  {{ 'login.password_required' | translate }}
                 </div>
               </div>
 
-              <a routerLink="/forgot-password" class="forgot-link-google">Forgot password?</a>
+              <a routerLink="/forgot-password" class="forgot-link-google">{{ 'login.forgot_password' | translate }}</a>
 
               <div class="form-actions-google">
                 <button 
                   type="button" 
                   class="btn-create-link"
                   (click)="showSignup()">
-                  Create account
+                  {{ 'login.create_account' | translate }}
                 </button>
                 <button 
                   type="submit" 
                   class="btn-next-google"
                   [disabled]="loginForm.invalid || isLoggingIn()">
                   <span *ngIf="isLoggingIn()" class="spinner-small"></span>
-                  <span *ngIf="!isLoggingIn()">Next</span>
+                  <span *ngIf="!isLoggingIn()">{{ 'login.next' | translate }}</span>
                 </button>
               </div>
             </form>
@@ -83,7 +83,7 @@
             <form [formGroup]="signupForm" (ngSubmit)="onSignup()" class="signin-form">
               <div class="input-field-row-google">
                 <div class="input-field-google">
-                  <label for="signup-firstname">First name</label>
+                  <label for="signup-firstname">{{ 'login.first_name' | translate }}</label>
                   <input 
                     type="text" 
                     id="signup-firstname"
@@ -92,7 +92,7 @@
                     class="google-input">
                 </div>
                 <div class="input-field-google">
-                  <label for="signup-lastname">Last name</label>
+                  <label for="signup-lastname">{{ 'login.last_name' | translate }}</label>
                   <input 
                     type="text" 
                     id="signup-lastname"
@@ -103,7 +103,7 @@
               </div>
 
               <div class="input-field-google">
-                <label for="signup-username">Username</label>
+                <label for="signup-username">{{ 'login.username' | translate }}</label>
                 <input 
                   type="text" 
                   id="signup-username"
@@ -113,7 +113,7 @@
               </div>
 
               <div class="input-field-google">
-                <label for="signup-email">Email</label>
+                <label for="signup-email">{{ 'login.email' | translate }}</label>
                 <input 
                   type="email" 
                   id="signup-email"
@@ -124,7 +124,7 @@
 
               <div class="input-field-row-google">
                 <div class="input-field-google">
-                  <label for="signup-password">Password</label>
+                  <label for="signup-password">{{ 'login.password' | translate }}</label>
                   <input 
                     type="password" 
                     id="signup-password"
@@ -133,7 +133,7 @@
                     class="google-input">
                 </div>
                 <div class="input-field-google">
-                  <label for="signup-confirm">Confirm</label>
+                  <label for="signup-confirm">{{ 'login.confirm_password' | translate }}</label>
                   <input 
                     type="password" 
                     id="signup-confirm"
@@ -144,11 +144,11 @@
               </div>
 
               <div class="password-hint-google">
-                Use 8 or more characters with a mix of letters, numbers & symbols
+                {{ 'login.password_hint' | translate }}
               </div>
 
               <div class="input-field-google">
-                <label for="signup-secret">Secret Key (for password recovery)</label>
+                <label for="signup-secret">{{ 'login.secret_key' | translate }}</label>
                 <input 
                   type="text" 
                   id="signup-secret"
@@ -158,34 +158,19 @@
                   placeholder="Enter your secret key">
               </div>
 
-              <div class="input-field-google">
-                <label for="signup-git-token">Git Access Token</label>
-                <input 
-                  type="password" 
-                  id="signup-git-token"
-                  formControlName="git_token"
-                  autocomplete="off"
-                  class="google-input"
-                  placeholder="Enter your GitLab/GitHub personal access token">
-                <div *ngIf="signupForm.get('git_token')?.invalid && signupForm.get('git_token')?.touched" class="field-error">
-                  Git access token is required (min 10 characters)
-                </div>
-                <div class="field-hint">
-                  Used to push database changes to remote repository. Required.
-                </div>
-              </div>
+
 
               <div class="input-field-google">
-                <label for="signup-role">Role</label>
+                <label for="signup-role">{{ 'login.role' | translate }}</label>
                 <select 
                   id="signup-role"
                   formControlName="role"
                   class="google-input">
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  <option value="user">{{ 'login.user_role' | translate }}</option>
+                  <option value="admin">{{ 'login.admin_role' | translate }}</option>
                 </select>
                 <div class="field-hint">
-                  Select your account role
+                  {{ 'login.role_select_hint' | translate }}
                 </div>
               </div>
 
@@ -194,14 +179,14 @@
                   type="button" 
                   class="btn-signin-instead-google"
                   (click)="showLogin()">
-                  Sign in instead
+                  {{ 'login.signin_instead' | translate }}
                 </button>
                 <button 
                   type="submit" 
                   class="btn-next-google"
                   [disabled]="signupForm.invalid || isSigningUp()">
                   <span *ngIf="isSigningUp()" class="spinner-small"></span>
-                  <span *ngIf="!isSigningUp()">Next</span>
+                  <span *ngIf="!isSigningUp()">{{ 'login.next' | translate }}</span>
                 </button>
               </div>
             </form>
@@ -212,36 +197,71 @@
   </section>
 
   <!-- Dashboard Section (shown after login) -->
-  <section class="dashboard-section" *ngIf="isAuthenticated() && isInitialized()">
+  <section class="dashboard-section" *ngIf="authReady() && authed()">
     <div class="dashboard-grid">
       <!-- Stat Tile 1: Requirements -->
       <div class="stat-tile-grid">
         <div class="stat-header-grid">
           <span class="stat-icon-large">📋</span>
-          <h3 class="stat-title">Requirements</h3>
+          <h3 class="stat-title">{{ 'dashboard.requirements' | translate }}</h3>
         </div>
         <div class="stat-value-large">{{ requirementsCount() }}</div>
-        <a routerLink="/requirements" class="stat-link-grid">View all →</a>
+        <a routerLink="/requirements" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
       </div>
       
       <!-- Stat Tile 2: Test Cases -->
       <div class="stat-tile-grid">
         <div class="stat-header-grid">
           <span class="stat-icon-large">🧪</span>
-          <h3 class="stat-title">Test Cases</h3>
+          <h3 class="stat-title">{{ 'dashboard.test_cases' | translate }}</h3>
         </div>
         <div class="stat-value-large">{{ testCasesCount() }}</div>
-        <a routerLink="/test-cases" class="stat-link-grid">View all →</a>
+        <a routerLink="/test-cases" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
       </div>
       
       <!-- Stat Tile 3: Designs -->
       <div class="stat-tile-grid">
         <div class="stat-header-grid">
           <span class="stat-icon-large">🎨</span>
-          <h3 class="stat-title">Designs</h3>
+          <h3 class="stat-title">{{ 'dashboard.designs' | translate }}</h3>
         </div>
         <div class="stat-value-large">{{ designTicketsCount() }}</div>
-        <a routerLink="/design-tickets" class="stat-link-grid">View all →</a>
+        <a routerLink="/design-tickets" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
+      </div>
+
+      <!-- Stat Tile 4: Specifications -->
+      <div class="stat-tile-grid">
+        <div class="stat-header-grid">
+          <span class="stat-icon-large">📑</span>
+          <h3 class="stat-title">{{ 'dashboard.specifications' | translate }}</h3>
+        </div>
+        <div class="stat-value-large">{{ specsCount() }}</div>
+        <div class="stat-actions" style="display:flex; gap:8px; align-items:center;">
+          <a routerLink="/specs" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
+          <label class="stat-link-grid" style="cursor:pointer;">
+            <input type="file" accept=".xlsx,.xls,.csv,.doc,.docx,.pdf" (change)="importSpecFile($event)" hidden>
+            {{ 'dashboard.import' | translate }}
+          </label>
+        </div>
+      </div>
+
+      <!-- Admin Only: User Management Tile -->
+      <div class="stat-tile-grid" *ngIf="isAdmin()">
+        <div class="stat-header-grid">
+          <span class="stat-icon-large">👥</span>
+          <h3 class="stat-title">{{ 'dashboard.user_management' | translate }}</h3>
+        </div>
+        <div class="stat-value-large">{{ 'dashboard.admin' | translate }}</div>
+        <a routerLink="/users" class="stat-link-grid">{{ 'dashboard.manage_users' | translate }} →</a>
+      </div>
+      
+      <!-- Debug: Show admin status -->
+      <div style="padding: 10px; background: #f0f0f0; margin-top: 20px; font-size: 12px;">
+        <strong>Debug Info:</strong><br>
+        Is Authenticated: {{ authed() }}<br>
+        Is Admin: {{ isAdmin() }}<br>
+        User Role: {{ getCurrentUserRole() }}<br>
+        Username: {{ getCurrentUsername() }}
       </div>
     </div>
   </section>

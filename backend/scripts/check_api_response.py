@@ -9,3 +9,11 @@ print(f"Headers: {dict(response.headers)}")
 print(f"\nResponse:")
 print(json.dumps(response.json(), indent=2))
 
+
+
+
+
+
+
+
+

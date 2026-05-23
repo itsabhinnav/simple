@@ -7,7 +7,7 @@
           <input 
             type="text" 
             class="search-input-header"
-            placeholder="Search"
+            placeholder="{{ 'nav.search_placeholder' | translate }}"
             [value]="searchQuery()"
             (input)="onSearch($any($event.target).value)"
             (blur)="handleSearchBlur($event)"
@@ -17,9 +17,9 @@
           <!-- Search Results Dropdown -->
           <div class="search-results-dropdown" *ngIf="searchQuery() && searchResults().length > 0 && showSearchResults()" (mousedown)="$event.preventDefault()">
             <div class="result-item-header" *ngFor="let item of searchResults()" (mousedown)="navigateToItem(item, $event)">
-              <div class="result-type" *ngIf="'requirement_id' in item">📋 Requirement</div>
-              <div class="result-type" *ngIf="'test_case_id' in item">🧪 Test Case</div>
-              <div class="result-type" *ngIf="'design_ticket_id' in item">🎨 Design</div>
+              <div class="result-type" *ngIf="'requirement_id' in item">{{ 'nav.search_result_req' | translate }}</div>
+              <div class="result-type" *ngIf="'test_case_id' in item">{{ 'nav.search_result_tc' | translate }}</div>
+              <div class="result-type" *ngIf="'design_ticket_id' in item">{{ 'nav.search_result_design' | translate }}</div>
               
               <div class="result-content">
                 <div class="result-id" *ngIf="'requirement_id' in item">{{ item.requirement_id }}</div>
@@ -41,7 +41,7 @@
           <div class="create-container-header">
             <button class="btn-create-header" (click)="toggleCreateMenu()">
               <span class="create-icon">+</span>
-              Create
+              {{ 'nav.create' | translate }}
             </button>
             
             <!-- Create Dropdown Menu -->
@@ -49,28 +49,53 @@
               <button class="menu-item" (click)="createRequirement()">
                 <span class="menu-icon">📋</span>
                 <span class="menu-text">
-                  <strong>Requirement</strong>
-                  <small>Create a new requirement</small>
+                  <strong>{{ 'nav.requirement' | translate }}</strong>
+                  <small>{{ 'nav.requirement_desc' | translate }}</small>
                 </span>
               </button>
               <button class="menu-item" (click)="createTestCase()">
                 <span class="menu-icon">🧪</span>
                 <span class="menu-text">
-                  <strong>Test Case</strong>
-                  <small>Create a new test case</small>
+                  <strong>{{ 'nav.testcase' | translate }}</strong>
+                  <small>{{ 'nav.testcase_desc' | translate }}</small>
                 </span>
               </button>
               <button class="menu-item" (click)="createDesignTicket()">
                 <span class="menu-icon">🎨</span>
                 <span class="menu-text">
-                  <strong>Design</strong>
-                  <small>Create a new design</small>
+                  <strong>{{ 'nav.design' | translate }}</strong>
+                  <small>{{ 'nav.design_desc' | translate }}</small>
                 </span>
               </button>
+              <a class="menu-item" routerLink="/specs">
+                <span class="menu-icon">📑</span>
+                <span class="menu-text">
+                  <strong>{{ 'nav.specification' | translate }}</strong>
+                  <small>{{ 'nav.specification_desc' | translate }}</small>
+                </span>
+              </a>
             </div>
           </div>
+          <a *ngIf="currentUser() && currentUser()!.role === 'admin'" routerLink="/users" class="admin-link-header" title="User Management">
+            <span class="admin-icon">👥</span>
+            <span>{{ 'nav.users' | translate }}</span>
+          </a>
+          <!-- Debug: Show current user role -->
+          <span *ngIf="currentUser()" style="font-size: 10px; color: #999;">(Role: {{ currentUser()!.role || 'none' }})</span>
           <span class="user-name">{{ currentUser()?.username }}</span>
-          <button class="btn-logout" (click)="logout()">Logout</button>
+
+          <!-- Language Picker -->
+          <div class="lang-container">
+            <button class="btn-lang" (click)="toggleLangMenu()" [title]="translationService.currentLang() === 'ja' ? '言語' : 'Language'">
+              {{ translationService.currentLang() === 'ja' ? '🇯🇵 日本語' : '🇬🇧 EN' }}
+            </button>
+            <div class="lang-menu" *ngIf="showLangMenu()">
+              <button class="lang-option" [class.active]="translationService.currentLang() === 'en'" (click)="setLanguage('en')">🇬🇧 English</button>
+              <button class="lang-option" [class.active]="translationService.currentLang() === 'ja'" (click)="setLanguage('ja')">🇯🇵 日本語</button>
+            </div>
+          </div>
+
+          <button class="btn-logout" (click)="logout()">{{ 'nav.logout' | translate }}</button>
         </div>
       </div>
     </div>
@@ -81,19 +106,19 @@
     <div class="quick-actions-bar">
       <button class="action-btn" (click)="createRequirement()">
         <span class="action-icon">+</span>
-        <span>New Requirement</span>
+        <span>{{ 'nav.new_requirement' | translate }}</span>
       </button>
       <button class="action-btn" (click)="createTestCase()">
         <span class="action-icon">+</span>
-        <span>New Test Case</span>
+        <span>{{ 'nav.new_testcase' | translate }}</span>
       </button>
       <button class="action-btn secondary" routerLink="/requirements">
         <span>📋</span>
-        <span>All Requirements</span>
+        <span>{{ 'nav.all_requirements' | translate }}</span>
       </button>
       <button class="action-btn secondary" routerLink="/test-cases">
         <span>🧪</span>
-        <span>All Test Cases</span>
+        <span>{{ 'nav.all_testcases' | translate }}</span>
       </button>
     </div>
   </div>
