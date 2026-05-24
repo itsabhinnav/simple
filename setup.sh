@@ -76,11 +76,18 @@ python -m pip install -r backend/requirements.txt
 # 3. Frontend deps + build
 # ---------------------------------------------------------------------------
 if [ "$SKIP_FRONTEND_INSTALL" -eq 0 ]; then
-  if [ -f frontend/package-lock.json ] && [ -d frontend/node_modules ]; then
-    log "Skipping npm install (node_modules already present; pass --skip-frontend-install to never re-check)"
+  # .package-lock.json is written by npm at the end of a successful install,
+  # so it is a much better "is this install actually complete?" signal than
+  # `-d node_modules` (which is also true for a half-deleted tree).
+  if [ -f frontend/package-lock.json ] && [ -f frontend/node_modules/.package-lock.json ]; then
+    log "Skipping npm install (node_modules already populated; pass --skip-frontend-install to force-skip)"
   else
     log "Installing frontend npm dependencies"
-    (cd frontend && (npm ci || npm install))
+    if [ -f frontend/package-lock.json ]; then
+      (cd frontend && (npm ci || npm install))
+    else
+      (cd frontend && npm install)
+    fi
   fi
 fi
 

@@ -42,6 +42,19 @@ if (-not (Test-Command python)) { Fail "Python 3.10+ is required but was not fou
 if (-not (Test-Command node))   { Fail "Node.js 18+ is required but was not found in PATH." }
 if (-not (Test-Command npm))    { Fail "npm is required but was not found in PATH." }
 
+# Resolve a concrete npm executable. On Windows npm ships as npm.cmd, and
+# calling it through PowerShell's `&` operator with unquoted arguments has
+# been observed to mangle args (e.g. `npm ci` -> npm receiving "pm"), so we
+# always invoke the .cmd shim through cmd.exe to bypass PowerShell parsing.
+$NpmCmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue)
+if (-not $NpmCmd) { $NpmCmd = Get-Command npm -ErrorAction SilentlyContinue }
+if (-not $NpmCmd) { Fail "Could not resolve npm executable." }
+$NpmPath = $NpmCmd.Source
+
+# Note: do not wrap `cmd /c npm ...` in a PowerShell function — PS captures
+# every stdout line as a return value, which polluted $LASTEXITCODE checks.
+# We invoke cmd /c directly and read $LASTEXITCODE in-place instead.
+
 $pyVersion = (& python -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')") 2>$null
 $pyParts = $pyVersion -split '\.'
 if ([int]$pyParts[0] -lt 3 -or ([int]$pyParts[0] -eq 3 -and [int]$pyParts[1] -lt 10)) {
@@ -76,18 +89,31 @@ if ($LASTEXITCODE -ne 0) { Fail "Failed to install backend dependencies." }
 Push-Location frontend
 try {
     if (-not $SkipFrontendInstall) {
-        if ((Test-Path 'package-lock.json') -and (Test-Path 'node_modules')) {
-            Log "Skipping npm install (node_modules already present)"
+        # `.package-lock.json` is written by npm at the end of a successful
+        # install. Using it as the sentinel avoids the "half-deleted
+        # node_modules" trap where Test-Path 'node_modules' is still true.
+        $installSentinel = Join-Path 'node_modules' '.package-lock.json'
+        if ((Test-Path 'package-lock.json') -and (Test-Path $installSentinel)) {
+            Log "Skipping npm install (node_modules already populated)"
         } else {
-            Log "Installing frontend npm dependencies"
-            try { & npm ci } catch { & npm install }
-            if ($LASTEXITCODE -ne 0) { Fail "npm install failed." }
+            if (Test-Path 'package-lock.json') {
+                Log "Installing frontend npm dependencies (npm ci)"
+                cmd /c "`"$NpmPath`" ci"
+                if ($LASTEXITCODE -ne 0) {
+                    Warn "npm ci failed (exit $LASTEXITCODE); falling back to npm install"
+                    cmd /c "`"$NpmPath`" install"
+                }
+            } else {
+                Log "Installing frontend npm dependencies (npm install)"
+                cmd /c "`"$NpmPath`" install"
+            }
+            if ($LASTEXITCODE -ne 0) { Fail "npm install failed (exit $LASTEXITCODE)." }
         }
     }
 
     Log "Building Angular frontend (production, static SPA)"
-    & npm run build
-    if ($LASTEXITCODE -ne 0) { Fail "Angular build failed." }
+    cmd /c "`"$NpmPath`" run build"
+    if ($LASTEXITCODE -ne 0) { Fail "Angular build failed (exit $LASTEXITCODE)." }
 } finally {
     Pop-Location
 }
