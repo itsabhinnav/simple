@@ -107,6 +107,18 @@ import { SplitViewComponent } from './split-view.component';
             </button>
           </div>
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn-blue" [class.active]="showPriorityFilter()" (click)="toggleFilter('priority', $event)">
+              Priority ▼
+              <span class="filter-count" *ngIf="selectedPriorities().length > 0">+{{ selectedPriorities().length }}</span>
+            </button>
+          </div>
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
+            <button class="filter-btn-blue" [class.active]="showSeverityFilter()" (click)="toggleFilter('severity', $event)">
+              Severity ▼
+              <span class="filter-count" *ngIf="selectedSeverities().length > 0">+{{ selectedSeverities().length }}</span>
+            </button>
+          </div>
+          <div class="filter-dropdown" (click)="$event.stopPropagation()">
             <button class="filter-btn-blue" [class.active]="showTestSuiteTypeFilter()" (click)="toggleFilter('testsuiteType', $event)">
               TestSuite Type ▼
               <span class="filter-count" *ngIf="selectedTestSuiteTypes().length > 0">+{{ selectedTestSuiteTypes().length }}</span>
@@ -118,7 +130,107 @@ import { SplitViewComponent } from './split-view.component';
               <span class="filter-count" *ngIf="selectedRequirementTypes().length > 0">+{{ selectedRequirementTypes().length }}</span>
             </button>
           </div>
-          <button class="clear-filters-btn" (click)="clearAllFilters()">Clear filters</button>
+          <button
+            class="advanced-toggle-btn"
+            [class.active]="showAdvancedFilters()"
+            (click)="toggleAdvancedFilters()"
+            title="Toggle advanced filters">
+            More Filters
+            <span *ngIf="advancedFilterCount() > 0" class="filter-count">+{{ advancedFilterCount() }}</span>
+          </button>
+          <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearAllFilters()">Clear filters</button>
+        </div>
+
+        <!-- Advanced filters row -->
+        <div *ngIf="showAdvancedFilters()" class="advanced-filters">
+          <div class="filter-tabs">
+            <div class="filter-dropdown" (click)="$event.stopPropagation()">
+              <button class="filter-btn-blue" [class.active]="showVehicleModelFilter()" (click)="toggleFilter('vehicleModel', $event)">
+                Vehicle Model ▼
+                <span class="filter-count" *ngIf="selectedVehicleModels().length > 0">+{{ selectedVehicleModels().length }}</span>
+              </button>
+            </div>
+            <div class="filter-dropdown" (click)="$event.stopPropagation()">
+              <button class="filter-btn-blue" [class.active]="showRegionFilter()" (click)="toggleFilter('region', $event)">
+                Region ▼
+                <span class="filter-count" *ngIf="selectedRegions().length > 0">+{{ selectedRegions().length }}</span>
+              </button>
+            </div>
+            <div class="filter-dropdown" (click)="$event.stopPropagation()">
+              <button class="filter-btn-blue" [class.active]="showBrandFilter()" (click)="toggleFilter('brand', $event)">
+                Brand ▼
+                <span class="filter-count" *ngIf="selectedBrands().length > 0">+{{ selectedBrands().length }}</span>
+              </button>
+            </div>
+            <label class="adv-field">
+              <span class="adv-label">Created From</span>
+              <input type="date" class="adv-input" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)">
+            </label>
+            <label class="adv-field">
+              <span class="adv-label">Created To</span>
+              <input type="date" class="adv-input" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)">
+            </label>
+            <label class="adv-field">
+              <span class="adv-label">Sort By</span>
+              <div class="sort-control">
+                <select class="adv-input sort-select" [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
+                  <option value="updated_at">Last Updated</option>
+                  <option value="created_at">Created Date</option>
+                  <option value="test_case_id">Test Case ID</option>
+                  <option value="priority">Priority</option>
+                  <option value="severity">Severity</option>
+                  <option value="title">Title</option>
+                </select>
+                <button class="sort-dir-btn" (click)="toggleSortDir()" [title]="sortDir() === 'asc' ? 'Ascending' : 'Descending'">
+                  {{ sortDir() === 'asc' ? '▲' : '▼' }}
+                </button>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Active filter chips -->
+        <div *ngIf="hasActiveFilters()" class="active-filters">
+          <span class="active-filters-label">Active:</span>
+          <span *ngIf="searchTerm().trim()" class="active-chip">
+            Search: "{{ searchTerm() }}" <button (click)="searchTerm.set('')">✕</button>
+          </span>
+          <span *ngFor="let f of selectedFeatures()" class="active-chip">
+            Feature: {{ f }} <button (click)="toggleFeature(f)">✕</button>
+          </span>
+          <span *ngFor="let s of selectedScreenIds()" class="active-chip">
+            Screen: {{ s }} <button (click)="toggleScreenId(s)">✕</button>
+          </span>
+          <span *ngFor="let t of selectedTypes()" class="active-chip">
+            Type: {{ t }} <button (click)="toggleType(t)">✕</button>
+          </span>
+          <span *ngFor="let p of selectedPriorities()" class="active-chip">
+            Priority: {{ p }} <button (click)="togglePriority(p)">✕</button>
+          </span>
+          <span *ngFor="let sv of selectedSeverities()" class="active-chip">
+            Severity: {{ sv }} <button (click)="toggleSeverity(sv)">✕</button>
+          </span>
+          <span *ngFor="let tt of selectedTestSuiteTypes()" class="active-chip">
+            TestSuite: {{ tt }} <button (click)="toggleTestSuiteType(tt)">✕</button>
+          </span>
+          <span *ngFor="let rt of selectedRequirementTypes()" class="active-chip">
+            Req. Type: {{ rt }} <button (click)="toggleRequirementType(rt)">✕</button>
+          </span>
+          <span *ngFor="let vm of selectedVehicleModels()" class="active-chip">
+            Vehicle: {{ vm }} <button (click)="toggleVehicleModel(vm)">✕</button>
+          </span>
+          <span *ngFor="let rg of selectedRegions()" class="active-chip">
+            Region: {{ rg }} <button (click)="toggleRegion(rg)">✕</button>
+          </span>
+          <span *ngFor="let br of selectedBrands()" class="active-chip">
+            Brand: {{ br }} <button (click)="toggleBrand(br)">✕</button>
+          </span>
+          <span *ngIf="dateFrom()" class="active-chip">
+            From: {{ dateFrom() }} <button (click)="dateFrom.set('')">✕</button>
+          </span>
+          <span *ngIf="dateTo()" class="active-chip">
+            To: {{ dateTo() }} <button (click)="dateTo.set('')">✕</button>
+          </span>
         </div>
 
         <!-- Type Filter Dropdown -->
@@ -228,6 +340,70 @@ import { SplitViewComponent } from './split-view.component';
             <span class="filter-count-info">{{ getSelectedRequirementTypesCount() }} of {{ getFilteredRequirementTypes().length }}</span>
           </div>
         </div>
+
+        <!-- Severity Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showSeverityFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header"><span>Severity = (equals)</span></div>
+          <input type="text" placeholder="Search Severity" class="filter-search" [(ngModel)]="severitySearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let s of getFilteredSeverities()" class="filter-option">
+              <input type="checkbox" [checked]="isSeveritySelected(s)" (change)="toggleSeverity(s)">
+              <span class="filter-label">{{ s }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearSeverities()">Clear selection</button>
+            <span class="filter-count-info">{{ selectedSeverities().length }} of {{ getFilteredSeverities().length }}</span>
+          </div>
+        </div>
+
+        <!-- Vehicle Model Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showVehicleModelFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header"><span>Vehicle Model = (equals)</span></div>
+          <input type="text" placeholder="Search Vehicle Model" class="filter-search" [(ngModel)]="vehicleModelSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let v of getFilteredVehicleModels()" class="filter-option">
+              <input type="checkbox" [checked]="isVehicleModelSelected(v)" (change)="toggleVehicleModel(v)">
+              <span class="filter-label">{{ v }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearVehicleModels()">Clear selection</button>
+            <span class="filter-count-info">{{ selectedVehicleModels().length }} of {{ getFilteredVehicleModels().length }}</span>
+          </div>
+        </div>
+
+        <!-- Region Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showRegionFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header"><span>Region = (equals)</span></div>
+          <input type="text" placeholder="Search Region" class="filter-search" [(ngModel)]="regionSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let r of getFilteredRegions()" class="filter-option">
+              <input type="checkbox" [checked]="isRegionSelected(r)" (change)="toggleRegion(r)">
+              <span class="filter-label">{{ r }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearRegions()">Clear selection</button>
+            <span class="filter-count-info">{{ selectedRegions().length }} of {{ getFilteredRegions().length }}</span>
+          </div>
+        </div>
+
+        <!-- Brand Filter Dropdown -->
+        <div class="filter-panel" *ngIf="showBrandFilter()" (click)="$event.stopPropagation()">
+          <div class="filter-panel-header"><span>Brand = (equals)</span></div>
+          <input type="text" placeholder="Search Brand" class="filter-search" [(ngModel)]="brandSearchTerm">
+          <div class="filter-options">
+            <label *ngFor="let b of getFilteredBrands()" class="filter-option">
+              <input type="checkbox" [checked]="isBrandSelected(b)" (change)="toggleBrand(b)">
+              <span class="filter-label">{{ b }}</span>
+            </label>
+          </div>
+          <div class="filter-footer">
+            <button class="filter-clear" (click)="clearBrands()">Clear selection</button>
+            <span class="filter-count-info">{{ selectedBrands().length }} of {{ getFilteredBrands().length }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- Test Cases Board (JIRA-like) -->
@@ -240,10 +416,10 @@ import { SplitViewComponent } from './split-view.component';
         <div *ngIf="filteredTestCases().length === 0" class="empty-state">
           <i class="icon-empty"></i>
           <h3>No Test Cases Found</h3>
-          <p *ngIf="searchTerm || selectedTypes().length > 0 || selectedPriorities().length > 0 || selectedFeatures().length > 0">
+          <p *ngIf="hasActiveFilters()">
             No test cases match your filter criteria.
           </p>
-          <p *ngIf="!searchTerm && selectedTypes().length === 0 && selectedPriorities().length === 0 && selectedFeatures().length === 0">
+          <p *ngIf="!hasActiveFilters()">
             No test cases available. Create your first test case!
           </p>
         </div>
@@ -1093,17 +1269,142 @@ import { SplitViewComponent } from './split-view.component';
 
     .clear-filters-btn {
       padding: 8px 16px;
-      background: none;
-      border: 1px solid #ddd;
+      background: #fce8e6;
+      border: 1px solid #f5c6c4;
       border-radius: 4px;
-      color: #333;
+      color: #c5221f;
       cursor: pointer;
       font-size: 14px;
+      font-weight: 500;
       transition: all 0.2s;
     }
 
     .clear-filters-btn:hover {
-      background: #f5f5f5;
+      background: #fad2cf;
+    }
+
+    .advanced-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: 1px dashed #1a73e8;
+      border-radius: 4px;
+      background: #fff;
+      color: #1a73e8;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .advanced-toggle-btn:hover {
+      background: #e8f0fe;
+    }
+    .advanced-toggle-btn.active {
+      background: #1a73e8;
+      color: white;
+      border-style: solid;
+    }
+    .advanced-toggle-btn.active .filter-count {
+      background: #fff;
+      color: #1a73e8;
+    }
+
+    .advanced-filters {
+      padding-top: 8px;
+      margin-top: 4px;
+      border-top: 1px dashed #dadce0;
+    }
+
+    .adv-field {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 140px;
+    }
+    .adv-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .adv-input {
+      padding: 7px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+      background: white;
+    }
+    .adv-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+    }
+    .sort-control {
+      display: flex;
+      gap: 4px;
+    }
+    .sort-select { flex: 1; }
+    .sort-dir-btn {
+      width: 32px;
+      border: 1px solid #dadce0;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #3c4043;
+      transition: all 0.15s;
+    }
+    .sort-dir-btn:hover {
+      background: #f1f3f4;
+      border-color: #1a73e8;
+      color: #1a73e8;
+    }
+
+    .active-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid #f0f0f0;
+      margin-top: 4px;
+    }
+    .active-filters-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #5f6368;
+      letter-spacing: 0.4px;
+    }
+    .active-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 4px 4px 10px;
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .active-chip button {
+      background: transparent;
+      border: none;
+      color: #1a73e8;
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .active-chip button:hover {
+      background: rgba(26, 115, 232, 0.18);
     }
 
     .filter-panel {
@@ -1742,48 +2043,97 @@ export class TestCaseManagementComponent implements OnInit {
   // Computed signal for filtered test cases
   filteredTestCases = computed(() => {
     let filtered = this.testCases();
-    
-    // Text search
+
     if (this.searchTerm().trim()) {
       const term = this.searchTerm().toLowerCase();
-      filtered = filtered.filter(testCase => 
+      filtered = filtered.filter(testCase =>
         testCase.test_case_id.toLowerCase().includes(term) ||
         (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
         (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
-        (testCase.procedure && testCase.procedure.toLowerCase().includes(term))
+        (testCase.procedure && testCase.procedure.toLowerCase().includes(term)) ||
+        (testCase.title && testCase.title.toLowerCase().includes(term)) ||
+        (testCase.description && testCase.description.toLowerCase().includes(term)) ||
+        (testCase.vehicle_model && testCase.vehicle_model.toLowerCase().includes(term)) ||
+        (testCase.brand && testCase.brand.toLowerCase().includes(term))
       );
     }
-    
-    // Filter by types (multi-select)
+
     if (this.selectedTypes().length > 0) {
       filtered = filtered.filter(tc => this.selectedTypes().includes(tc.test_type || ''));
     }
-    
-    // Filter by priorities (multi-select)
     if (this.selectedPriorities().length > 0) {
       filtered = filtered.filter(tc => this.selectedPriorities().includes(tc.priority || ''));
     }
-    
-    // Filter by features (multi-select)
     if (this.selectedFeatures().length > 0) {
       filtered = filtered.filter(tc => this.selectedFeatures().includes(tc.feature || ''));
     }
-    
-    // Filter by screen IDs (multi-select)
     if (this.selectedScreenIds().length > 0) {
       filtered = filtered.filter(tc => this.selectedScreenIds().includes(tc.screen_id || ''));
     }
-    
-    // Filter by test suite types (multi-select)
     if (this.selectedTestSuiteTypes().length > 0) {
       filtered = filtered.filter(tc => this.selectedTestSuiteTypes().includes(tc.testsuite_type || ''));
     }
-    
-    // Filter by requirement types (multi-select)
     if (this.selectedRequirementTypes().length > 0) {
       filtered = filtered.filter(tc => this.selectedRequirementTypes().includes(tc.requirement_type || ''));
     }
-    
+    if (this.selectedSeverities().length > 0) {
+      filtered = filtered.filter(tc => this.selectedSeverities().includes(tc.severity || ''));
+    }
+    if (this.selectedVehicleModels().length > 0) {
+      filtered = filtered.filter(tc => this.selectedVehicleModels().includes(tc.vehicle_model || ''));
+    }
+    if (this.selectedRegions().length > 0) {
+      filtered = filtered.filter(tc => this.selectedRegions().includes(tc.region || ''));
+    }
+    if (this.selectedBrands().length > 0) {
+      filtered = filtered.filter(tc => this.selectedBrands().includes(tc.brand || ''));
+    }
+
+    const from = this.dateFrom();
+    const to = this.dateTo();
+    if (from || to) {
+      const fromTs = from ? new Date(from).getTime() : -Infinity;
+      const toTs = to ? new Date(to).getTime() + 86399999 : Infinity;
+      filtered = filtered.filter(tc => {
+        const created = (tc as any).created_at;
+        if (!created) return false;
+        const ts = new Date(created).getTime();
+        return ts >= fromTs && ts <= toTs;
+      });
+    }
+
+    const sortBy = this.sortBy();
+    const dir = this.sortDir() === 'asc' ? 1 : -1;
+    const priorityOrder: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
+    const severityOrder: Record<string, number> = {
+      Blocker: 1, Critical: 2, Major: 3, Minor: 4, Trivial: 5
+    };
+    filtered = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case 'priority':
+          cmp = (priorityOrder[a.priority || ''] ?? 99) - (priorityOrder[b.priority || ''] ?? 99);
+          break;
+        case 'severity':
+          cmp = (severityOrder[a.severity || ''] ?? 99) - (severityOrder[b.severity || ''] ?? 99);
+          break;
+        case 'test_case_id':
+          cmp = (a.test_case_id || '').localeCompare(b.test_case_id || '', undefined, { numeric: true });
+          break;
+        case 'title':
+          cmp = (a.title || a.test_objective || '').localeCompare(b.title || b.test_objective || '');
+          break;
+        case 'created_at':
+          cmp = new Date((a as any).created_at || 0).getTime() - new Date((b as any).created_at || 0).getTime();
+          break;
+        case 'updated_at':
+        default:
+          cmp = new Date((a as any).updated_at || (a as any).created_at || 0).getTime()
+              - new Date((b as any).updated_at || (b as any).created_at || 0).getTime();
+      }
+      return cmp * dir;
+    });
+
     return filtered;
   });
   isEditMode = signal(false);
@@ -1799,14 +2149,27 @@ export class TestCaseManagementComponent implements OnInit {
   selectedScreenIds = signal<string[]>([]);
   selectedTestSuiteTypes = signal<string[]>([]);
   selectedRequirementTypes = signal<string[]>([]);
-  
+  selectedSeverities = signal<string[]>([]);
+  selectedVehicleModels = signal<string[]>([]);
+  selectedRegions = signal<string[]>([]);
+  selectedBrands = signal<string[]>([]);
+  dateFrom = signal<string>('');
+  dateTo = signal<string>('');
+  sortBy = signal<'updated_at' | 'created_at' | 'test_case_id' | 'priority' | 'severity' | 'title'>('updated_at');
+  sortDir = signal<'asc' | 'desc'>('desc');
+  showAdvancedFilters = signal<boolean>(false);
+
   typeSearchTerm = '';
   prioritySearchTerm = '';
   featureSearchTerm = '';
   screenIdSearchTerm = '';
   testSuiteTypeSearchTerm = '';
   requirementTypeSearchTerm = '';
-  
+  severitySearchTerm = '';
+  vehicleModelSearchTerm = '';
+  regionSearchTerm = '';
+  brandSearchTerm = '';
+
   activeFilter = signal<string>('');
 
   // Pagination state — 20 per page, applied to grid/table views (Browse uses
@@ -1915,6 +2278,14 @@ export class TestCaseManagementComponent implements OnInit {
       this.selectedScreenIds();
       this.selectedTestSuiteTypes();
       this.selectedRequirementTypes();
+      this.selectedSeverities();
+      this.selectedVehicleModels();
+      this.selectedRegions();
+      this.selectedBrands();
+      this.dateFrom();
+      this.dateTo();
+      this.sortBy();
+      this.sortDir();
       this.currentPage.set(1);
     });
 
@@ -2125,9 +2496,118 @@ export class TestCaseManagementComponent implements OnInit {
     this.selectedScreenIds.set([]);
     this.selectedTestSuiteTypes.set([]);
     this.selectedRequirementTypes.set([]);
+    this.selectedSeverities.set([]);
+    this.selectedVehicleModels.set([]);
+    this.selectedRegions.set([]);
+    this.selectedBrands.set([]);
+    this.dateFrom.set('');
+    this.dateTo.set('');
     this.activeFilter.set('');
     this.searchTerm.set('');
   }
+
+  hasActiveFilters(): boolean {
+    return !!this.searchTerm().trim()
+      || this.selectedTypes().length > 0
+      || this.selectedPriorities().length > 0
+      || this.selectedFeatures().length > 0
+      || this.selectedScreenIds().length > 0
+      || this.selectedTestSuiteTypes().length > 0
+      || this.selectedRequirementTypes().length > 0
+      || this.selectedSeverities().length > 0
+      || this.selectedVehicleModels().length > 0
+      || this.selectedRegions().length > 0
+      || this.selectedBrands().length > 0
+      || !!this.dateFrom()
+      || !!this.dateTo();
+  }
+
+  advancedFilterCount(): number {
+    return this.selectedSeverities().length
+      + this.selectedVehicleModels().length
+      + this.selectedRegions().length
+      + this.selectedBrands().length
+      + (this.dateFrom() ? 1 : 0)
+      + (this.dateTo() ? 1 : 0);
+  }
+
+  toggleAdvancedFilters() {
+    this.showAdvancedFilters.set(!this.showAdvancedFilters());
+  }
+
+  toggleSortDir() {
+    this.sortDir.set(this.sortDir() === 'asc' ? 'desc' : 'asc');
+  }
+
+  // Severity filter
+  showSeverityFilter(): boolean { return this.activeFilter() === 'severity'; }
+  getFilteredSeverities(): string[] {
+    const options = ['Blocker', 'Critical', 'Major', 'Minor', 'Trivial'];
+    const fromData = this.testCases().map(tc => tc.severity).filter((s): s is string => !!s && s.trim() !== '');
+    const merged = [...new Set([...options, ...fromData])];
+    if (!this.severitySearchTerm.trim()) return merged;
+    return merged.filter(s => s.toLowerCase().includes(this.severitySearchTerm.toLowerCase()));
+  }
+  toggleSeverity(s: string) {
+    const cur = this.selectedSeverities();
+    this.selectedSeverities.set(cur.includes(s) ? cur.filter(x => x !== s) : [...cur, s]);
+  }
+  isSeveritySelected(s: string) { return this.selectedSeverities().includes(s); }
+  clearSeverities() { this.selectedSeverities.set([]); }
+
+  // Vehicle Model filter
+  showVehicleModelFilter(): boolean { return this.activeFilter() === 'vehicleModel'; }
+  getUniqueVehicleModels(): string[] {
+    const arr = this.testCases().map(tc => tc.vehicle_model).filter((v): v is string => !!v && v.trim() !== '');
+    return [...new Set(arr)].sort();
+  }
+  getFilteredVehicleModels(): string[] {
+    const all = this.getUniqueVehicleModels();
+    if (!this.vehicleModelSearchTerm.trim()) return all;
+    return all.filter(v => v.toLowerCase().includes(this.vehicleModelSearchTerm.toLowerCase()));
+  }
+  toggleVehicleModel(v: string) {
+    const cur = this.selectedVehicleModels();
+    this.selectedVehicleModels.set(cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v]);
+  }
+  isVehicleModelSelected(v: string) { return this.selectedVehicleModels().includes(v); }
+  clearVehicleModels() { this.selectedVehicleModels.set([]); }
+
+  // Region filter
+  showRegionFilter(): boolean { return this.activeFilter() === 'region'; }
+  getUniqueRegions(): string[] {
+    const arr = this.testCases().map(tc => tc.region).filter((r): r is string => !!r && r.trim() !== '');
+    return [...new Set(arr)].sort();
+  }
+  getFilteredRegions(): string[] {
+    const all = this.getUniqueRegions();
+    if (!this.regionSearchTerm.trim()) return all;
+    return all.filter(r => r.toLowerCase().includes(this.regionSearchTerm.toLowerCase()));
+  }
+  toggleRegion(r: string) {
+    const cur = this.selectedRegions();
+    this.selectedRegions.set(cur.includes(r) ? cur.filter(x => x !== r) : [...cur, r]);
+  }
+  isRegionSelected(r: string) { return this.selectedRegions().includes(r); }
+  clearRegions() { this.selectedRegions.set([]); }
+
+  // Brand filter
+  showBrandFilter(): boolean { return this.activeFilter() === 'brand'; }
+  getUniqueBrands(): string[] {
+    const arr = this.testCases().map(tc => tc.brand).filter((b): b is string => !!b && b.trim() !== '');
+    return [...new Set(arr)].sort();
+  }
+  getFilteredBrands(): string[] {
+    const all = this.getUniqueBrands();
+    if (!this.brandSearchTerm.trim()) return all;
+    return all.filter(b => b.toLowerCase().includes(this.brandSearchTerm.toLowerCase()));
+  }
+  toggleBrand(b: string) {
+    const cur = this.selectedBrands();
+    this.selectedBrands.set(cur.includes(b) ? cur.filter(x => x !== b) : [...cur, b]);
+  }
+  isBrandSelected(b: string) { return this.selectedBrands().includes(b); }
+  clearBrands() { this.selectedBrands.set([]); }
 
   // Screen ID filter methods
   getFilteredScreenIds(): string[] {

@@ -10,11 +10,12 @@ import { Requirement } from './services/requirement.service';
 import { TestCase } from './services/test-case.service';
 import { TranslationService } from './services/translation.service';
 import { TranslatePipe } from './services/translate.pipe';
+import { AutoTranslateDirective } from './services/auto-translate.directive';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, RouterModule, TranslatePipe],
+  imports: [RouterOutlet, CommonModule, RouterModule, TranslatePipe, AutoTranslateDirective],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

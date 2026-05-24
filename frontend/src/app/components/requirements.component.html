@@ -222,9 +222,22 @@
     <div class="board-header">
       <h3>Requirements ({{ filteredRequirements().length }})</h3>
     </div>
-    
+
+    <!-- Browse / Split View — embedded so the page header stays put; only
+         this body area changes when the user toggles between Grid / Table /
+         Browse. Mirrors the test-case-management approach. -->
+    <div *ngIf="currentView() === 'browse'" class="browse-view-container">
+      <app-split-view
+        [embedded]="true"
+        initialViewType="requirements"
+        [externalRequirements]="filteredRequirements()"
+        [showTypeToggle]="false"
+        [showSearch]="false">
+      </app-split-view>
+    </div>
+
     <!-- Empty State -->
-    <div *ngIf="filteredRequirements().length === 0" class="empty-state">
+    <div *ngIf="filteredRequirements().length === 0 && currentView() !== 'browse'" class="empty-state">
       <i class="icon-empty"></i>
       <h3>No Requirements Found</h3>
       <p *ngIf="hasActiveFilters()">

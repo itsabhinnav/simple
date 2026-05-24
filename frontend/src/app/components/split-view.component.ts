@@ -865,6 +865,18 @@ export class SplitViewComponent implements OnInit {
     }
   }
 
+  /** Externally supplied list of requirements. Mirrors `externalTestCases`
+   * for the Requirements page, which feeds its already-filtered list in
+   * so the embedded split panel stays in sync with the page-level filters. */
+  @Input() set externalRequirements(value: Requirement[] | undefined) {
+    if (value === undefined) return;
+    this._externalRequirementsMode = true;
+    this.requirements.set(value);
+    if (this._viewType === 'requirements') {
+      this.autoSelectForCurrentType();
+    }
+  }
+
   /** When false, hide the in-panel "Requirements / Test Cases" toggle.
    * Used by the Test Case Management page where showing "Requirements"
    * doesn't make sense. */
@@ -877,6 +889,7 @@ export class SplitViewComponent implements OnInit {
   /** True once a caller has piped data in via `externalTestCases`; flips
    * the component into "host owns the data" mode so we don't double-fetch. */
   private _externalTestCasesMode = false;
+  private _externalRequirementsMode = false;
 
   requirements = signal<Requirement[]>([]);
   testCases = signal<TestCase[]>([]);
@@ -1011,7 +1024,9 @@ export class SplitViewComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.loadRequirements();
+    if (!this._externalRequirementsMode) {
+      this.loadRequirements();
+    }
     // Skip our own fetch when a parent is feeding test cases in via the
     // `externalTestCases` input — re-fetching would clobber the parent's
     // already-filtered list with the full, unfiltered set.

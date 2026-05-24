@@ -1,8 +1,9 @@
-import { Component, OnInit, inject, signal, effect } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { RequirementService } from '../services/requirement.service';
+import { SplitViewComponent } from './split-view.component';
 
 export interface Requirement {
   id?: number;
@@ -53,7 +54,7 @@ export interface RequirementUpdateRequest {
 @Component({
   selector: 'app-requirements',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, SplitViewComponent],
   templateUrl: './requirements.component.html',
   styleUrl: './requirements.component.scss'
 })
@@ -101,13 +102,6 @@ export class RequirementsComponent implements OnInit {
       tags: ['']
     });
 
-    // Redirect to browse view when selected
-    effect(() => {
-      const view = this.currentView();
-      if (view === 'browse') {
-        this.router.navigate(['/split-view']);
-      }
-    });
   }
 
   ngOnInit() {
