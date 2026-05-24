@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, Input } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -86,7 +86,7 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
           
           <div class="list-items" *ngIf="viewType === 'requirements'">
             <div 
-              *ngFor="let req of filteredRequirements()" 
+              *ngFor="let req of pagedRequirements()" 
               class="list-item"
               [class.active]="selectedRequirement()?.id === req.id"
               (click)="selectRequirement(req)">
@@ -101,7 +101,7 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
           <div class="list-items" *ngIf="viewType === 'test-cases'">
             <div 
-              *ngFor="let tc of filteredTestCases()" 
+              *ngFor="let tc of pagedTestCases()" 
               class="list-item"
               [class.active]="selectedTestCase()?.test_case_id === tc.test_case_id"
               (click)="selectTestCase(tc)">
@@ -116,6 +116,35 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
           <div *ngIf="(viewType === 'requirements' ? filteredRequirements().length : filteredTestCases().length) === 0" class="empty-state">
             <p>No {{ viewType === 'requirements' ? 'requirements' : 'test cases' }} found</p>
+          </div>
+
+          <!-- Pagination footer (compact, fits in the narrow list panel) -->
+          <div *ngIf="(viewType === 'requirements' ? filteredRequirements().length : filteredTestCases().length) > 0"
+               class="list-pagination">
+            <div class="pg-info">
+              {{ pageStartIndex() }}–{{ pageEndIndex() }} of
+              {{ viewType === 'requirements' ? filteredRequirements().length : filteredTestCases().length }}
+            </div>
+            <div class="pg-controls">
+              <select class="pg-size"
+                      [value]="pageSize()"
+                      (change)="onPageSizeChange($any($event.target).value)"
+                      title="Items per page">
+                <option [value]="10">10</option>
+                <option [value]="20">20</option>
+                <option [value]="50">50</option>
+                <option [value]="100">100</option>
+              </select>
+              <button class="pg-btn"
+                      (click)="prevPage()"
+                      [disabled]="currentPage() === 1"
+                      title="Previous page">‹</button>
+              <span class="pg-current">{{ currentPage() }} / {{ totalPages() }}</span>
+              <button class="pg-btn"
+                      (click)="nextPage()"
+                      [disabled]="currentPage() >= totalPages()"
+                      title="Next page">›</button>
+            </div>
           </div>
         </div>
 
@@ -740,6 +769,65 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
     .icon-database::before { content: "📊"; }
     .icon-view::before { content: "👁️"; }
+
+    /* Compact pagination footer pinned at the bottom of the list panel.
+       flex-shrink: 0 keeps it visible while the .list-items area scrolls. */
+    .list-pagination {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 12px;
+      border-top: 1px solid #dadce0;
+      background: #fafbfc;
+      font-size: 12px;
+      color: #5f6368;
+    }
+    .pg-info {
+      white-space: nowrap;
+    }
+    .pg-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .pg-size {
+      padding: 3px 6px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 12px;
+      background: #fff;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .pg-btn {
+      min-width: 26px;
+      height: 26px;
+      padding: 0 6px;
+      border: 1px solid #dadce0;
+      background: #fff;
+      color: #202124;
+      font-size: 14px;
+      line-height: 1;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pg-btn:hover:not(:disabled) {
+      background: #f1f3f4;
+      border-color: #c3c8d0;
+    }
+    .pg-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .pg-current {
+      padding: 0 6px;
+      font-variant-numeric: tabular-nums;
+      color: #202124;
+      font-weight: 500;
+    }
   `]
 })
 export class SplitViewComponent implements OnInit {
@@ -806,9 +894,25 @@ export class SplitViewComponent implements OnInit {
   set viewType(value: 'requirements' | 'test-cases') {
     if (this._viewType === value) return;
     this._viewType = value;
+    // Reset paging so the freshly-shown list starts at page 1.
+    this.currentPage.set(1);
     // Auto-select the first item in the newly active list so the right
     // panel never goes blank just because the user toggled the type.
     this.autoSelectForCurrentType();
+  }
+
+  goToPage(page: number) {
+    const clamped = Math.max(1, Math.min(this.totalPages(), page));
+    this.currentPage.set(clamped);
+  }
+  prevPage() { this.goToPage(this.currentPage() - 1); }
+  nextPage() { this.goToPage(this.currentPage() + 1); }
+  onPageSizeChange(size: number | string) {
+    const n = typeof size === 'string' ? parseInt(size, 10) : size;
+    if (!isNaN(n) && n > 0) {
+      this.pageSize.set(n);
+      this.currentPage.set(1);
+    }
   }
 
   /** Pick the first item of the currently active list if nothing in that
@@ -857,6 +961,54 @@ export class SplitViewComponent implements OnInit {
       (tc.feature && tc.feature.toLowerCase().includes(term))
     );
   });
+
+  // Pagination — applies to both lists in the split view. Defaults to 20
+  // per page so the narrow list panel doesn't render thousands of rows.
+  pageSize = signal(10);
+  currentPage = signal(1);
+  private currentList = computed(() =>
+    this._viewType === 'requirements' ? this.filteredRequirements() : this.filteredTestCases()
+  );
+  totalPages = computed(() => Math.max(1, Math.ceil(this.currentList().length / this.pageSize())));
+  pageStartIndex = computed(() => {
+    if (this.currentList().length === 0) return 0;
+    return (this.currentPage() - 1) * this.pageSize() + 1;
+  });
+  pageEndIndex = computed(() =>
+    Math.min(this.currentPage() * this.pageSize(), this.currentList().length)
+  );
+  pagedRequirements = computed(() => {
+    const list = this.filteredRequirements();
+    const size = this.pageSize();
+    const page = Math.min(this.currentPage(), Math.max(1, Math.ceil(list.length / size)));
+    const start = (page - 1) * size;
+    return list.slice(start, start + size);
+  });
+  pagedTestCases = computed(() => {
+    const list = this.filteredTestCases();
+    const size = this.pageSize();
+    const page = Math.min(this.currentPage(), Math.max(1, Math.ceil(list.length / size)));
+    const start = (page - 1) * size;
+    return list.slice(start, start + size);
+  });
+
+  constructor() {
+    // Reset to page 1 whenever the searched/filtered list shrinks or the
+    // user flips between requirements / test-cases so they always land on
+    // the first page of the new context.
+    effect(() => {
+      this.searchTerm();
+      // also re-run when the underlying lists change (new data loads)
+      this.filteredRequirements();
+      this.filteredTestCases();
+      this.currentPage.set(1);
+    });
+    // Clamp current page if the data shrinks below it.
+    effect(() => {
+      const total = this.totalPages();
+      if (this.currentPage() > total) this.currentPage.set(total);
+    });
+  }
 
   ngOnInit() {
     this.loadRequirements();

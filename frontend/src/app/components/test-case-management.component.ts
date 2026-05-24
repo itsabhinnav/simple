@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, PLATFORM_ID } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect, PLATFORM_ID } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -118,7 +118,6 @@ import { SplitViewComponent } from './split-view.component';
               <span class="filter-count" *ngIf="selectedRequirementTypes().length > 0">+{{ selectedRequirementTypes().length }}</span>
             </button>
           </div>
-          <button class="filter-btn-more" (click)="toggleMoreFilters()">More filters ▼</button>
           <button class="clear-filters-btn" (click)="clearAllFilters()">Clear filters</button>
         </div>
 
@@ -283,7 +282,7 @@ import { SplitViewComponent } from './split-view.component';
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let tc of filteredTestCases()" (click)="navigateToDetail(tc.test_case_id)" style="cursor: pointer;">
+              <tr *ngFor="let tc of pagedTestCases()" (click)="navigateToDetail(tc.test_case_id)" style="cursor: pointer;">
                 <td><strong>{{ tc.test_case_id }}</strong></td>
                 <td>{{ tc.title || tc.test_objective || '-' }}</td>
                 <td>{{ tc.vehicle_model || '-' }}</td>
@@ -312,7 +311,7 @@ import { SplitViewComponent } from './split-view.component';
 
         <!-- Grid View -->
         <div *ngIf="filteredTestCases().length > 0 && currentView() === 'grid'" class="requirements-grid">
-          <div *ngFor="let tc of filteredTestCases()" class="requirement-card" (click)="navigateToDetail(tc.test_case_id)">
+          <div *ngFor="let tc of pagedTestCases()" class="requirement-card" (click)="navigateToDetail(tc.test_case_id)">
             <div class="card-header">
               <span class="req-id">{{ tc.test_case_id }}</span>
               <span class="priority-badge" [class]="getPriorityClass(tc.priority)">
@@ -338,6 +337,40 @@ import { SplitViewComponent } from './split-view.component';
                 <i class="icon-delete"></i>
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- Pagination Controls (grid/table views only) -->
+        <div *ngIf="filteredTestCases().length > 0 && currentView() !== 'browse'" class="pagination-bar">
+          <div class="pagination-info">
+            Showing <strong>{{ pageStartIndex() }}</strong>–<strong>{{ pageEndIndex() }}</strong>
+            of <strong>{{ filteredTestCases().length }}</strong> test cases
+          </div>
+          <div class="pagination-controls">
+            <label class="page-size-label">
+              Per page
+              <select class="page-size-select"
+                      [value]="pageSize()"
+                      (change)="onPageSizeChange($any($event.target).value)">
+                <option [value]="10">10</option>
+                <option [value]="20">20</option>
+                <option [value]="50">50</option>
+                <option [value]="100">100</option>
+              </select>
+            </label>
+            <button class="page-btn"
+                    (click)="prevPage()"
+                    [disabled]="currentPage() === 1"
+                    aria-label="Previous page">‹ Prev</button>
+            <button *ngFor="let p of pageNumbers()"
+                    class="page-btn page-num"
+                    [class.active]="p === currentPage()"
+                    [disabled]="p === '…'"
+                    (click)="goToPage(p)">{{ p }}</button>
+            <button class="page-btn"
+                    (click)="nextPage()"
+                    [disabled]="currentPage() === totalPages()"
+                    aria-label="Next page">Next ›</button>
           </div>
         </div>
       </div>
@@ -1626,6 +1659,70 @@ import { SplitViewComponent } from './split-view.component';
     .btn-secondary-import:hover {
       background: #e8f0fe;
     }
+
+    /* Pagination bar */
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 4px 4px 4px;
+      margin-top: 16px;
+      border-top: 1px solid #e0e0e0;
+      flex-wrap: wrap;
+    }
+    .pagination-info {
+      color: #5f6368;
+      font-size: 13px;
+    }
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .page-size-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #5f6368;
+      font-size: 13px;
+      margin-right: 8px;
+    }
+    .page-size-select {
+      padding: 4px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .page-btn {
+      min-width: 34px;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid #dadce0;
+      background: #fff;
+      color: #202124;
+      font-size: 13px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .page-btn:hover:not(:disabled):not(.active) {
+      background: #f1f3f4;
+      border-color: #c3c8d0;
+    }
+    .page-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .page-btn.active {
+      background: #1a73e8;
+      color: #fff;
+      border-color: #1a73e8;
+      font-weight: 600;
+    }
   `]
 })
 export class TestCaseManagementComponent implements OnInit {
@@ -1711,7 +1808,39 @@ export class TestCaseManagementComponent implements OnInit {
   requirementTypeSearchTerm = '';
   
   activeFilter = signal<string>('');
-  showMoreFilters = signal(false);
+
+  // Pagination state — 20 per page, applied to grid/table views (Browse uses
+  // the split-view which renders its own virtualized list).
+  pageSize = signal(10);
+  currentPage = signal(1);
+  totalPages = computed(() => Math.max(1, Math.ceil(this.filteredTestCases().length / this.pageSize())));
+  pagedTestCases = computed(() => {
+    const all = this.filteredTestCases();
+    const size = this.pageSize();
+    const page = Math.min(this.currentPage(), Math.max(1, Math.ceil(all.length / size)));
+    const start = (page - 1) * size;
+    return all.slice(start, start + size);
+  });
+  pageStartIndex = computed(() => {
+    if (this.filteredTestCases().length === 0) return 0;
+    return (this.currentPage() - 1) * this.pageSize() + 1;
+  });
+  pageEndIndex = computed(() =>
+    Math.min(this.currentPage() * this.pageSize(), this.filteredTestCases().length)
+  );
+  pageNumbers = computed<(number | '…')[]>(() => {
+    const total = this.totalPages();
+    const current = this.currentPage();
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    if (start > 2) pages.push('…');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('…');
+    pages.push(total);
+    return pages;
+  });
 
   // ---------------------------------------------------------------------
   // Excel bulk-import state. The modal walks the user through three steps:
@@ -1775,6 +1904,26 @@ export class TestCaseManagementComponent implements OnInit {
     // no navigation effect is needed — flipping `currentView` to 'browse'
     // is enough to swap the body while the management page header stays
     // perfectly stable.
+
+    // Reset to first page whenever the active filter set changes so the
+    // user isn't stranded on an empty trailing page.
+    effect(() => {
+      this.searchTerm();
+      this.selectedTypes();
+      this.selectedPriorities();
+      this.selectedFeatures();
+      this.selectedScreenIds();
+      this.selectedTestSuiteTypes();
+      this.selectedRequirementTypes();
+      this.currentPage.set(1);
+    });
+
+    // Clamp the current page if the filtered list shrinks below it (e.g.
+    // after deleting items on the last page).
+    effect(() => {
+      const total = this.totalPages();
+      if (this.currentPage() > total) this.currentPage.set(total);
+    });
   }
 
   ngOnInit() {
@@ -1801,7 +1950,7 @@ export class TestCaseManagementComponent implements OnInit {
     if (this.isBrowser) {
       document.addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
-        if (!target.closest('.filter-panel') && !target.closest('.filter-dropdown') && !target.closest('.filter-btn-blue') && !target.closest('.filter-btn-more')) {
+        if (!target.closest('.filter-panel') && !target.closest('.filter-dropdown') && !target.closest('.filter-btn-blue')) {
           this.activeFilter.set('');
         }
       });
@@ -1825,10 +1974,6 @@ export class TestCaseManagementComponent implements OnInit {
     });
   }
 
-  toggleMoreFilters() {
-    this.showMoreFilters.set(!this.showMoreFilters());
-  }
-  
   showScreenIdFilter(): boolean {
     return this.activeFilter() === 'screenId';
   }
@@ -2463,6 +2608,23 @@ export class TestCaseManagementComponent implements OnInit {
 
   navigateToDetail(id: string | number) {
     this.router.navigate(['/test-cases', id]);
+  }
+
+  goToPage(page: number | '…') {
+    if (page === '…') return;
+    const clamped = Math.max(1, Math.min(this.totalPages(), page));
+    this.currentPage.set(clamped);
+  }
+
+  prevPage() { this.goToPage(this.currentPage() - 1); }
+  nextPage() { this.goToPage(this.currentPage() + 1); }
+
+  onPageSizeChange(size: number | string) {
+    const n = typeof size === 'string' ? parseInt(size, 10) : size;
+    if (!isNaN(n) && n > 0) {
+      this.pageSize.set(n);
+      this.currentPage.set(1);
+    }
   }
 
   private markFormGroupTouched() {
