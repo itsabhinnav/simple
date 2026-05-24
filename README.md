@@ -70,6 +70,38 @@ The same port serves both the static frontend and the JSON API under `/api`.
 Pass `--no-start` (Bash) or `-NoStart` (PowerShell) to perform the build
 without launching the server.
 
+### Restarting the server later
+
+After the first successful `setup.sh` / `setup.ps1`, the `.venv/` and
+`backend/static/` artefacts are already on disk. To start the server again
+without re-running install or build, use the lightweight launcher scripts:
+
+```bash
+# Linux / macOS
+./start.sh
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+Or, if you prefer to invoke Python directly:
+
+```bash
+# Linux / macOS
+.venv/bin/python backend/run_server.py
+```
+
+```powershell
+# Windows
+.\.venv\Scripts\python.exe backend\run_server.py
+```
+
+Stop the server with `Ctrl+C`. Re-run `setup.*` only when you change
+dependencies (`backend/requirements.txt`, `frontend/package.json`) or the
+frontend source (so the static bundle gets rebuilt).
+
 ---
 
 ## Runtime configuration
