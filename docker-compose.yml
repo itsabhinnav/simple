@@ -1,37 +1,77 @@
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_DB=sakura_db
-      - POSTGRES_USER=sakura_user
-      - POSTGRES_PASSWORD=sakura_password
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: always
+﻿# =============================================================================
+# Sakura - docker-compose stack
+#
+# Default profile: single Flask backend (Gunicorn) serving the static SPA on
+# port 5000, backed by SQLite stored in the `sakura-data` named volume so
+# data survives container recreation.
+#
+# Optional `postgres` profile spins up a Postgres container; opt in with:
+#   docker compose --profile postgres up -d
+# and set DB_PROVIDER=postgresql via .env or override.
+#
+# Corporate proxy support:
+#   1. Put HTTPS_PROXY=... HTTP_PROXY=... NO_PROXY=... in .env at the repo
+#      root (the same .env Flask reads).
+#   2. They are forwarded to the build (apt/pip/npm pull through them) and
+#      to the running container (so the backend itself can reach the Git
+#      remote when git_sync_enabled=true).
+# =============================================================================
 
+services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile.unified
+      args:
+        HTTP_PROXY:  ${HTTP_PROXY-}
+        HTTPS_PROXY: ${HTTPS_PROXY-}
+        NO_PROXY:    ${NO_PROXY-}
+    image: sakura-backend:latest
     environment:
-      - ENVIRONMENT=production
-      - DB_PROVIDER=postgresql
-      - DB_HOST=db
-      - DB_NAME=sakura_db
-      - DB_USER=sakura_user
-      - DB_PASSWORD=sakura_password
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-prod}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5000}
-      - FORCE_HTTPS=false
+      ENVIRONMENT: production
+      HOST: 0.0.0.0
+      PORT: 5000
+      JWT_SECRET_KEY:  ${JWT_SECRET_KEY:-dev-secret-key-change-in-prod}
+      ENCRYPTION_KEY:  ${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5000}
+      FORCE_HTTPS: "false"
+      # Proxy passthrough so the running backend (git pulls, optional
+      # outbound calls) honours the same proxy as the build phase did.
+      HTTP_PROXY:  ${HTTP_PROXY-}
+      HTTPS_PROXY: ${HTTPS_PROXY-}
+      NO_PROXY:    ${NO_PROXY-}
     ports:
-      - "5000:5000"
+      - "${PORT:-5000}:5000"
     volumes:
-      - backend-data:/app/data
-    depends_on:
-      - db
-    restart: always
+      # SQLite database + uploaded specs persist here.
+      - sakura-data:/app/data
+      - sakura-uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Optional Postgres - only started when invoked with `--profile postgres`.
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-sakura_db}
+      POSTGRES_USER:     ${DB_USER:-sakura_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sakura_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sakura_user} -d ${DB_NAME:-sakura_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  backend-data:
+  sakura-data:
+  sakura-uploads:
   postgres-data:

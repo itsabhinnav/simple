@@ -22,12 +22,20 @@ cd "$ROOT_DIR"
 
 START_AFTER_SETUP=1
 SKIP_FRONTEND_INSTALL=0
+INSECURE_SSL=0
+CLEAN_BUILD=0
 for arg in "$@"; do
   case "$arg" in
-    --no-start)             START_AFTER_SETUP=0 ;;
+    --no-start)              START_AFTER_SETUP=0 ;;
     --skip-frontend-install) SKIP_FRONTEND_INSTALL=1 ;;
+    # Corporate MITM proxies often present a self-signed cert. --insecure-ssl
+    # tells pip to add bootstrap-pypa hosts to --trusted-host and tells npm
+    # to disable strict-ssl + Node TLS verification for this run.
+    --insecure-ssl)          INSECURE_SSL=1 ;;
+    # Force a clean Angular build by removing dist/ and the Angular cache.
+    --clean-build)           CLEAN_BUILD=1 ;;
     -h|--help)
-      sed -n '2,18p' "$0"
+      sed -n '2,22p' "$0"
       exit 0
       ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
@@ -67,6 +75,42 @@ fi
 PIP_PROXY_ARGS=()
 if [ -n "$HTTPS_PROXY" ]; then PIP_PROXY_ARGS=(--proxy "$HTTPS_PROXY")
 elif [ -n "$HTTP_PROXY" ]; then PIP_PROXY_ARGS=(--proxy "$HTTP_PROXY")
+fi
+
+# ---------------------------------------------------------------------------
+# 0b. Optional: SSL trust bypass for MITM proxies
+# ---------------------------------------------------------------------------
+PIP_INSECURE_ARGS=()
+if [ "$INSECURE_SSL" -eq 1 ]; then
+  warn "--insecure-ssl enabled: skipping TLS verification for pip + npm (corporate MITM mode)"
+  PIP_INSECURE_ARGS=(
+    --trusted-host pypi.org
+    --trusted-host pypi.python.org
+    --trusted-host files.pythonhosted.org
+    --trusted-host bootstrap.pypa.io
+  )
+  export NODE_TLS_REJECT_UNAUTHORIZED=0
+  export NPM_CONFIG_STRICT_SSL=false
+fi
+
+# ---------------------------------------------------------------------------
+# 0c. Port preflight (non-fatal)
+# ---------------------------------------------------------------------------
+PORT_CHECK="${PORT:-5000}"
+port_in_use() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn "( sport = :$PORT_CHECK )" 2>/dev/null | tail -n +2 | grep -q .
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$PORT_CHECK" -sTCP:LISTEN >/dev/null 2>&1
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$PORT_CHECK\$"
+  else
+    return 1
+  fi
+}
+if port_in_use; then
+  warn "Port $PORT_CHECK is already in use; the backend will fail to bind."
+  warn "  -> Stop the other process or run with: PORT=<free port> ./setup.sh"
 fi
 
 # ---------------------------------------------------------------------------
@@ -146,8 +190,8 @@ ensure_pip
 source "$VENV_DIR/bin/activate"
 
 log "Installing backend Python dependencies"
-python -m pip "${PIP_PROXY_ARGS[@]}" install --upgrade pip setuptools wheel >/dev/null
-python -m pip "${PIP_PROXY_ARGS[@]}" install -r backend/requirements.txt
+python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install --upgrade pip setuptools wheel >/dev/null
+python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install -r backend/requirements.txt
 
 # ---------------------------------------------------------------------------
 # 3. Frontend deps + build
@@ -166,6 +210,11 @@ if [ "$SKIP_FRONTEND_INSTALL" -eq 0 ]; then
       (cd frontend && npm install)
     fi
   fi
+fi
+
+if [ "$CLEAN_BUILD" -eq 1 ]; then
+  log "Cleaning previous Angular build artefacts (frontend/dist + .angular/cache)"
+  rm -rf frontend/dist frontend/.angular/cache 2>/dev/null || true
 fi
 
 log "Building Angular frontend (production, static SPA)"
@@ -191,6 +240,9 @@ if [ ! -f .env ]; then
     sed -e "s|^JWT_SECRET_KEY=.*$|JWT_SECRET_KEY=${JWT_SECRET}|" \
         -e "s|^ENCRYPTION_KEY=.*$|ENCRYPTION_KEY=${ENC_KEY}|" \
         .env.example > .env
+    # .env carries JWT signing keys and the Fernet encryption key for stored
+    # Git tokens. Lock it down so other users on the host cannot read it.
+    chmod 600 .env 2>/dev/null || true
   else
     warn ".env.example missing; .env was not created"
   fi

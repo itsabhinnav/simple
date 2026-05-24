@@ -1,34 +1,108 @@
-# Stage 1: Build the Angular application
-FROM node:20-slim AS build-frontend
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm install
-COPY frontend/ .
-RUN npm run build -- --configuration production
+# =============================================================================
+# Sakura - unified single-image build (frontend + backend).
+#
+# Stage 1 builds the static Angular SPA. Stage 2 installs Python deps and
+# copies the built bundle into backend/static so Flask serves both /api and
+# the SPA on the same origin.
+#
+# Build with corporate proxy support:
+#   docker build \
+#     --build-arg HTTPS_PROXY=http://user:pass@proxy.corp.local:8080 \
+#     --build-arg HTTP_PROXY=http://user:pass@proxy.corp.local:8080 \
+#     --build-arg NO_PROXY=localhost,127.0.0.1,.corp.local \
+#     -f Dockerfile.unified -t sakura .
+# =============================================================================
 
-# Stage 2: Final Backend Image
+# -----------------------------------------------------------------------------
+# Stage 1: Angular build
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS build-frontend
+
+# Proxy plumbing - propagate to apt, npm, and Node TLS so corporate networks
+# can pull packages. NO defaults: the build behaves identically to a no-proxy
+# build when these are unset.
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY} \
+    http_proxy=${HTTP_PROXY} \
+    https_proxy=${HTTPS_PROXY} \
+    no_proxy=${NO_PROXY} \
+    NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_FACTOR=2
+
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+COPY frontend/ .
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 2: Python backend
+# -----------------------------------------------------------------------------
 FROM python:3.10-slim
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV ENVIRONMENT production
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    ENVIRONMENT=production \
+    HOST=0.0.0.0 \
+    PORT=5000 \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY} \
+    http_proxy=${HTTP_PROXY} \
+    https_proxy=${HTTPS_PROXY} \
+    no_proxy=${NO_PROXY} \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5
+
 WORKDIR /app
 
-# Install dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends git libpq-dev && rm -rf /var/lib/apt/lists/*
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# git is required by the HybridDatabaseService when git_sync_enabled=true.
+# libpq-dev is needed only when psycopg2-binary doesn't have a wheel for the
+# target arch (it does on amd64/arm64 -- kept for safety on uncommon arches).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
-# Copy backend code
+# Build pip --proxy args from the build-arg proxy (pip already honours env
+# vars, but passing the flag is explicit and works even if env propagation
+# is stripped by some BuildKit configurations).
+COPY backend/requirements.txt .
+RUN PIP_PROXY_ARG="" ; \
+    if [ -n "$HTTPS_PROXY" ]; then PIP_PROXY_ARG="--proxy $HTTPS_PROXY" ; \
+    elif [ -n "$HTTP_PROXY" ];  then PIP_PROXY_ARG="--proxy $HTTP_PROXY"  ; fi ; \
+    pip install --no-cache-dir $PIP_PROXY_ARG --upgrade pip setuptools wheel \
+ && pip install --no-cache-dir $PIP_PROXY_ARG -r requirements.txt
+
+# Copy backend source.
 COPY backend/ .
 
-# Copy built frontend from Stage 1 to backend's static folder
+# Drop the built static SPA into backend/static so Flask serves it at /.
 COPY --from=build-frontend /app/frontend/dist/frontend/browser ./static
-RUN if [ ! -s ./static/index.html ] && [ -f ./static/index.csr.html ]; then cp ./static/index.csr.html ./static/index.html; fi
+RUN if [ ! -s ./static/index.html ] && [ -f ./static/index.csr.html ]; then \
+        cp ./static/index.csr.html ./static/index.html ; \
+    fi
 
-# Create data directories
-RUN mkdir -p data/local/prod data/remote/prod
+# Persistent data lives here; mount a volume to keep the SQLite DB across
+# container recreations (see docker-compose.yml).
+RUN mkdir -p data/local/dev/database data/remote/dev uploads/specs
 
 EXPOSE 5000
 
-# Start with Gunicorn using Gevent for high concurrency (100+ connections)
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--worker-class", "gevent", "--worker-connections", "1000", "--timeout", "120", "main:create_app()"]
+# Liveness + readiness probe. Hits the /health endpoint Flask exposes.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl --fail --silent --show-error \
+        "http://127.0.0.1:${PORT:-5000}/health" || exit 1
+
+# run_server.py picks Gunicorn on Linux (here) automatically and runs the
+# same bootstrap path as `python main.py` (DB init, master admin, etc).
+CMD ["python", "run_server.py"]

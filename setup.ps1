@@ -20,7 +20,15 @@
 [CmdletBinding()]
 param(
     [switch]$NoStart,
-    [switch]$SkipFrontendInstall
+    [switch]$SkipFrontendInstall,
+    # Corporate MITM proxies often present a self-signed cert. -InsecureSsl
+    # tells pip to add bootstrap-pypa hosts to --trusted-host and tells npm
+    # to disable strict-ssl + Node TLS verification for this run.
+    [switch]$InsecureSsl,
+    # Force a clean frontend build by wiping frontend\dist and the Angular
+    # CLI cache before invoking ng build. Useful when the previous build
+    # used a different angular.json (SSR vs SPA).
+    [switch]$CleanBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +64,37 @@ if ($HttpsProxy -or $HttpProxy) {
     if ($HttpsProxy) { $env:HTTPS_PROXY = $HttpsProxy; $env:https_proxy = $HttpsProxy }
     if ($HttpProxy)  { $env:HTTP_PROXY  = $HttpProxy;  $env:http_proxy  = $HttpProxy  }
     if ($NoProxy)    { $env:NO_PROXY    = $NoProxy;    $env:no_proxy    = $NoProxy    }
+}
+
+# ---------------------------------------------------------------------------
+# 0b. Optional: SSL trust bypass for MITM proxies
+# ---------------------------------------------------------------------------
+$PipInsecureArgs = @()
+if ($InsecureSsl) {
+    Warn "-InsecureSsl enabled: skipping TLS verification for pip + npm (corporate MITM mode)"
+    $PipInsecureArgs = @(
+        '--trusted-host', 'pypi.org',
+        '--trusted-host', 'pypi.python.org',
+        '--trusted-host', 'files.pythonhosted.org',
+        '--trusted-host', 'bootstrap.pypa.io'
+    )
+    $env:NODE_TLS_REJECT_UNAUTHORIZED = '0'
+    $env:NPM_CONFIG_STRICT_SSL = 'false'
+}
+
+# ---------------------------------------------------------------------------
+# 0c. Port preflight (non-fatal)
+# ---------------------------------------------------------------------------
+$portToCheck = if ($env:PORT) { [int]$env:PORT } else { 5000 }
+try {
+    $bound = Get-NetTCPConnection -State Listen -LocalPort $portToCheck -ErrorAction SilentlyContinue
+    if ($bound) {
+        $owners = $bound | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName } | Sort-Object -Unique
+        Warn "Port $portToCheck is already in use by: $(($owners -join ', '))"
+        Warn "  -> The backend will fail to bind. Stop the other process or set `$env:PORT to a free port."
+    }
+} catch {
+    # Get-NetTCPConnection may not be available on very old Windows; skip silently.
 }
 
 # ---------------------------------------------------------------------------
@@ -174,9 +213,10 @@ Log "Installing backend Python dependencies"
 $PipProxyArgs = @()
 if ($HttpsProxy) { $PipProxyArgs += @('--proxy', $HttpsProxy) }
 elseif ($HttpProxy) { $PipProxyArgs += @('--proxy', $HttpProxy) }
+$PipAllArgs = $PipProxyArgs + $PipInsecureArgs
 
-& $VenvPython -m pip @PipProxyArgs install --upgrade pip setuptools wheel | Out-Null
-& $VenvPython -m pip @PipProxyArgs install -r backend\requirements.txt
+& $VenvPython -m pip @PipAllArgs install --upgrade pip setuptools wheel | Out-Null
+& $VenvPython -m pip @PipAllArgs install -r backend\requirements.txt
 if ($LASTEXITCODE -ne 0) { Fail "Failed to install backend dependencies." }
 
 # ---------------------------------------------------------------------------
@@ -205,6 +245,12 @@ try {
             }
             if ($LASTEXITCODE -ne 0) { Fail "npm install failed (exit $LASTEXITCODE)." }
         }
+    }
+
+    if ($CleanBuild) {
+        Log "Cleaning previous Angular build artefacts (dist + .angular\cache)"
+        if (Test-Path 'dist')              { Remove-Item -Recurse -Force 'dist' -ErrorAction SilentlyContinue }
+        if (Test-Path '.angular\cache')    { Remove-Item -Recurse -Force '.angular\cache' -ErrorAction SilentlyContinue }
     }
 
     Log "Building Angular frontend (production, static SPA)"
