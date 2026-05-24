@@ -1,8 +1,13 @@
+import json
 from flask import Blueprint, request, jsonify
 from typing import Dict, Any
 from src.services.test_case_service import ITestCaseService
+from src.services.bulk_import_service import BulkImportService
 from src.schemas.test_case_schema import TestCaseCreateSchema
 from src.schemas.api_schema import ErrorResponseSchema, SuccessResponseSchema
+from src.infrastructure.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class TestCaseController:
@@ -10,6 +15,9 @@ class TestCaseController:
     
     def __init__(self, test_case_service: ITestCaseService):
         self.test_case_service = test_case_service
+        # Reused for Excel preview + bulk import. BulkImportService is cheap
+        # to instantiate (just resolves the hybrid DB service).
+        self.bulk_import_service = BulkImportService()
     
     def get_all_test_cases(self) -> Dict[str, Any]:
         """GET /api/test-cases - Get all test cases"""
@@ -159,6 +167,126 @@ class TestCaseController:
                 "message": str(e)
             }), 500
     
+    # ------------------------------------------------------------------
+    # Excel bulk-import endpoints. Open to any authenticated caller (auth is
+    # globally bypassed in workspace mode) — this is intentionally NOT
+    # @require_admin so testers can drag-and-drop their AAOS spreadsheets.
+    # ------------------------------------------------------------------
+    def get_import_fields(self) -> Dict[str, Any]:
+        """GET /api/test-cases/import/fields - list canonical fields for mapping UI."""
+        try:
+            data = self.bulk_import_service.get_target_fields("test_cases")
+            return jsonify({"success": True, "data": data}), 200
+        except Exception as e:
+            logger.error(f"Failed to get import fields: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to get import fields",
+                "message": str(e),
+            }), 500
+
+    def preview_import(self) -> Dict[str, Any]:
+        """POST /api/test-cases/import/preview - parse one xlsx and return headers + samples without inserting."""
+        try:
+            file_storage = request.files.get("file") or (request.files.getlist("files") or [None])[0]
+            if not file_storage:
+                return jsonify({
+                    "success": False,
+                    "error": "No file uploaded",
+                    "message": "Upload an Excel workbook (.xlsx or .xlsm)",
+                }), 400
+            sample_rows = int(request.form.get("sample_rows", 5))
+            data = self.bulk_import_service.preview_file(file_storage, "test_cases", sample_rows=sample_rows)
+            return jsonify({"success": True, "data": data}), 200
+        except ValueError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except Exception as e:
+            logger.error(f"Test-case import preview failed: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Preview failed",
+                "message": str(e),
+            }), 500
+
+    def import_test_cases(self) -> Dict[str, Any]:
+        """POST /api/test-cases/import - bulk-import one or more xlsx workbooks.
+
+        Accepts multipart/form-data with `files` (or `file`) parts and an
+        optional `mapping` form field containing a JSON object
+        {raw_header: canonical_field}. Auto-detection runs for any headers
+        not in the mapping.
+        """
+        try:
+            files = request.files.getlist("files") or request.files.getlist("file")
+            if not files:
+                return jsonify({
+                    "success": False,
+                    "error": "No files uploaded",
+                    "message": "Upload at least one Excel workbook",
+                }), 400
+
+            created_by = "system"
+            try:
+                from flask import g
+                created_by = g.get("current_username") or created_by
+            except Exception:
+                pass
+
+            mapping_raw = request.form.get("mapping")
+            mapping = {}
+            if mapping_raw:
+                try:
+                    parsed = json.loads(mapping_raw)
+                    if isinstance(parsed, dict):
+                        mapping = {str(k): str(v) for k, v in parsed.items() if v}
+                except json.JSONDecodeError:
+                    return jsonify({
+                        "success": False,
+                        "error": "Invalid mapping",
+                        "message": "`mapping` must be a JSON object {raw_header: field_name}",
+                    }), 400
+
+            # `duplicate_strategy` controls what happens when a row's primary
+            # ID is already in the DB. Accepts `skip` (default) or `replace`.
+            duplicate_strategy = (request.form.get("duplicate_strategy") or "skip").strip().lower()
+
+            if mapping:
+                result = self.bulk_import_service.import_files_with_mapping(
+                    files, "test_cases", mapping, created_by,
+                    duplicate_strategy=duplicate_strategy,
+                )
+            else:
+                result = self.bulk_import_service.import_files(
+                    files, "test_cases", created_by,
+                    duplicate_strategy=duplicate_strategy,
+                )
+
+            totals = result["totals"]
+            return jsonify({
+                "success": (
+                    totals["created"] > 0
+                    or totals.get("updated", 0) > 0
+                    or totals["skipped"] > 0
+                    or totals["failed"] == 0
+                ),
+                "message": (
+                    f"Imported {totals['created']} created, "
+                    f"{totals.get('updated', 0)} updated, "
+                    f"{totals['skipped']} skipped, "
+                    f"{totals['failed']} failed."
+                ),
+                "data": result,
+            }), 200
+        except ValueError as e:
+            return jsonify({"success": False, "error": "Invalid import request", "message": str(e)}), 400
+        except Exception as e:
+            logger.error(f"Test-case bulk import failed: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Bulk import failed",
+                "message": str(e),
+            }), 500
+
     def delete_test_case(self, test_case_id: str) -> Dict[str, Any]:
         """DELETE /api/test-cases/<test_case_id> - Delete test case"""
         try:
@@ -193,12 +321,17 @@ def create_test_case_blueprint(test_case_service: ITestCaseService) -> Blueprint
     test_case_bp = Blueprint('test_cases', __name__, url_prefix='/api/test-cases')
     controller = TestCaseController(test_case_service)
     
-    # Register routes
+    # Register routes. NOTE: import routes are registered BEFORE the
+    # `/<test_case_id>` catch-all so Flask's routing doesn't treat
+    # "import" or "feature" as a test_case_id.
     test_case_bp.route('/', methods=['GET'])(controller.get_all_test_cases)
     test_case_bp.route('/', methods=['POST'])(controller.create_test_case)
+    test_case_bp.route('/feature', methods=['GET'])(controller.get_test_cases_by_feature)
+    test_case_bp.route('/import/fields', methods=['GET'])(controller.get_import_fields)
+    test_case_bp.route('/import/preview', methods=['POST'])(controller.preview_import)
+    test_case_bp.route('/import', methods=['POST'])(controller.import_test_cases)
     test_case_bp.route('/<test_case_id>', methods=['GET'])(controller.get_test_case_by_id)
     test_case_bp.route('/<test_case_id>', methods=['PUT'])(controller.update_test_case)
     test_case_bp.route('/<test_case_id>', methods=['DELETE'])(controller.delete_test_case)
-    test_case_bp.route('/feature', methods=['GET'])(controller.get_test_cases_by_feature)
     
     return test_case_bp

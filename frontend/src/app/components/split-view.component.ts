@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -10,9 +10,11 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
-    <div class="split-view-container">
-      <!-- Header -->
-      <header class="management-header">
+    <div class="split-view-container" [class.embedded]="embedded">
+      <!-- Page header is suppressed when this component is embedded inside
+           another page (e.g. test-case management's "Browse" layout) so the
+           parent's header stays the single source of navigation truth. -->
+      <header *ngIf="!embedded" class="management-header">
         <div class="header-left">
           <nav class="breadcrumb">
             <a routerLink="/" class="breadcrumb-link">
@@ -20,20 +22,27 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
               Dashboard
             </a>
             <span class="breadcrumb-separator">›</span>
-            <span class="breadcrumb-current">Requirements & Test Cases</span>
+            <a routerLink="/test-cases" class="breadcrumb-link">Test Case Management</a>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current">Split View</span>
           </nav>
           <h1 class="page-title">
-            <i class="icon-view"></i>
-            Split View
+            <i class="icon-test-cases"></i>
+            Test Case Management
           </h1>
         </div>
-        <div class="header-actions">
-          <button class="view-btn" [class.active]="viewType === 'requirements'" (click)="viewType = 'requirements'">
-            Requirements
-          </button>
-          <button class="view-btn" [class.active]="viewType === 'test-cases'" (click)="viewType = 'test-cases'">
-            Test Cases
-          </button>
+        <div class="header-right">
+          <div class="view-toggle">
+            <button class="view-btn" (click)="goToTestCases('grid')" title="Grid View">
+              <i class="icon-grid"></i>
+            </button>
+            <button class="view-btn" (click)="goToTestCases('table')" title="Table View">
+              <i class="icon-table"></i>
+            </button>
+            <button class="view-btn active" title="Browse / Split View (current)" disabled>
+              <i class="icon-browse"></i>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -42,10 +51,34 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
         <!-- Left Panel - List View -->
         <div class="list-panel">
           <div class="list-header">
+            <div class="list-header-row">
               <h3>{{ viewType === 'requirements' ? 'Requirements' : 'Test Cases' }} ({{ viewType === 'requirements' ? filteredRequirements().length : filteredTestCases().length }})</h3>
-            <input 
-              type="text" 
-              placeholder="Search..." 
+              <!-- The type toggle is hidden when the host page already
+                   scopes the content (e.g. Test Case Management is exclusively
+                   about test cases, so offering Requirements here would be
+                   confusing). -->
+              <div *ngIf="showTypeToggle" class="type-toggle">
+                <button
+                  class="type-toggle-btn"
+                  [class.active]="viewType === 'requirements'"
+                  (click)="viewType = 'requirements'">
+                  Requirements
+                </button>
+                <button
+                  class="type-toggle-btn"
+                  [class.active]="viewType === 'test-cases'"
+                  (click)="viewType = 'test-cases'">
+                  Test Cases
+                </button>
+              </div>
+            </div>
+            <!-- Inner search box is suppressed when the parent owns the
+                 filter UI; otherwise two search inputs would race against
+                 each other for the same data. -->
+            <input
+              *ngIf="showSearch"
+              type="text"
+              placeholder="Search..."
               [ngModel]="searchTerm()"
               (ngModelChange)="searchTerm.set($event)"
               class="search-input">
@@ -240,6 +273,16 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
       padding: 12px 16px;
     }
 
+    /* When embedded inside another page (e.g. test-case management's Browse
+       layout) drop the outer padding and our hidden page header's height
+       budget — the host page already supplies all the surrounding chrome. */
+    .split-view-container.embedded {
+      padding: 0;
+      min-height: 0;
+      height: auto;
+      flex: 1 1 auto;
+    }
+
     .management-header {
       background-color: white;
       border: 1px solid #dadce0;
@@ -294,31 +337,91 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
       gap: 10px;
     }
 
-    .header-actions {
+    /* --- Mirror of test-case-management header styles so the two pages
+       look pixel-identical. If you tweak one, tweak the other. --- */
+    .header-right {
       display: flex;
-      gap: 8px;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 4px;
     }
 
     .view-btn {
-      padding: 6px 16px;
-      border: 1px solid #dadce0;
-      border-radius: 24px;
-      background: white;
-      color: #5f6368;
+      padding: 8px;
+      border: none;
+      background: transparent;
       cursor: pointer;
-      font-size: 13px;
+      border-radius: 6px;
+      color: #5f6368;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      font-size: 16px;
     }
 
-    .view-btn:hover {
-      border-color: #1a73e8;
-      color: #1a73e8;
+    .view-btn:hover:not(:disabled) {
+      background: #f5f5f5;
+      color: #202124;
     }
 
     .view-btn.active {
       background: #1a73e8;
       color: white;
-      border-color: #1a73e8;
+    }
+
+    .view-btn:disabled {
+      cursor: default;
+      opacity: 1;
+    }
+
+    /* Icons — same glyphs as the management page so the toggle is
+       visually identical across the two pages. */
+    .icon-test-cases::before { content: "🧪"; }
+    .icon-grid::before   { content: "⊞"; font-size: 12px; }
+    .icon-table::before  { content: "☰"; font-size: 12px; }
+    .icon-browse::before { content: "📍"; font-size: 12px; }
+
+    /* --- Type toggle now lives inside the list-panel header --- */
+    .list-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .type-toggle {
+      display: inline-flex;
+      border: 1px solid #dadce0;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #f8f9fc;
+    }
+    .type-toggle-btn {
+      padding: 4px 12px;
+      border: none;
+      background: transparent;
+      color: #5f6368;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+    }
+    .type-toggle-btn:hover {
+      color: #202124;
+    }
+    .type-toggle-btn.active {
+      background: #1a73e8;
+      color: white;
     }
 
     .split-content {
@@ -644,12 +747,97 @@ export class SplitViewComponent implements OnInit {
   private testCaseService = inject(TestCaseService);
   private router = inject(Router);
 
+  /** When true, this component is rendered inside another page and should
+   * not draw its own page-level header (breadcrumb, title, layout toggle).
+   * The parent is responsible for chrome; we just render the split panels. */
+  @Input() embedded = false;
+
+  /** Optional override for the initial type-toggle position. The component
+   * defaults to 'requirements' for the standalone /split-view entry, but
+   * callers (e.g. the Test Case Management page) can switch to 'test-cases'
+   * so users land on the panel that matches the page they came from. */
+  @Input() set initialViewType(value: 'requirements' | 'test-cases' | undefined) {
+    if (value && value !== this._viewType) {
+      // Use the setter so the auto-select side effect fires correctly.
+      this.viewType = value;
+    }
+  }
+
+  /** Externally supplied list of test cases. When provided, the component
+   * stops fetching its own and renders exactly what the parent passes in
+   * (e.g. the already-filtered list from the Test Case Management page).
+   * Re-running the auto-select keeps the right-hand detail panel honest
+   * when the parent's filters change the visible set. */
+  @Input() set externalTestCases(value: TestCase[] | undefined) {
+    if (value === undefined) return;
+    this._externalTestCasesMode = true;
+    this.testCases.set(value);
+    if (this._viewType === 'test-cases') {
+      this.autoSelectForCurrentType();
+    }
+  }
+
+  /** When false, hide the in-panel "Requirements / Test Cases" toggle.
+   * Used by the Test Case Management page where showing "Requirements"
+   * doesn't make sense. */
+  @Input() showTypeToggle = true;
+
+  /** When false, hide the per-panel search input (parent provides its own
+   * search/filter UI). */
+  @Input() showSearch = true;
+
+  /** True once a caller has piped data in via `externalTestCases`; flips
+   * the component into "host owns the data" mode so we don't double-fetch. */
+  private _externalTestCasesMode = false;
+
   requirements = signal<Requirement[]>([]);
   testCases = signal<TestCase[]>([]);
   selectedRequirement = signal<Requirement | null>(null);
   selectedTestCase = signal<TestCase | null>(null);
   searchTerm = signal('');
-  viewType: 'requirements' | 'test-cases' = 'requirements';
+
+  // Backing field for viewType so we can run an auto-select side effect
+  // whenever the user flips the toggle. Template still binds via the
+  // public `viewType` getter/setter pair.
+  private _viewType: 'requirements' | 'test-cases' = 'requirements';
+  get viewType(): 'requirements' | 'test-cases' {
+    return this._viewType;
+  }
+  set viewType(value: 'requirements' | 'test-cases') {
+    if (this._viewType === value) return;
+    this._viewType = value;
+    // Auto-select the first item in the newly active list so the right
+    // panel never goes blank just because the user toggled the type.
+    this.autoSelectForCurrentType();
+  }
+
+  /** Pick the first item of the currently active list if nothing in that
+   * list is selected. Safe to call multiple times — it's a no-op once a
+   * row exists. */
+  private autoSelectForCurrentType(): void {
+    if (this._viewType === 'requirements') {
+      const items = this.filteredRequirements();
+      if (items.length > 0) {
+        // Honor any existing selection only if it's still in the list.
+        const current = this.selectedRequirement();
+        if (!current || !items.some(r => r.id === current.id)) {
+          this.selectRequirement(items[0]);
+        }
+      } else {
+        this.selectedRequirement.set(null);
+      }
+    } else {
+      const items = this.filteredTestCases();
+      if (items.length > 0) {
+        const current = this.selectedTestCase();
+        if (!current || !items.some(tc => tc.test_case_id === current.test_case_id)) {
+          this.selectTestCase(items[0]);
+        }
+      } else {
+        this.selectedTestCase.set(null);
+      }
+    }
+  }
   
   // Computed signals for filtered results
   filteredRequirements = computed(() => {
@@ -672,16 +860,29 @@ export class SplitViewComponent implements OnInit {
 
   ngOnInit() {
     this.loadRequirements();
-    this.loadTestCases();
+    // Skip our own fetch when a parent is feeding test cases in via the
+    // `externalTestCases` input — re-fetching would clobber the parent's
+    // already-filtered list with the full, unfiltered set.
+    if (!this._externalTestCasesMode) {
+      this.loadTestCases();
+    }
+  }
+
+  /** Navigate back to the test-cases page, restoring the chosen layout
+   * via a `view` query param the management page reads on init. */
+  goToTestCases(view: 'grid' | 'table'): void {
+    this.router.navigate(['/test-cases'], { queryParams: { view } });
   }
 
   loadRequirements() {
     this.requirementService.getRequirements().subscribe({
       next: (reqs) => {
         this.requirements.set(reqs || []);
-        // Auto-select first requirement when requirements load
-        if (this.viewType === 'requirements' && reqs && reqs.length > 0 && !this.selectedRequirement()) {
-          this.selectRequirement(reqs[0]);
+        // If the user is currently looking at the requirements list, make
+        // sure the right panel has something to render. autoSelect is a
+        // no-op when a valid selection is already in place.
+        if (this.viewType === 'requirements') {
+          this.autoSelectForCurrentType();
         }
       },
       error: () => {}
@@ -692,9 +893,8 @@ export class SplitViewComponent implements OnInit {
     this.testCaseService.getTestCases().subscribe({
       next: (tcs) => {
         this.testCases.set(tcs || []);
-        // Auto-select first test case when test cases load
-        if (this.viewType === 'test-cases' && tcs && tcs.length > 0 && !this.selectedTestCase()) {
-          this.selectTestCase(tcs[0]);
+        if (this.viewType === 'test-cases') {
+          this.autoSelectForCurrentType();
         }
       },
       error: () => {}

@@ -1,13 +1,23 @@
-import { Component, OnInit, inject, signal, effect, computed, PLATFORM_ID } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, PLATFORM_ID } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
-import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest } from '../services/test-case.service';
+import {
+  TestCaseService,
+  TestCase,
+  TestCaseCreateRequest,
+  TestCaseUpdateRequest,
+  TestCaseImportPreview,
+  TestCaseImportSheetPreview,
+  TestCaseImportResult,
+  TestCaseImportDuplicateStrategy
+} from '../services/test-case.service';
+import { SplitViewComponent } from './split-view.component';
 
 @Component({
   selector: 'app-test-case-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, SplitViewComponent],
   template: `
     <div class="test-case-management-container">
       <!-- Header -->
@@ -27,6 +37,14 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
           </h1>
         </div>
         <div class="header-right">
+          <button
+            class="add-btn import-btn"
+            (click)="openImportModal()"
+            [disabled]="isLoading() || isImporting()"
+            title="Import test cases from one or more spreadsheets (.xlsx, .xlsm, .csv)">
+            <i class="icon-upload"></i>
+            Import Test Cases
+          </button>
           <button 
             class="add-btn" 
             routerLink="/test-cases/create"
@@ -231,31 +249,61 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
           </p>
         </div>
 
+        <!-- Browse / Split View — embedded so the management page header
+             stays put; only this content area changes when the user toggles
+             between Grid / Table / Browse. -->
+        <div *ngIf="currentView() === 'browse'" class="browse-view-container">
+          <!-- Feed the parent's already-filtered test cases in so the
+               panel respects the search box, type / priority / feature
+               filters from the page header above. The type toggle and
+               inner search are hidden — this page is exclusively about
+               test cases and the parent already provides search UI. -->
+          <app-split-view
+            [embedded]="true"
+            initialViewType="test-cases"
+            [externalTestCases]="filteredTestCases()"
+            [showTypeToggle]="false"
+            [showSearch]="false">
+          </app-split-view>
+        </div>
+
         <!-- Table View -->
         <div *ngIf="filteredTestCases().length > 0 && currentView() === 'table'" class="table-view-container">
           <table class="data-table">
             <thead>
               <tr>
                 <th>Test Case ID</th>
-                <th>Objective</th>
+                <th>Title</th>
+                <th>Vehicle Model</th>
+                <th>Severity</th>
                 <th>Type</th>
                 <th>Priority</th>
                 <th>Feature</th>
-                <th>Screen ID</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let tc of filteredTestCases()" (click)="navigateToDetail(tc.test_case_id)" style="cursor: pointer;">
                 <td><strong>{{ tc.test_case_id }}</strong></td>
-                <td>{{ tc.test_objective }}</td>
+                <td>{{ tc.title || tc.test_objective || '-' }}</td>
+                <td>{{ tc.vehicle_model || '-' }}</td>
+                <td>
+                  <span class="severity-badge" [class]="getSeverityClass(tc.severity)">
+                    {{ tc.severity || '-' }}
+                  </span>
+                </td>
                 <td><span class="type-badge">{{ tc.test_type || '-' }}</span></td>
                 <td><span class="priority-badge" [class]="getPriorityClass(tc.priority)">{{ tc.priority || 'P3' }}</span></td>
                 <td>{{ tc.feature || '-' }}</td>
-                <td>{{ tc.screen_id || '-' }}</td>
                 <td (click)="$event.stopPropagation()">
-                  <button class="btn-edit" (click)="openEditModal(tc)">Edit</button>
-                  <button class="btn-delete" (click)="confirmDelete(tc)">Delete</button>
+                  <div class="actions">
+                    <button class="btn-edit" (click)="openEditModal(tc)" title="Edit" aria-label="Edit">
+                      <i class="icon-edit"></i>
+                    </button>
+                    <button class="btn-delete" (click)="confirmDelete(tc)" title="Delete" aria-label="Delete">
+                      <i class="icon-delete"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -271,9 +319,10 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
                 {{ tc.priority || 'P3' }}
               </span>
             </div>
-            <h3 class="card-title">{{ tc.test_objective || 'Test Case' }}</h3>
+            <h3 class="card-title">{{ tc.title || tc.test_objective || 'Test Case' }}</h3>
+            <p class="card-description" *ngIf="tc.vehicle_model">🚗 {{ tc.vehicle_model }}<span *ngIf="tc.severity"> · {{ tc.severity }}</span></p>
             <p class="card-description" *ngIf="tc.feature">Feature: {{ tc.feature }}</p>
-            <p class="card-description" *ngIf="tc.preconditions">{{ tc.preconditions }}</p>
+            <p class="card-description" *ngIf="tc.description || tc.preconditions">{{ tc.description || tc.preconditions }}</p>
             
             <div class="card-footer">
               <span class="status-badge" [class]="getTypeClass(tc.test_type)">
@@ -288,6 +337,182 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
               <button class="btn-delete" (click)="confirmDelete(tc)" title="Delete">
                 <i class="icon-delete"></i>
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Excel Import Modal -->
+      <div *ngIf="showImportModal()" class="modal-overlay" (click)="closeImportModal()">
+        <div class="modal-content import-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2>
+              Import Test Cases from Excel
+              <span *ngIf="importStep() === 'mapping'" class="modal-subtitle"> · Review column mapping</span>
+              <span *ngIf="importStep() === 'result'" class="modal-subtitle"> · Result</span>
+            </h2>
+            <button class="close-btn" (click)="closeImportModal()">
+              <i class="icon-close"></i>
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <!-- STEP 1: file pick + format help -->
+            <div *ngIf="importStep() === 'select'">
+              <p class="import-hint">
+                Upload one or more <strong>.xlsx</strong>, <strong>.xlsm</strong>, or
+                <strong>.csv</strong> files. We'll inspect the headers and auto-match them to
+                the test-case fields. You'll get to review the mapping before anything is
+                written.
+              </p>
+              <div class="import-dropzone">
+                <input
+                  type="file"
+                  multiple
+                  accept=".xlsx,.xlsm,.csv"
+                  (change)="onImportFilesSelected($event)"
+                  #importInput>
+                <p *ngIf="importFiles().length === 0" class="dropzone-hint">
+                  Click to choose spreadsheet files (Excel or CSV, 10k+ rows per file is fine).
+                </p>
+                <ul *ngIf="importFiles().length > 0" class="import-file-list">
+                  <li *ngFor="let f of importFiles()">
+                    <i class="icon-file"></i> {{ f.name }} <span class="file-size">({{ formatBytes(f.size) }})</span>
+                  </li>
+                </ul>
+              </div>
+              <label class="import-toggle">
+                <input
+                  type="checkbox"
+                  [checked]="importReplaceDuplicates()"
+                  (change)="importReplaceDuplicates.set($any($event.target).checked)">
+                Replace existing rows with the same ID
+                <span class="import-toggle-hint">
+                  · off = skip duplicates (default), on = overwrite them in place
+                </span>
+              </label>
+              <p class="import-error" *ngIf="importError()">{{ importError() }}</p>
+              <div class="form-actions">
+                <button type="button" class="btn-cancel" (click)="closeImportModal()">Cancel</button>
+                <button
+                  type="button"
+                  class="btn-submit"
+                  [disabled]="importFiles().length === 0 || isPreviewing()"
+                  (click)="previewSelectedFile()">
+                  <span *ngIf="isPreviewing()" class="spinner-small"></span>
+                  {{ isPreviewing() ? 'Reading workbook…' : 'Preview & Map Columns' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-submit btn-secondary-import"
+                  [disabled]="importFiles().length === 0 || isImporting()"
+                  (click)="importNow()"
+                  title="Skip the mapping step and rely on auto-detection only.">
+                  <span *ngIf="isImporting()" class="spinner-small"></span>
+                  {{ isImporting() ? 'Importing…' : 'Import (auto-detect)' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- STEP 2: mapping editor -->
+            <div *ngIf="importStep() === 'mapping' && importPreview() as preview">
+              <p class="import-hint">
+                File: <strong>{{ preview.file }}</strong>. Confirm or fix the mapping for each
+                column, then click Import.
+              </p>
+              <div *ngFor="let sheet of preview.sheets" class="import-sheet-block">
+                <h4 class="import-sheet-title">
+                  Sheet "{{ sheet.sheet }}"
+                  <span class="import-sheet-meta">
+                    {{ sheet.row_count_estimate }} row(s), {{ sheet.raw_headers.length }} column(s)
+                  </span>
+                </h4>
+                <table class="mapping-table">
+                  <thead>
+                    <tr>
+                      <th>Column in spreadsheet</th>
+                      <th>Maps to test-case field</th>
+                      <th>Sample value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let header of sheet.raw_headers; let i = index">
+                      <td><code>{{ header }}</code></td>
+                      <td>
+                        <select
+                          [value]="getMappingValue(header)"
+                          (change)="setMappingValue(header, $any($event.target).value)">
+                          <option value="">— Ignore this column —</option>
+                          <option *ngFor="let f of importFields()" [value]="f">{{ f }}</option>
+                        </select>
+                      </td>
+                      <td class="sample-cell">{{ sampleValueFor(sheet, i) || '' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <label class="import-toggle">
+                <input
+                  type="checkbox"
+                  [checked]="importReplaceDuplicates()"
+                  (change)="importReplaceDuplicates.set($any($event.target).checked)">
+                Replace existing rows with the same ID
+                <span class="import-toggle-hint">
+                  · off = skip duplicates (default), on = overwrite them in place
+                </span>
+              </label>
+              <p class="import-error" *ngIf="importError()">{{ importError() }}</p>
+              <div class="form-actions">
+                <button type="button" class="btn-cancel" (click)="backToSelect()">Back</button>
+                <button
+                  type="button"
+                  class="btn-submit"
+                  [disabled]="isImporting()"
+                  (click)="importWithMapping()">
+                  <span *ngIf="isImporting()" class="spinner-small"></span>
+                  {{ isImporting() ? 'Importing…' : 'Import with this mapping' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- STEP 3: result summary -->
+            <div *ngIf="importStep() === 'result' && importResult() as result">
+              <div class="import-summary">
+                <span class="summary-pill summary-created">
+                  Created: <strong>{{ result.totals.created }}</strong>
+                </span>
+                <span class="summary-pill summary-updated">
+                  Updated: <strong>{{ result.totals.updated || 0 }}</strong>
+                </span>
+                <span class="summary-pill summary-skipped">
+                  Skipped: <strong>{{ result.totals.skipped }}</strong>
+                </span>
+                <span class="summary-pill summary-failed">
+                  Failed: <strong>{{ result.totals.failed }}</strong>
+                </span>
+              </div>
+              <div *ngFor="let file of result.files" class="import-file-result">
+                <h4>{{ file.file }}</h4>
+                <p>
+                  Created {{ file.created }}, updated {{ file.updated || 0 }},
+                  skipped {{ file.skipped }}, failed {{ file.failed }}.
+                </p>
+                <details *ngIf="file.errors.length > 0">
+                  <summary>{{ file.errors.length }} error(s) — first 20 shown</summary>
+                  <ul class="error-list">
+                    <li *ngFor="let err of file.errors.slice(0, 20)">
+                      <ng-container *ngIf="err.sheet">[{{ err.sheet }}] </ng-container>
+                      <ng-container *ngIf="err.row">Row {{ err.row }}: </ng-container>
+                      <ng-container *ngIf="err.id">{{ err.id }} — </ng-container>
+                      {{ err.error }}
+                    </li>
+                  </ul>
+                </details>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn-cancel" (click)="backToSelect()">Import more</button>
+                <button type="button" class="btn-submit" (click)="closeImportModal()">Done</button>
+              </div>
             </div>
           </div>
         </div>
@@ -614,8 +839,14 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 14px;
       transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      line-height: 1;
     }
 
     .btn-edit {
@@ -1140,6 +1371,18 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       overflow: hidden;
     }
 
+    /* Browse layout — host for the embedded SplitViewComponent. Give it a
+       fixed-ish viewport height so the inner panels can scroll independently
+       without pushing the page header off-screen. */
+    .browse-view-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      /* Reserve room for the app shell + management header + filter row. */
+      height: calc(100vh - 220px);
+      min-height: 600px;
+    }
+
     .data-table {
       width: 100%;
       border-collapse: collapse;
@@ -1174,6 +1417,214 @@ import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest
       font-size: 12px;
       font-weight: 500;
       display: inline-block;
+    }
+
+    /* Severity badges — used in table view */
+    .severity-badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-block;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #fff;
+      background: #9aa0a6;
+    }
+    .severity-blocker  { background: #b00020; }
+    .severity-critical { background: #d93025; }
+    .severity-major    { background: #e8710a; }
+    .severity-minor    { background: #1a73e8; }
+    .severity-trivial  { background: #5f6368; }
+    .severity-default  { background: #9aa0a6; }
+
+    /* Import button accent */
+    .import-btn {
+      background: #1a73e8;
+    }
+    .import-btn:hover { background: #1765c1; }
+
+    /* Excel import modal */
+    .import-modal {
+      max-width: 880px;
+      width: 95%;
+    }
+    .modal-subtitle {
+      font-weight: 400;
+      color: #5f6368;
+      font-size: 14px;
+    }
+    .import-hint {
+      color: #3c4043;
+      margin: 0 0 16px 0;
+      line-height: 1.5;
+    }
+    .import-dropzone {
+      border: 2px dashed #c3c8d0;
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      background: #f8f9fc;
+      margin-bottom: 16px;
+      cursor: pointer;
+    }
+    .import-dropzone input[type="file"] {
+      display: block;
+      margin: 0 auto;
+    }
+    .dropzone-hint {
+      margin: 12px 0 0 0;
+      color: #5f6368;
+      font-size: 13px;
+    }
+    .import-file-list {
+      list-style: none;
+      padding: 12px 0 0 0;
+      margin: 12px 0 0 0;
+      text-align: left;
+    }
+    .import-file-list li {
+      padding: 6px 0;
+      border-bottom: 1px solid #ececec;
+      color: #202124;
+    }
+    .import-file-list li:last-child { border-bottom: none; }
+    .file-size { color: #5f6368; font-size: 12px; margin-left: 6px; }
+
+    .import-sheet-block {
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      background: #fff;
+    }
+    .import-sheet-title {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #202124;
+    }
+    .import-sheet-meta {
+      color: #5f6368;
+      font-weight: 400;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .mapping-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .mapping-table th,
+    .mapping-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #f1f3f4;
+      text-align: left;
+      vertical-align: top;
+    }
+    .mapping-table th {
+      color: #5f6368;
+      font-weight: 600;
+    }
+    .mapping-table code {
+      background: #f1f3f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 12px;
+    }
+    .mapping-table select {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .sample-cell {
+      color: #5f6368;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .import-summary {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .summary-pill {
+      padding: 6px 12px;
+      border-radius: 14px;
+      font-size: 13px;
+      background: #f1f3f4;
+      color: #202124;
+    }
+    .summary-created { background: #e6f4ea; color: #137333; }
+    .summary-updated { background: #e8f0fe; color: #1967d2; }
+    .summary-skipped { background: #fef7e0; color: #b06000; }
+    .summary-failed  { background: #fce8e6; color: #b00020; }
+
+    /* Duplicate-strategy toggle */
+    .import-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      margin: 8px 0 12px 0;
+      background: #f8f9fc;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #202124;
+      cursor: pointer;
+    }
+    .import-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .import-toggle-hint {
+      color: #5f6368;
+      font-weight: 400;
+      font-size: 12px;
+    }
+
+    .import-file-result {
+      border: 1px solid #f1f3f4;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .import-file-result h4 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+    }
+    .error-list {
+      margin: 6px 0 0 20px;
+      padding: 0;
+      font-size: 12px;
+      color: #b00020;
+    }
+    .error-list li {
+      margin: 2px 0;
+    }
+
+    .import-error {
+      color: #b00020;
+      background: #fce8e6;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+
+    .btn-secondary-import {
+      background: #f1f3f4;
+      color: #1a73e8;
+      border: 1px solid #1a73e8;
+    }
+    .btn-secondary-import:hover {
+      background: #e8f0fe;
     }
   `]
 })
@@ -1262,6 +1713,30 @@ export class TestCaseManagementComponent implements OnInit {
   activeFilter = signal<string>('');
   showMoreFilters = signal(false);
 
+  // ---------------------------------------------------------------------
+  // Excel bulk-import state. The modal walks the user through three steps:
+  //   "select"  → pick files
+  //   "mapping" → confirm/edit the auto-detected header → field mapping
+  //   "result"  → see the import summary (created/skipped/failed)
+  // The mapping step is optional — the "Import (auto-detect)" button on the
+  // first step skips it and relies on the backend's HEADER_ALIASES list.
+  // ---------------------------------------------------------------------
+  showImportModal = signal(false);
+  importStep = signal<'select' | 'mapping' | 'result'>('select');
+  importFiles = signal<File[]>([]);
+  importPreview = signal<TestCaseImportPreview | null>(null);
+  importResult = signal<TestCaseImportResult | null>(null);
+  importFields = signal<string[]>([]);
+  // Effective mapping keyed by raw header → canonical field name.
+  importMapping = signal<{ [rawHeader: string]: string }>({});
+  // When true, rows whose ID is already in the DB are UPDATEd in place
+  // instead of being skipped. Lets users iterate on a spreadsheet without
+  // having to manually delete rows between uploads.
+  importReplaceDuplicates = signal(false);
+  isPreviewing = signal(false);
+  isImporting = signal(false);
+  importError = signal<string | null>(null);
+
   testCaseForm: FormGroup;
 
   constructor() {
@@ -1270,6 +1745,10 @@ export class TestCaseManagementComponent implements OnInit {
         Validators.required,
         Validators.pattern(/^[A-Z]{2}_[A-Z_]+_\d+$/)
       ]],
+      title: [''],
+      description: [''],
+      vehicle_model: [''],
+      severity: [''],
       feature: [''],
       priority: [''],
       test_type: [''],
@@ -1292,13 +1771,10 @@ export class TestCaseManagementComponent implements OnInit {
       testsuite_type: ['']
     });
 
-    // Redirect to browse view when selected
-    effect(() => {
-      const view = this.currentView();
-      if (view === 'browse') {
-        this.router.navigate(['/split-view']);
-      }
-    });
+    // The Browse layout is rendered in-place via <app-split-view> below, so
+    // no navigation effect is needed — flipping `currentView` to 'browse'
+    // is enough to swap the body while the management page header stays
+    // perfectly stable.
   }
 
   ngOnInit() {
@@ -1309,6 +1785,16 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
+
+    // Honor a `?view=grid|table|browse` query param so other pages can
+    // deep-link into the user's preferred layout (e.g. the old /split-view
+    // route forwards here with `?view=browse`).
+    this.route.queryParams.subscribe(params => {
+      const requested = params['view'];
+      if (requested === 'grid' || requested === 'table' || requested === 'browse') {
+        this.currentView.set(requested);
+      }
+    });
     
     // Close filter dropdowns when clicking outside. Skip during SSR/prerender
     // where `document` is not defined.
@@ -1611,6 +2097,178 @@ export class TestCaseManagementComponent implements OnInit {
     return 'status-default';
   }
 
+  getSeverityClass(severity: string | undefined): string {
+    if (!severity) return 'severity-default';
+    const s = severity.toLowerCase();
+    if (s.includes('block')) return 'severity-blocker';
+    if (s.includes('crit')) return 'severity-critical';
+    if (s.includes('major') || s.includes('high')) return 'severity-major';
+    if (s.includes('minor') || s.includes('med')) return 'severity-minor';
+    if (s.includes('triv') || s.includes('low')) return 'severity-trivial';
+    return 'severity-default';
+  }
+
+  // ---------------------------------------------------------------------
+  // Excel bulk-import flow
+  // ---------------------------------------------------------------------
+  openImportModal() {
+    this.resetImportState();
+    this.showImportModal.set(true);
+    // Lazily fetch the canonical field list once per modal open so the
+    // mapping <select>s have the latest server-side allow-list.
+    if (this.importFields().length === 0) {
+      this.testCaseService.getImportFields().subscribe({
+        next: (res) => this.importFields.set(res.fields || []),
+        error: () => {
+          // Fall back to a sensible hard-coded list if the endpoint is
+          // unreachable — the user can still pick from these.
+          this.importFields.set([
+            'test_case_id', 'title', 'description', 'vehicle_model', 'severity',
+            'feature', 'priority', 'test_type', 'region', 'brand',
+            'vehicle_variant', 'vehicle_specification', 'env_dependency',
+            'test_objective', 'preconditions', 'procedure', 'expected_behavior',
+            'associated_requirement_id', 'screen_id', 'reference_document',
+            'requirement_type', 'regulation', 'testsuite_type',
+          ]);
+        }
+      });
+    }
+  }
+
+  closeImportModal() {
+    this.showImportModal.set(false);
+    this.resetImportState();
+  }
+
+  private resetImportState() {
+    this.importStep.set('select');
+    this.importFiles.set([]);
+    this.importPreview.set(null);
+    this.importResult.set(null);
+    this.importMapping.set({});
+    this.importReplaceDuplicates.set(false);
+    this.importError.set(null);
+    this.isPreviewing.set(false);
+    this.isImporting.set(false);
+  }
+
+  onImportFilesSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) {
+      this.importFiles.set([]);
+      return;
+    }
+    this.importFiles.set(Array.from(input.files));
+    this.importError.set(null);
+  }
+
+  formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  /** STEP 1 → STEP 2: dry-run the first file to populate the mapping editor. */
+  previewSelectedFile() {
+    const files = this.importFiles();
+    if (files.length === 0) return;
+    this.isPreviewing.set(true);
+    this.importError.set(null);
+    // Preview only the first file — mapping is shared across all files in
+    // the batch, which matches the common case of "same vendor, multiple
+    // monthly exports".
+    this.testCaseService.previewImport(files[0]).subscribe({
+      next: (preview) => {
+        this.importPreview.set(preview);
+        // Seed the mapping from the backend's suggestions so the dropdowns
+        // are pre-filled with sensible defaults.
+        const seed: { [raw: string]: string } = {};
+        preview.sheets.forEach((sheet) => {
+          Object.entries(sheet.suggested_mapping || {}).forEach(([raw, field]) => {
+            if (field) seed[raw] = field;
+          });
+        });
+        this.importMapping.set(seed);
+        this.importStep.set('mapping');
+        this.isPreviewing.set(false);
+      },
+      error: (err) => {
+        this.importError.set(this.formatHttpError(err, 'Preview failed'));
+        this.isPreviewing.set(false);
+      }
+    });
+  }
+
+  /** STEP 1 quick path: skip mapping and rely on auto-detection. */
+  importNow() {
+    const files = this.importFiles();
+    if (files.length === 0) return;
+    this.runImport(files);
+  }
+
+  /** STEP 2: submit the import with the user's confirmed mapping. */
+  importWithMapping() {
+    const files = this.importFiles();
+    if (files.length === 0) return;
+    this.runImport(files, this.importMapping());
+  }
+
+  private runImport(files: File[], mapping?: { [k: string]: string }) {
+    this.isImporting.set(true);
+    this.importError.set(null);
+    const strategy: TestCaseImportDuplicateStrategy =
+      this.importReplaceDuplicates() ? 'replace' : 'skip';
+    this.testCaseService.importTestCases(files, mapping, strategy).subscribe({
+      next: (result) => {
+        this.importResult.set(result);
+        this.importStep.set('result');
+        this.isImporting.set(false);
+      },
+      error: (err) => {
+        this.importError.set(this.formatHttpError(err, 'Import failed'));
+        this.isImporting.set(false);
+      }
+    });
+  }
+
+  backToSelect() {
+    this.importStep.set('select');
+    this.importPreview.set(null);
+    this.importResult.set(null);
+    this.importError.set(null);
+  }
+
+  getMappingValue(rawHeader: string): string {
+    return this.importMapping()[rawHeader] || '';
+  }
+
+  setMappingValue(rawHeader: string, value: string) {
+    const next = { ...this.importMapping() };
+    if (value) {
+      next[rawHeader] = value;
+    } else {
+      delete next[rawHeader];
+    }
+    this.importMapping.set(next);
+  }
+
+  sampleValueFor(sheet: TestCaseImportSheetPreview, columnIndex: number): string | null {
+    for (const row of sheet.sample_rows) {
+      const v = row[columnIndex];
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        return String(v);
+      }
+    }
+    return null;
+  }
+
+  private formatHttpError(err: any, fallback: string): string {
+    if (!err) return fallback;
+    if (err.error?.message) return err.error.message;
+    if (err.message) return err.message;
+    return fallback;
+  }
+
   openCreateModal() {
     this.isEditMode.set(false);
     this.testCaseForm.reset();
@@ -1622,6 +2280,10 @@ export class TestCaseManagementComponent implements OnInit {
     this.currentEditingTestCase.set(testCase);
     this.testCaseForm.patchValue({
       test_case_id: testCase.test_case_id,
+      title: testCase.title || '',
+      description: testCase.description || '',
+      vehicle_model: testCase.vehicle_model || '',
+      severity: testCase.severity || '',
       feature: testCase.feature || '',
       priority: testCase.priority || '',
       test_type: testCase.test_type || '',
@@ -1667,6 +2329,10 @@ export class TestCaseManagementComponent implements OnInit {
       if (currentTestCase?.test_case_id) {
         const updateData: TestCaseUpdateRequest = {
           test_case_id: formData.test_case_id,
+          title: formData.title,
+          description: formData.description,
+          vehicle_model: formData.vehicle_model,
+          severity: formData.severity,
           feature: formData.feature,
           priority: formData.priority,
           test_type: formData.test_type,
@@ -1712,6 +2378,10 @@ export class TestCaseManagementComponent implements OnInit {
     } else {
       const createData: TestCaseCreateRequest = {
         test_case_id: formData.test_case_id,
+        title: formData.title,
+        description: formData.description,
+        vehicle_model: formData.vehicle_model,
+        severity: formData.severity,
         feature: formData.feature,
         priority: formData.priority,
         test_type: formData.test_type,

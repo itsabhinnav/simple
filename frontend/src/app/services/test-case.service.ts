@@ -7,6 +7,10 @@ import { of } from 'rxjs';
 export interface TestCase {
   id?: number;
   test_case_id: string;
+  title?: string;
+  description?: string;
+  vehicle_model?: string;
+  severity?: string;
   reference_document?: string;
   associated_requirement_id?: string;
   screen_id?: string;
@@ -36,6 +40,10 @@ export interface TestCase {
 
 export interface TestCaseCreateRequest {
   test_case_id: string;
+  title?: string;
+  description?: string;
+  vehicle_model?: string;
+  severity?: string;
   reference_document?: string;
   associated_requirement_id?: string;
   screen_id?: string;
@@ -60,6 +68,10 @@ export interface TestCaseCreateRequest {
 
 export interface TestCaseUpdateRequest {
   test_case_id?: string;
+  title?: string;
+  description?: string;
+  vehicle_model?: string;
+  severity?: string;
   reference_document?: string;
   associated_requirement_id?: string;
   screen_id?: string;
@@ -88,6 +100,63 @@ export interface ApiResponse<T> {
   data?: T;
   count?: number;
   error?: string;
+}
+
+/**
+ * Excel import — types returned by /api/test-cases/import/preview and /import.
+ */
+export interface TestCaseImportSheetPreview {
+  sheet: string;
+  target: string | null;
+  row_count_estimate: number;
+  raw_headers: string[];
+  /** Map of raw header → backend's auto-detected canonical field (or null). */
+  suggested_mapping: { [rawHeader: string]: string | null };
+  known_fields: string[];
+  id_field: string | null;
+  required: string[];
+  sample_rows: Array<Array<string | null>>;
+}
+
+export interface TestCaseImportPreview {
+  file: string;
+  sheets: TestCaseImportSheetPreview[];
+}
+
+export interface TestCaseImportSheetResult {
+  sheet: string;
+  target: string;
+  created: number;
+  /** Number of existing rows updated when duplicate_strategy = 'replace'. */
+  updated?: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ row?: number; id?: string; error: string }>;
+}
+
+export interface TestCaseImportFileResult {
+  file: string;
+  created: number;
+  updated?: number;
+  skipped: number;
+  failed: number;
+  sheets: TestCaseImportSheetResult[];
+  errors: Array<{ sheet?: string; row?: number; id?: string; error: string }>;
+}
+
+export interface TestCaseImportResult {
+  files: TestCaseImportFileResult[];
+  totals: { created: number; updated?: number; skipped: number; failed: number };
+}
+
+/** What to do for rows whose ID is already in the DB. */
+export type TestCaseImportDuplicateStrategy = 'skip' | 'replace';
+
+export interface TestCaseImportFieldsResponse {
+  target: string;
+  id_field: string;
+  required: string[];
+  fields: string[];
 }
 
 @Injectable({
@@ -197,6 +266,82 @@ export class TestCaseService {
         catchError(error => {
           console.error('Error updating test case:', error);
           return of(null);
+        })
+      );
+  }
+
+  /**
+   * Excel preview: parse a single workbook and return detected headers,
+   * auto-mapping suggestions, and sample rows so the user can confirm the
+   * mapping before importing 10k+ rows. Does not insert anything.
+   */
+  previewImport(file: File, sampleRows: number = 5): Observable<TestCaseImportPreview> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('sample_rows', String(sampleRows));
+    return this.http
+      .post<ApiResponse<TestCaseImportPreview>>(`${this.baseUrl}/test-cases/import/preview`, form)
+      .pipe(
+        map(response => {
+          if (!response.success || !response.data) {
+            throw new Error(response.message || response.error || 'Preview failed');
+          }
+          return response.data;
+        })
+      );
+  }
+
+  /**
+   * Spreadsheet bulk-import. Pass one or more `.xlsx`, `.xlsm`, or `.csv`
+   * files and an optional `mapping` of {rawHeader: canonicalField}.
+   * Unmapped headers fall back to auto-detection.
+   *
+   * `duplicateStrategy` controls what happens when an incoming row's ID is
+   * already present:
+   *   - `'skip'`    (default) — leave the existing row alone
+   *   - `'replace'` — UPDATE the existing row with the spreadsheet values
+   *
+   * Returns per-sheet/per-file counts (created / updated / skipped / failed).
+   */
+  importTestCases(
+    files: File[],
+    mapping?: { [rawHeader: string]: string },
+    duplicateStrategy: TestCaseImportDuplicateStrategy = 'skip',
+  ): Observable<TestCaseImportResult> {
+    const form = new FormData();
+    files.forEach(f => form.append('files', f));
+    if (mapping && Object.keys(mapping).length > 0) {
+      form.append('mapping', JSON.stringify(mapping));
+    }
+    form.append('duplicate_strategy', duplicateStrategy);
+    return this.http
+      .post<ApiResponse<TestCaseImportResult>>(`${this.baseUrl}/test-cases/import`, form)
+      .pipe(
+        map(response => {
+          if (!response.data) {
+            throw new Error(response.message || response.error || 'Bulk import failed');
+          }
+          // Refresh local cache after a successful import so the table
+          // immediately reflects newly created OR updated rows.
+          const t = response.data.totals;
+          if ((t?.created || 0) > 0 || (t?.updated || 0) > 0) {
+            this.loadTestCases();
+          }
+          return response.data;
+        })
+      );
+  }
+
+  /** Canonical fields for the test_cases target — used by the mapping UI dropdowns. */
+  getImportFields(): Observable<TestCaseImportFieldsResponse> {
+    return this.http
+      .get<ApiResponse<TestCaseImportFieldsResponse>>(`${this.baseUrl}/test-cases/import/fields`)
+      .pipe(
+        map(response => {
+          if (!response.success || !response.data) {
+            throw new Error(response.message || response.error || 'Failed to load fields');
+          }
+          return response.data;
         })
       );
   }

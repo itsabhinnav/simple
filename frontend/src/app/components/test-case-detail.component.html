@@ -57,9 +57,9 @@
             <input 
               type="text" 
               class="card-title editable-title" 
-              [value]="testCase()?.test_objective || ''"
-              (input)="onFieldChange('test_objective', $any($event.target).value)"
-              placeholder="Test objective">
+              [value]="testCase()?.title || testCase()?.test_objective || ''"
+              (input)="onFieldChange('title', $any($event.target).value)"
+              placeholder="Test case title">
             <span class="req-id">{{ testCase()?.test_case_id }}</span>
           </div>
           <div class="badges-group">
@@ -130,8 +130,41 @@
             placeholder="Enter expected behavior..."></textarea>
         </div>
 
+        <!-- Description -->
+        <div class="detail-section">
+          <h3 class="section-title">Description</h3>
+          <textarea
+            class="section-content editable-textarea"
+            [value]="testCase()?.description || ''"
+            (input)="onFieldChange('description', $any($event.target).value)"
+            placeholder="Plain-language description of what this test covers..."></textarea>
+        </div>
+
         <!-- Metadata -->
         <div class="detail-meta">
+          <div class="meta-item">
+            <span class="meta-label">Vehicle Model:</span>
+            <input
+              type="text"
+              class="meta-value editable-input"
+              [value]="testCase()?.vehicle_model || ''"
+              (input)="onFieldChange('vehicle_model', $any($event.target).value)"
+              placeholder="e.g., Volvo EX90, Polestar 3">
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Severity:</span>
+            <select
+              class="meta-value editable-input"
+              [value]="testCase()?.severity || ''"
+              (change)="onFieldChange('severity', $any($event.target).value)">
+              <option value="">Select severity</option>
+              <option value="Blocker">Blocker</option>
+              <option value="Critical">Critical</option>
+              <option value="Major">Major</option>
+              <option value="Minor">Minor</option>
+              <option value="Trivial">Trivial</option>
+            </select>
+          </div>
           <div class="meta-item" *ngIf="testCase()?.requirement_type">
             <span class="meta-label">Requirement Type:</span>
             <span class="meta-value">{{ testCase()?.requirement_type }}</span>

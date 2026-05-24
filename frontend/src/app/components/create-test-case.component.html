@@ -59,8 +59,8 @@
               <input 
                 type="text" 
                 class="card-title editable-title" 
-                formControlName="test_objective"
-                placeholder="Test objective">
+                formControlName="title"
+                placeholder="Test case title (e.g., Verify radio playback on Pixel auto)">
               <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
                 <span class="req-id">{{ testCaseForm.get('test_case_id')?.value || 'Generating ID...' }}</span>
                 <span *ngIf="isGeneratingId()" style="color: #5f6368; font-size: 12px;">Generating...</span>
@@ -93,6 +93,24 @@
 
         <!-- Card Body -->
         <div class="card-body">
+          <!-- Description -->
+          <div class="detail-section">
+            <h3 class="section-title">Description</h3>
+            <textarea 
+              class="section-content editable-textarea"
+              formControlName="description"
+              placeholder="Plain-language description of what this test covers..."></textarea>
+          </div>
+
+          <!-- Test Objective -->
+          <div class="detail-section">
+            <h3 class="section-title">Test Objective</h3>
+            <textarea 
+              class="section-content editable-textarea"
+              formControlName="test_objective"
+              placeholder="Concrete objective for this test..."></textarea>
+          </div>
+
           <!-- Preconditions -->
           <div class="detail-section">
             <h3 class="section-title">Preconditions</h3>
@@ -122,6 +140,27 @@
 
           <!-- Metadata -->
           <div class="detail-meta">
+            <div class="meta-item">
+              <span class="meta-label">Vehicle Model:</span>
+              <input 
+                type="text" 
+                class="meta-value editable-input"
+                formControlName="vehicle_model"
+                placeholder="e.g., Volvo EX90, Polestar 3, Tata Curvv.ev">
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Severity:</span>
+              <select 
+                class="meta-value editable-input"
+                formControlName="severity">
+                <option value="">Select severity</option>
+                <option value="Blocker">Blocker</option>
+                <option value="Critical">Critical</option>
+                <option value="Major">Major</option>
+                <option value="Minor">Minor</option>
+                <option value="Trivial">Trivial</option>
+              </select>
+            </div>
             <div class="meta-item">
               <span class="meta-label">Feature:</span>
               <input 

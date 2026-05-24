@@ -32,6 +32,10 @@ export class CreateTestCaseComponent implements OnInit {
   constructor() {
     this.testCaseForm = this.formBuilder.group({
       test_case_id: ['', [Validators.required]],
+      title: [''],
+      description: [''],
+      vehicle_model: [''],
+      severity: [''],
       feature: [''],
       priority: [''],
       test_type: [''],
@@ -98,6 +102,10 @@ export class CreateTestCaseComponent implements OnInit {
     const formValue = this.testCaseForm.value;
     const createRequest: TestCaseCreateRequest = {
       test_case_id: formValue.test_case_id,
+      title: formValue.title,
+      description: formValue.description,
+      vehicle_model: formValue.vehicle_model,
+      severity: formValue.severity,
       feature: formValue.feature,
       priority: formValue.priority,
       test_type: formValue.test_type,

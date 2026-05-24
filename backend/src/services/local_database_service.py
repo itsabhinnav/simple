@@ -64,11 +64,17 @@ class LocalDatabaseService:
                 )
             """
             
-            # Create test_cases table
+            # Create test_cases table. NOTE: when adding new columns here, also
+            # add them to `_test_case_column_additions` below so existing
+            # databases get the columns via ALTER TABLE on the next startup.
             create_test_cases_table = f"""
                 CREATE TABLE IF NOT EXISTS {test_cases_table} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     test_case_id TEXT UNIQUE NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    vehicle_model TEXT,
+                    severity TEXT,
                     reference_document TEXT,
                     associated_requirement_id TEXT,
                     screen_id TEXT,
@@ -188,6 +194,20 @@ class LocalDatabaseService:
             self.execute_query(create_sync_status_table, "default")
             self.execute_query(create_database_metadata_table, "default")
             
+            # Idempotent column additions for existing databases that pre-date
+            # newer columns. SQLite < 3.35 does not support `ADD COLUMN IF NOT
+            # EXISTS`, so we ask the table for its current columns first and
+            # only run ALTER for columns that are missing.
+            self._add_missing_columns(
+                test_cases_table,
+                {
+                    "title": "TEXT",
+                    "description": "TEXT",
+                    "vehicle_model": "TEXT",
+                    "severity": "TEXT",
+                },
+            )
+            
             # Initialize database version if not exists
             self.execute_query("""
                 INSERT OR IGNORE INTO database_metadata (metadata_key, metadata_value)
@@ -200,6 +220,46 @@ class LocalDatabaseService:
         except Exception as e:
             logger.error(f"Failed to ensure local tables exist: {e}")
             return False
+
+    def _add_missing_columns(self, table_name: str, columns: Dict[str, str]) -> None:
+        """Add columns to an existing table when they do not yet exist.
+
+        SQLite does not have `ADD COLUMN IF NOT EXISTS`, so we query the
+        existing schema with PRAGMA and only run ALTER for missing columns.
+        Idempotent; safe to run on every startup.
+
+        We open a direct sqlite3 connection here because the generic
+        `execute_query` wrapper only fetches rows when the query starts with
+        `SELECT`, so PRAGMA results would otherwise come back empty.
+        """
+        try:
+            conn = sqlite3.connect(str(self.local_db_path))
+            try:
+                cursor = conn.cursor()
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                existing = {row[1] for row in cursor.fetchall()}  # row[1] is the column name
+                for column, column_type in columns.items():
+                    if column in existing:
+                        continue
+                    try:
+                        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column} {column_type}")
+                        conn.commit()
+                        logger.info(f"Migration: added column {table_name}.{column} ({column_type})")
+                    except sqlite3.OperationalError as alter_exc:
+                        # Either the column already exists (race) or some other
+                        # benign mismatch — log but don't block startup.
+                        if "duplicate column" in str(alter_exc).lower():
+                            logger.debug(
+                                f"Migration: column {table_name}.{column} already exists, skipping"
+                            )
+                        else:
+                            logger.warning(
+                                f"Migration: failed to add column {table_name}.{column}: {alter_exc}"
+                            )
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning(f"Migration: column-addition check failed for {table_name}: {exc}")
     
     def get_database_version(self) -> int:
         """Get the current database version"""

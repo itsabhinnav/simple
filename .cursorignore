@@ -1,0 +1,114 @@
+# Block Package Manager Locks & Dependency Trees
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+vendor/
+.gradle/
+.cargo/
+
+# Block Build Artifacts, Cache, & Compiled Code
+dist/
+build/
+out/
+.next/
+.nuxt/
+bin/
+obj/
+*.target
+*.exe
+*.dll
+*.so
+*.dylib
+.cache/
+*.pyc
+__pycache__/
+
+# Block Massive Metadata, IDEs & Version Control Logs
+.git/
+.svn/
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Block Heavy Media, Assets & Design Files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.mp4
+*.mp3
+*.wav
+*.pdf
+*.ttf
+*.woff
+*.woff2
+assets/
+public/
+
+# Block Logs, Spools, and Data Dumps
+*.log
+*.sqlite
+*.db
+*.json
+*.csv
+*.tsv
+*.xml
+# Optional: If you need to edit specific configs, comment out line below
+config/
+
+# ==========================================
+# 1. Angular & Frontend Ignored Files
+# ==========================================
+**/node_modules/
+**/.angular/
+**/dist/
+**/out-tsc/
+**/.sass-cache/
+
+# Block Frontend Dependency Lockfiles
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# Block static UI asset assets from burning vision/text tokens
+**/src/assets/
+**/*.svg
+**/*.png
+**/*.jpg
+**/*.ico
+**/*.gif
+
+# ==========================================
+# 2. Flask & Python Ignored Files
+# ==========================================
+**/.venv/
+**/venv/
+**/env/
+**/ENV/
+**/.pytest_cache/
+**/.htmlcov/
+**/htmlcov/
+
+# Python compiled code and cache caching structures
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.db
+**/*.sqlite
+
+# ==========================================
+# 3. Global System & Log Clutter
+# ==========================================
+**/.git/
+**/.vscode/
+**/.idea/
+**/*.log

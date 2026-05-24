@@ -7,6 +7,10 @@ class TestCaseSchema(BaseModel):
     """Schema for test case data validation"""
     id: Optional[int] = None
     test_case_id: str = Field(..., min_length=1, max_length=100)
+    title: Optional[str] = Field(None, max_length=500)
+    description: Optional[str] = Field(None, max_length=5000)
+    vehicle_model: Optional[str] = Field(None, max_length=200)
+    severity: Optional[str] = Field(None, max_length=50)
     reference_document: Optional[str] = Field(None, max_length=500)
     associated_requirement_id: Optional[str] = Field(None, max_length=500)
     screen_id: Optional[str] = Field(None, max_length=100)
@@ -34,6 +38,10 @@ class TestCaseSchema(BaseModel):
 class TestCaseCreateSchema(BaseModel):
     """Schema for creating a new test case"""
     test_case_id: str = Field(..., min_length=1, max_length=100)
+    title: Optional[str] = Field(None, max_length=500)
+    description: Optional[str] = Field(None, max_length=5000)
+    vehicle_model: Optional[str] = Field(None, max_length=200)
+    severity: Optional[str] = Field(None, max_length=50)
     reference_document: Optional[str] = Field(None, max_length=500)
     associated_requirement_id: Optional[str] = Field(None, max_length=500)
     screen_id: Optional[str] = Field(None, max_length=100)
