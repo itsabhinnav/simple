@@ -14,13 +14,24 @@ import { CreateDesignTicket } from './components/create-design-ticket/create-des
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { SpecManagementComponent } from './components/spec-management.component';
+import { APP_SETTINGS } from './app-settings';
+
+// When auth is disabled, /login and /forgot-password are meaningless. Redirect
+// them to the dashboard so users (or bookmarks/links) don't land on inert
+// auth screens.
+const loginRoute = APP_SETTINGS.auth.enabled
+  ? { path: 'login', component: DashboardComponent }
+  : { path: 'login', redirectTo: '', pathMatch: 'full' as const };
+
+const forgotPasswordRoute = APP_SETTINGS.auth.enabled
+  ? { path: 'forgot-password', component: ForgotPasswordComponent }
+  : { path: 'forgot-password', redirectTo: '', pathMatch: 'full' as const };
 
 export const routes: Routes = [
   // Authenticated dashboard
   { path: '', component: DashboardComponent, canActivate: [AuthGuard] },
-  // Login route renders the same DashboardComponent (shows only login form)
-  { path: 'login', component: DashboardComponent },
-  { path: 'forgot-password', component: ForgotPasswordComponent },
+  loginRoute,
+  forgotPasswordRoute,
   { path: 'requirements', component: RequirementsComponent, canActivate: [AuthGuard] },
   { path: 'requirements/create', component: CreateRequirementComponent, canActivate: [AuthGuard] },
   { path: 'requirements/:id', component: RequirementDetailComponent, canActivate: [AuthGuard] },

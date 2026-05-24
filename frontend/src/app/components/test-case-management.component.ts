@@ -1,5 +1,5 @@
-import { Component, OnInit, inject, signal, effect, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, signal, effect, computed, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { TestCaseService, TestCase, TestCaseCreateRequest, TestCaseUpdateRequest } from '../services/test-case.service';
@@ -1182,6 +1182,7 @@ export class TestCaseManagementComponent implements OnInit {
   private formBuilder = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   // Signals for reactive state management
   testCases = signal<TestCase[]>([]);
@@ -1309,13 +1310,16 @@ export class TestCaseManagementComponent implements OnInit {
     // Load initial data
     this.loadTestCases();
     
-    // Close filter dropdowns when clicking outside
-    document.addEventListener('click', (event) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.filter-panel') && !target.closest('.filter-dropdown') && !target.closest('.filter-btn-blue') && !target.closest('.filter-btn-more')) {
-        this.activeFilter.set('');
-      }
-    });
+    // Close filter dropdowns when clicking outside. Skip during SSR/prerender
+    // where `document` is not defined.
+    if (this.isBrowser) {
+      document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.filter-panel') && !target.closest('.filter-dropdown') && !target.closest('.filter-btn-blue') && !target.closest('.filter-btn-more')) {
+          this.activeFilter.set('');
+        }
+      });
+    }
   }
 
   loadTestCases() {

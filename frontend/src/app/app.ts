@@ -27,6 +27,9 @@ export class App implements OnInit {
   private testCaseService = inject(TestCaseService);
   private designTicketService = inject(DesignTicketService);
   translationService = inject(TranslationService);
+
+  /** Mirror of AuthService.authEnabled so templates can hide login/logout UI. */
+  protected readonly authEnabled = this.authService.authEnabled;
   
   message = signal('Loading...');
   currentUser = signal<User | null>(null);
@@ -194,7 +197,9 @@ export class App implements OnInit {
   }
 
   isDashboardPage(): boolean {
-    const url = window.location.pathname;
+    // Use Angular's Router instead of window.location so this also works during
+    // server-side prerender (where `window` is undefined).
+    const url = this.router.url.split('?')[0].split('#')[0];
     return url === '/' || url === '';
   }
 }

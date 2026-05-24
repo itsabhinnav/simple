@@ -215,13 +215,22 @@ class ApplicationContainer:
                 factory=lambda: LocalDatabaseService()
             )
         
-        # Register Hybrid database service
+        # Register Hybrid database service. When database.git_sync_enabled is
+        # false the service runs in local-only mode and skips every remote/git
+        # operation, which is what we want for server-hosted deployments.
+        git_sync_enabled = bool(
+            self._config_manager.get_config("database.git_sync_enabled", True)
+        )
+        logger.info(
+            f"Hybrid database service configured with git_sync_enabled={git_sync_enabled}"
+        )
         self.container.register_singleton(
             HybridDatabaseService,
             HybridDatabaseService,
             factory=lambda: HybridDatabaseService(
                 local_db_service=self.container.get(LocalDatabaseService),
-                remote_db_service=self.container.get(GitDatabaseService)
+                remote_db_service=self.container.get(GitDatabaseService),
+                git_sync_enabled=git_sync_enabled,
             )
         )
         
@@ -327,8 +336,11 @@ class ApplicationContainer:
                     else:
                         logger.info("Storage provider health check passed")
             
-            # Initialize Git database service if using Git
-            if self._config_manager.get_storage_provider() == "git":
+            # Initialize Git database service if using Git AND git sync is enabled
+            if (
+                self._config_manager.get_storage_provider() == "git"
+                and bool(self._config_manager.get_config("database.git_sync_enabled", True))
+            ):
                 git_db_service = self.container.get(GitDatabaseService)
                 if hasattr(git_db_service, 'initialize'):
                     init_success = git_db_service.initialize()
@@ -336,6 +348,8 @@ class ApplicationContainer:
                         logger.warning("Git database service initialization failed")
                     else:
                         logger.info("Git database service initialized successfully")
+            else:
+                logger.info("Skipping git database service initialization (sync disabled or non-git provider)")
             
             logger.info("Configuration-based application container initialized successfully")
             

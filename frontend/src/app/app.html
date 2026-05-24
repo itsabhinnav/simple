@@ -95,7 +95,7 @@
             </div>
           </div>
 
-          <button class="btn-logout" (click)="logout()">{{ 'nav.logout' | translate }}</button>
+          <button *ngIf="authEnabled" class="btn-logout" (click)="logout()">{{ 'nav.logout' | translate }}</button>
         </div>
       </div>
     </div>

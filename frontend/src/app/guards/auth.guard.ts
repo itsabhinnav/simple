@@ -10,6 +10,12 @@ export class AuthGuard implements CanActivate {
   private router = inject(Router);
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
+    // When auth is globally disabled, AuthService.isAuthenticated() already
+    // returns true; this branch keeps the intent explicit for readers.
+    if (!this.authService.authEnabled) {
+      return true;
+    }
+
     if (this.authService.isAuthenticated()) {
       return true;
     }

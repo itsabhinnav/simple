@@ -11,11 +11,24 @@ logger = get_logger(__name__)
 
 
 class HybridDatabaseService:
-    """Hybrid database service managing both local and remote databases"""
+    """Hybrid database service managing both local and remote databases.
+
+    When ``git_sync_enabled`` is ``False`` the service degrades into a
+    local-only mode: all remote initialization, startup sync, the periodic
+    sync worker, and per-write commits to the Git workspace are skipped.
+    Reads and writes still go through the local SQLite database, so callers
+    do not need to know whether sync is on or off.
+    """
     
-    def __init__(self, local_db_service: LocalDatabaseService, remote_db_service: GitDatabaseService):
+    def __init__(
+        self,
+        local_db_service: LocalDatabaseService,
+        remote_db_service: GitDatabaseService,
+        git_sync_enabled: bool = True,
+    ):
         self.local_db = local_db_service
         self.remote_db = remote_db_service
+        self.git_sync_enabled = bool(git_sync_enabled)
         
         # Configuration
         self.sync_interval = 300  # 5 minutes in seconds
@@ -26,10 +39,17 @@ class HybridDatabaseService:
         self.sync_running = False
         self.last_sync_time = None
         
-        logger.info("Hybrid database service initialized")
+        logger.info(
+            "Hybrid database service initialized (git_sync_enabled=%s)",
+            self.git_sync_enabled,
+        )
     
     def initialize(self) -> bool:
-        """Initialize both local and remote databases"""
+        """Initialize the database service.
+
+        Always initializes the local database. Only touches the remote/git
+        side when ``git_sync_enabled`` is true.
+        """
         try:
             logger.info("Initializing hybrid database service...")
             
@@ -37,6 +57,13 @@ class HybridDatabaseService:
             if not self.local_db.initialize():
                 logger.error("Failed to initialize local database")
                 return False
+            
+            if not self.git_sync_enabled:
+                logger.info(
+                    "Git sync disabled - skipping remote init, startup sync, "
+                    "and the periodic sync worker. Operating in local-only mode."
+                )
+                return True
             
             # Initialize remote database
             if not self.remote_db.initialize():
@@ -59,6 +86,9 @@ class HybridDatabaseService:
     
     def start_periodic_sync(self):
         """Start the periodic synchronization thread"""
+        if not self.git_sync_enabled:
+            logger.debug("start_periodic_sync skipped: git sync is disabled")
+            return
         if self.sync_thread is None or not self.sync_thread.is_alive():
             self.sync_running = True
             self.sync_thread = threading.Thread(target=self._sync_worker, daemon=True)
@@ -174,6 +204,9 @@ class HybridDatabaseService:
     
     def sync_local_to_remote(self):
         """Synchronize local database to remote (periodic sync)"""
+        if not self.git_sync_enabled:
+            logger.debug("sync_local_to_remote skipped: git sync is disabled")
+            return
         try:
             logger.info("Syncing local database to remote...")
             
@@ -212,6 +245,9 @@ class HybridDatabaseService:
     
     def sync_remote_to_local(self):
         """Synchronize remote database to local (periodic sync for reads)"""
+        if not self.git_sync_enabled:
+            logger.debug("sync_remote_to_local skipped: git sync is disabled")
+            return
         try:
             logger.info("Syncing remote database to local...")
             
@@ -378,8 +414,22 @@ class HybridDatabaseService:
             }
     
     def _handle_write_query(self, query: str, database_name: str, username: str = None, params: tuple = ()) -> Dict[str, Any]:
-        """Handle write queries - execute on LOCAL database first, then sync to remote"""
+        """Handle write queries - execute on LOCAL database, then sync to remote when enabled."""
         try:
+            # When git sync is disabled we run a fast local-only write path:
+            # execute on the local DB, bump the version, drop relevant cache
+            # entries, and skip every remote/git operation.
+            if not self.git_sync_enabled:
+                result = self.local_db.execute_query(query, database_name, params=params)
+                if result.get("success"):
+                    try:
+                        new_version = self.local_db.increment_database_version()
+                        logger.debug(f"Database version updated to: {new_version}")
+                    except Exception as version_error:
+                        logger.warning(f"Failed to bump database version: {version_error}")
+                    self._clear_relevant_cache(query)
+                return result
+
             # Before write: check if remote has newer changes that need to be synced first
             try:
                 import sqlite3
@@ -606,6 +656,9 @@ class HybridDatabaseService:
     
     def force_sync(self) -> bool:
         """Force immediate synchronization (local → remote)"""
+        if not self.git_sync_enabled:
+            logger.info("force_sync no-op: git sync is disabled")
+            return True
         try:
             logger.info("Forcing immediate synchronization...")
             self.sync_local_to_remote()

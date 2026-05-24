@@ -13,5 +13,5 @@ export const AUTH_DISABLED_USER = {
   email: 'workspace@sakura.local',
   first_name: 'Workspace',
   last_name: 'User',
-  role: 'admin'
+  role: 'user'
 } as const;

@@ -231,22 +231,26 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
   `,
   styles: [`
     .split-view-container {
-      height: calc(100vh - 100px);
+      /* Use most of the viewport so the list panel has room for ~10 items.
+         The 60px reserves space for the app header above the router outlet. */
+      height: calc(100vh - 60px);
+      min-height: 720px;
       display: flex;
       flex-direction: column;
-      padding: 20px;
+      padding: 12px 16px;
     }
 
     .management-header {
       background-color: white;
       border: 1px solid #dadce0;
-      padding: 20px;
+      padding: 10px 16px;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .header-left {
@@ -283,7 +287,7 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
 
     .page-title {
       margin: 0;
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -296,13 +300,13 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
     }
 
     .view-btn {
-      padding: 10px 20px;
+      padding: 6px 16px;
       border: 1px solid #dadce0;
       border-radius: 24px;
       background: white;
       color: #5f6368;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       transition: all 0.2s;
     }
 
@@ -320,68 +324,66 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
     .split-content {
       display: grid;
       grid-template-columns: 450px 1fr;
-      gap: 20px;
+      gap: 12px;
       flex: 1;
+      min-height: 0; /* allow the inner list to scroll instead of pushing the page */
       overflow: hidden;
       border: 1px solid #dadce0;
       border-radius: 8px;
       background: #f5f5f5;
-      padding: 20px;
+      padding: 12px;
     }
 
     .list-panel {
       background: white;
-      border: 2px solid #333;
+      border: 1px solid #dadce0;
       border-radius: 8px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      min-height: 0;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .list-header {
-      padding: 16px;
+      padding: 10px 12px;
       border-bottom: 2px solid #dadce0;
       background: white;
       margin: 0;
+      flex-shrink: 0;
     }
 
     .list-header h3 {
-      margin: 0 0 12px 0;
-      font-size: 16px;
+      margin: 0 0 8px 0;
+      font-size: 14px;
       font-weight: 600;
-    }
-
-    .list-items {
-      padding: 8px 0;
-      overflow-y: auto;
-      flex: 1;
     }
 
     .search-input {
       width: 100%;
-      padding: 8px 12px;
+      padding: 6px 10px;
       border: 1px solid #ddd;
       border-radius: 6px;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .list-items {
-      padding: 8px 0;
+      padding: 6px 0;
       overflow-y: auto;
       flex: 1;
+      min-height: 0;
     }
 
+    /* Compact row layout: each .list-item is ~58-64px tall so the list panel
+       comfortably shows 10+ rows at a typical 1080p viewport. */
     .list-item {
-      padding: 16px;
+      padding: 8px 10px;
       border: 1px solid #dadce0;
       cursor: pointer;
       transition: all 0.2s;
       background: white;
-      margin-bottom: 8px;
+      margin: 0 6px 4px 6px;
       border-radius: 6px;
-      margin-left: 8px;
-      margin-right: 8px;
     }
 
     .list-item:hover {
@@ -398,35 +400,42 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
     .item-id {
       font-weight: 600;
       color: #1a73e8;
-      font-size: 13px;
-      margin-bottom: 6px;
+      font-size: 12px;
+      margin-bottom: 2px;
+      line-height: 1.2;
     }
 
     .item-title {
-      font-size: 15px;
+      font-size: 13px;
       color: #333;
-      margin-bottom: 10px;
-      line-height: 1.5;
+      margin-bottom: 4px;
+      line-height: 1.25;
       font-weight: 500;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .item-meta {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
-      margin-top: 8px;
+      margin-top: 2px;
     }
 
     .badge {
-      padding: 4px 8px;
-      border-radius: 12px;
-      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 10px;
       font-weight: 500;
+      line-height: 1.3;
     }
 
     .detail-panel {
       background: white;
-      border: 2px solid #333;
+      border: 1px solid #dadce0;
       border-radius: 8px;
       overflow-y: auto;
       padding: 20px;

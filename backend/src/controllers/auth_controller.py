@@ -415,6 +415,14 @@ class AuthController:
         try:
             if not git_token_encrypted:
                 return
+
+            # Respect the global git-sync flag - in local-only/server-hosted
+            # deployments we must not spawn any thread that talks to Git.
+            from src.infrastructure.dependency_injection import get_hybrid_database_service
+            hybrid_service = get_hybrid_database_service()
+            if not getattr(hybrid_service, 'git_sync_enabled', True):
+                logger.debug("Skipping remote sync trigger: git sync is disabled")
+                return
             
             # Decrypt Git token
             git_token = fernet.decrypt(git_token_encrypted.encode('utf-8')).decode('utf-8')

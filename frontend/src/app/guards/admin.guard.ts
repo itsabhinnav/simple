@@ -10,7 +10,10 @@ export class AdminGuard implements CanActivate {
   private router = inject(Router);
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    // First check if user is authenticated
+    // First check if user is authenticated. When auth is disabled,
+    // AuthService.isAuthenticated() returns true via the synthetic workspace
+    // user, so this still passes — but the role check below will still
+    // correctly block non-admin users (including the synthetic one).
     if (!this.authService.isAuthenticated()) {
       this.router.navigate(['/login']);
       return false;

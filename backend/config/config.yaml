@@ -11,6 +11,10 @@ database:
   
   # Hybrid database settings
   hybrid_mode: true
+  # Disable git sync to run as a server-hosted, local-DB-only deployment.
+  # When false, HybridDatabaseService skips remote init, startup sync, the
+  # periodic sync worker, and per-write commits to the Git workspace.
+  git_sync_enabled: false
   sync_interval: 300  # seconds
   cache_expiry: 3600  # seconds
   local_db_path: data/local/dev/database/sakura_db.db
