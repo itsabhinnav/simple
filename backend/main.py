@@ -63,8 +63,14 @@ def create_app() -> Flask:
     # Disable strict slashes to prevent redirects
     app.url_map.strict_slashes = False
     
-    # Configure CORS
-    cors_origins = ["*"] if app.debug else os.environ.get('ALLOWED_ORIGINS', 'https://sakura.company.com').split(',')
+    # Determine development mode from environment (app.debug is not yet set at this point
+    # because Flask only flips it when app.run(debug=True) is called later in main()).
+    is_dev = os.environ.get('FLASK_ENV', 'development') == 'development'
+    app.config['SAKURA_IS_DEV'] = is_dev
+    
+    # Configure CORS. In development, allow any origin so the Angular dev server
+    # (http://localhost:4200) can talk to the API on http://localhost:5000.
+    cors_origins = ["*"] if is_dev else os.environ.get('ALLOWED_ORIGINS', 'https://sakura.company.com').split(',')
     CORS(app, origins=cors_origins, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
          allow_headers=["Content-Type", "Authorization"], supports_credentials=True)
     

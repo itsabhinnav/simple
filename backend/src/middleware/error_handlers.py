@@ -175,8 +175,11 @@ def setup_api_documentation(app: Flask) -> None:
 
 def setup_security_headers(app: Flask) -> None:
     """Setup secure headers using Flask-Talisman"""
-    # Force HTTPS only if not in development and not explicitly disabled
-    is_dev = app.debug
+    # Force HTTPS only if not in development and not explicitly disabled.
+    # app.debug is not yet True at middleware-setup time (Flask flips it inside
+    # app.run(debug=True)), so prefer the SAKURA_IS_DEV flag stamped in main.py
+    # and fall back to FLASK_ENV to avoid silently redirecting localhost to HTTPS.
+    is_dev = bool(app.config.get('SAKURA_IS_DEV')) or os.environ.get('FLASK_ENV', 'development') == 'development' or app.debug
     force_https = os.environ.get('FORCE_HTTPS', str(not is_dev)).lower() == 'true'
     
     Talisman(
