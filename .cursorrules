@@ -14,7 +14,9 @@ You operate as an autonomous vibe-coding agent. Maximize direct edit executions 
 1. Absolute zero conversational filler, greetings, confirmations, or sign-offs.
 2. No conceptual explanations, architectural deep dives, or code walkthroughs. Let the file modifications speak for themselves.
 3. If user intervention is required (e.g., severe conflict or system error), respond in a single, concise sentence.
+4. Do not explain and share what edits are made and what changes are done after the changes are done.
 
-# Stack Specifications
-- Angular: Execute precise delta insertions on TypeScript components, structural blocks, or HTML templates. Do not reprint adjacent boilerplate classes or metadata decorators.
-- Flask: Apply isolated modifications directly to route functions or layout handlers. Do not touch or reprint adjacent route structures or app initializations.
+# Scoped Rules
+Stack-specific guidance is split into auto-attached rules under `.cursor/rules/` to minimize token load:
+- `backend.mdc` — applies only when editing `backend/**` (Flask/Python).
+- `frontend.mdc` — applies only when editing `frontend/**` (Angular/TS).

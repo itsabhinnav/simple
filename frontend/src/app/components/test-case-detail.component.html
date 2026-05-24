@@ -1,35 +1,29 @@
 <div class="detail-container">
-  <!-- Header -->
-  <header class="detail-header">
-    <div class="header-left">
-      <nav class="breadcrumb">
-        <a routerLink="/" class="breadcrumb-link">
-          <i class="icon-database"></i>
-          Dashboard
-        </a>
-        <span class="breadcrumb-separator">›</span>
-        <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
-        <span class="breadcrumb-separator">›</span>
-        <span class="breadcrumb-current">{{ testCase()?.test_case_id || 'Detail' }}</span>
-      </nav>
-      <h1 class="page-title">
-        <i class="icon-test-cases"></i>
-        Test Case Details
-      </h1>
-    </div>
-    <div class="header-actions">
-      <div class="save-status" *ngIf="saveStatus() !== 'idle'">
-        <span *ngIf="saveStatus() === 'saving'" class="status-saving">💾 Saving...</span>
-        <span *ngIf="saveStatus() === 'saved'" class="status-saved">✓ Saved</span>
-        <span *ngIf="saveStatus() === 'error'" class="status-error">✗ Error saving</span>
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <nav class="breadcrumb">
+      <a routerLink="/" class="breadcrumb-link">
+        <span class="breadcrumb-icon">🏠</span>
+        Dashboard
+      </a>
+      <span class="breadcrumb-separator">/</span>
+      <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
+      <span class="breadcrumb-separator">/</span>
+      <span class="breadcrumb-current">{{ testCase()?.test_case_id || 'Detail' }}</span>
+    </nav>
+
+    <div class="top-bar-actions">
+      <div class="save-status-pill" *ngIf="saveStatus() !== 'idle'" [attr.data-state]="saveStatus()">
+        <span *ngIf="saveStatus() === 'saving'" class="status-dot"></span>
+        <span *ngIf="saveStatus() === 'saving'">Saving…</span>
+        <span *ngIf="saveStatus() === 'saved'">✓ All changes saved</span>
+        <span *ngIf="saveStatus() === 'error'">✗ Error saving</span>
       </div>
-      <button class="back-btn" (click)="goBack()" title="Back">
-        <i class="icon-back"></i>
-        Back
+      <button class="btn btn-ghost" (click)="goBack()" title="Back">
+        <span>←</span> Back
       </button>
-      <button class="delete-btn" (click)="deleteTestCase()" title="Delete">
-        <i class="icon-delete"></i>
-        Delete
+      <button class="btn btn-danger" (click)="deleteTestCase()" title="Delete">
+        <span>🗑</span> Delete
       </button>
     </div>
   </header>
@@ -37,204 +31,508 @@
   <!-- Loading State -->
   <div *ngIf="isLoading()" class="loading-container">
     <div class="spinner"></div>
-    <p>Loading test case...</p>
+    <p>Loading test case…</p>
   </div>
 
   <!-- Error State -->
   <div *ngIf="error() && !isLoading()" class="error-container">
-    <i class="icon-error"></i>
+    <div class="error-icon">⚠️</div>
     <p>{{ error() }}</p>
     <button (click)="loadTestCase(testCaseId()!)" class="retry-btn">Retry</button>
   </div>
 
   <!-- Test Case Detail -->
   <div *ngIf="testCase() && !isLoading()" class="detail-content">
-    <div class="detail-card">
-      <!-- Card Header -->
-      <div class="card-header">
-        <div class="header-top">
-          <div class="title-group">
-            <input 
-              type="text" 
-              class="card-title editable-title" 
-              [value]="testCase()?.title || testCase()?.test_objective || ''"
-              (input)="onFieldChange('title', $any($event.target).value)"
-              placeholder="Test case title">
-            <span class="req-id">{{ testCase()?.test_case_id }}</span>
+
+    <!-- HERO SUMMARY CARD -->
+    <section class="hero-card">
+      <div class="hero-top">
+        <div class="hero-id-block">
+          <div class="hero-id-pill">
+            <span class="hero-id-icon">🧪</span>
+            <div class="hero-id-text">
+              <span class="hero-id-label">TEST CASE</span>
+              <span class="hero-id-value">{{ testCase()?.test_case_id }}</span>
+            </div>
           </div>
-          <div class="badges-group">
-            <select 
-              class="priority-badge editable-select"
+        </div>
+
+        <div class="hero-badges">
+          <div class="hero-badge-group">
+            <label class="hero-badge-label">Priority</label>
+            <select
+              class="hero-badge editable-select"
               [value]="testCase()?.priority || ''"
               (change)="onFieldChange('priority', $any($event.target).value)"
               [class]="getPriorityClass(testCase()?.priority || '')">
-              <option value="">Priority</option>
-              <option value="P1">P1</option>
-              <option value="P2">P2</option>
-              <option value="P3">P3</option>
+              <option value="">—</option>
+              <option value="P1">P1 · High</option>
+              <option value="P2">P2 · Medium</option>
+              <option value="P3">P3 · Low</option>
             </select>
-            <select 
-              class="status-badge editable-select"
+          </div>
+
+          <div class="hero-badge-group">
+            <label class="hero-badge-label">Test Type</label>
+            <select
+              class="hero-badge editable-select"
               [value]="testCase()?.test_type || ''"
               (change)="onFieldChange('test_type', $any($event.target).value)"
               [class]="getTypeClass(testCase()?.test_type || '')">
-              <option value="">Test Type</option>
-              <option value="Positive">Positive</option>
-              <option value="Negative">Negative</option>
-              <option value="Boundary">Boundary</option>
-              <option value="Performance">Performance</option>
+              <option value="">—</option>
+              <option value="Positive">✓ Positive</option>
+              <option value="Negative">✗ Negative</option>
+              <option value="Boundary">↔ Boundary</option>
+              <option value="Performance">⚡ Performance</option>
+            </select>
+          </div>
+
+          <div class="hero-badge-group">
+            <label class="hero-badge-label">Severity</label>
+            <select
+              class="hero-badge editable-select severity-select"
+              [value]="testCase()?.severity || ''"
+              (change)="onFieldChange('severity', $any($event.target).value)"
+              [attr.data-severity]="testCase()?.severity || ''">
+              <option value="">—</option>
+              <option value="Blocker">🚫 Blocker</option>
+              <option value="Critical">🔴 Critical</option>
+              <option value="Major">🟠 Major</option>
+              <option value="Minor">🟡 Minor</option>
+              <option value="Trivial">⚪ Trivial</option>
             </select>
           </div>
         </div>
       </div>
 
-      <!-- Card Body -->
-      <div class="card-body">
-        <!-- Test Objective -->
-        <div class="detail-section">
-          <h3 class="section-title">Test Objective</h3>
-          <textarea 
-            class="section-content editable-textarea"
-            [value]="testCase()?.test_objective || ''"
-            (input)="onFieldChange('test_objective', $any($event.target).value)"
-            placeholder="Enter test objective..."></textarea>
-        </div>
+      <div class="hero-title-row">
+        <ng-container *ngIf="!isEditing('title'); else editTitle">
+          <h1 class="hero-title hero-title--view inline-edit-view"
+              (click)="startEdit('title')"
+              title="Click to edit">
+            <ng-container *ngIf="testCase()?.title || testCase()?.test_objective; else emptyTitle">
+              {{ testCase()?.title || testCase()?.test_objective }}
+            </ng-container>
+            <ng-template #emptyTitle>
+              <span class="inline-edit-placeholder">Untitled test case — click to add a title…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
+          </h1>
+        </ng-container>
+        <ng-template #editTitle>
+          <input
+            type="text"
+            data-edit-field="title"
+            class="hero-title editable-title"
+            [value]="testCase()?.title || testCase()?.test_objective || ''"
+            (input)="onFieldChange('title', $any($event.target).value)"
+            (blur)="stopEdit()"
+            (keydown)="onEditKeydown($event, false)"
+            placeholder="Untitled test case…">
+        </ng-template>
+      </div>
 
-        <!-- Preconditions -->
-        <div class="detail-section">
-          <h3 class="section-title">Preconditions</h3>
-          <textarea 
-            class="section-content editable-textarea"
-            [value]="testCase()?.preconditions || ''"
-            (input)="onFieldChange('preconditions', $any($event.target).value)"
-            placeholder="Enter preconditions..."></textarea>
+      <div class="hero-quick-facts">
+        <div class="quick-fact" *ngIf="testCase()?.feature">
+          <span class="qf-icon">🎯</span>
+          <span class="qf-label">Feature</span>
+          <span class="qf-value">{{ testCase()?.feature }}</span>
         </div>
+        <div class="quick-fact" *ngIf="testCase()?.vehicle_model">
+          <span class="qf-icon">🚗</span>
+          <span class="qf-label">Vehicle</span>
+          <span class="qf-value">{{ testCase()?.vehicle_model }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="testCase()?.region">
+          <span class="qf-icon">🌍</span>
+          <span class="qf-label">Region</span>
+          <span class="qf-value">{{ testCase()?.region }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="testCase()?.brand">
+          <span class="qf-icon">🏷️</span>
+          <span class="qf-label">Brand</span>
+          <span class="qf-value">{{ testCase()?.brand }}</span>
+        </div>
+        <div class="quick-fact quick-fact--link" *ngIf="testCase()?.associated_requirement_id">
+          <span class="qf-icon">📋</span>
+          <span class="qf-label">Requirement</span>
+          <a (click)="navigateToRequirement(testCase()!.associated_requirement_id!)"
+             class="qf-value qf-link"
+             title="View requirement details">
+            {{ testCase()?.associated_requirement_id }} →
+          </a>
+        </div>
+      </div>
+    </section>
 
-        <!-- Procedure -->
-        <div class="detail-section">
-          <h3 class="section-title">Procedure</h3>
-          <textarea 
-            class="section-content editable-textarea"
-            [value]="testCase()?.procedure || ''"
-            (input)="onFieldChange('procedure', $any($event.target).value)"
-            placeholder="Enter procedure..."></textarea>
-        </div>
+    <!-- TWO-COLUMN CONTENT -->
+    <div class="content-grid">
 
-        <!-- Expected Behavior -->
-        <div class="detail-section">
-          <h3 class="section-title">Expected Behavior</h3>
-          <textarea 
-            class="section-content editable-textarea"
-            [value]="testCase()?.expected_behavior || ''"
-            (input)="onFieldChange('expected_behavior', $any($event.target).value)"
-            placeholder="Enter expected behavior..."></textarea>
-        </div>
+      <!-- MAIN COLUMN -->
+      <main class="content-main">
 
         <!-- Description -->
-        <div class="detail-section">
-          <h3 class="section-title">Description</h3>
-          <textarea
-            class="section-content editable-textarea"
-            [value]="testCase()?.description || ''"
-            (input)="onFieldChange('description', $any($event.target).value)"
-            placeholder="Plain-language description of what this test covers..."></textarea>
-        </div>
+        <article class="section-card section-card--description">
+          <header class="section-card-header">
+            <span class="section-icon">📝</span>
+            <div>
+              <h3 class="section-title">Description</h3>
+              <p class="section-subtitle">Plain-language summary of what this test covers</p>
+            </div>
+          </header>
+          <div *ngIf="!isEditing('description'); else editDescription"
+               class="section-view inline-edit-view"
+               (click)="startEdit('description')"
+               title="Click to edit">
+            <p *ngIf="testCase()?.description; else emptyDescription" class="section-view-text">{{ testCase()?.description }}</p>
+            <ng-template #emptyDescription>
+              <span class="inline-edit-placeholder">Click to add a plain-language description…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
+          </div>
+          <ng-template #editDescription>
+            <textarea
+              data-edit-field="description"
+              class="section-textarea"
+              [value]="testCase()?.description || ''"
+              (input)="onFieldChange('description', $any($event.target).value)"
+              (blur)="stopEdit()"
+              (keydown)="onEditKeydown($event, true)"
+              placeholder="Plain-language description of what this test covers…"></textarea>
+          </ng-template>
+        </article>
 
-        <!-- Metadata -->
-        <div class="detail-meta">
-          <div class="meta-item">
-            <span class="meta-label">Vehicle Model:</span>
-            <input
-              type="text"
-              class="meta-value editable-input"
-              [value]="testCase()?.vehicle_model || ''"
-              (input)="onFieldChange('vehicle_model', $any($event.target).value)"
-              placeholder="e.g., Volvo EX90, Polestar 3">
+        <!-- Test Objective -->
+        <article class="section-card section-card--objective">
+          <header class="section-card-header">
+            <span class="section-icon">🎯</span>
+            <div>
+              <h3 class="section-title">Test Objective</h3>
+              <p class="section-subtitle">What this test aims to validate</p>
+            </div>
+          </header>
+          <div *ngIf="!isEditing('test_objective'); else editObjective"
+               class="section-view inline-edit-view"
+               (click)="startEdit('test_objective')"
+               title="Click to edit">
+            <p *ngIf="testCase()?.test_objective; else emptyObjective" class="section-view-text">{{ testCase()?.test_objective }}</p>
+            <ng-template #emptyObjective>
+              <span class="inline-edit-placeholder">Click to add the test objective…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Severity:</span>
-            <select
-              class="meta-value editable-input"
-              [value]="testCase()?.severity || ''"
-              (change)="onFieldChange('severity', $any($event.target).value)">
-              <option value="">Select severity</option>
-              <option value="Blocker">Blocker</option>
-              <option value="Critical">Critical</option>
-              <option value="Major">Major</option>
-              <option value="Minor">Minor</option>
-              <option value="Trivial">Trivial</option>
-            </select>
+          <ng-template #editObjective>
+            <textarea
+              data-edit-field="test_objective"
+              class="section-textarea"
+              [value]="testCase()?.test_objective || ''"
+              (input)="onFieldChange('test_objective', $any($event.target).value)"
+              (blur)="stopEdit()"
+              (keydown)="onEditKeydown($event, true)"
+              placeholder="Enter test objective…"></textarea>
+          </ng-template>
+        </article>
+
+        <!-- Preconditions -->
+        <article class="section-card section-card--preconditions">
+          <header class="section-card-header">
+            <span class="section-icon">⚙️</span>
+            <div>
+              <h3 class="section-title">Preconditions</h3>
+              <p class="section-subtitle">State and setup required before execution</p>
+            </div>
+          </header>
+          <div *ngIf="!isEditing('preconditions'); else editPreconditions"
+               class="section-view inline-edit-view"
+               (click)="startEdit('preconditions')"
+               title="Click to edit">
+            <p *ngIf="testCase()?.preconditions; else emptyPreconditions" class="section-view-text">{{ testCase()?.preconditions }}</p>
+            <ng-template #emptyPreconditions>
+              <span class="inline-edit-placeholder">Click to add preconditions…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
           </div>
-          <div class="meta-item" *ngIf="testCase()?.requirement_type">
-            <span class="meta-label">Requirement Type:</span>
-            <span class="meta-value">{{ testCase()?.requirement_type }}</span>
+          <ng-template #editPreconditions>
+            <textarea
+              data-edit-field="preconditions"
+              class="section-textarea"
+              [value]="testCase()?.preconditions || ''"
+              (input)="onFieldChange('preconditions', $any($event.target).value)"
+              (blur)="stopEdit()"
+              (keydown)="onEditKeydown($event, true)"
+              placeholder="Enter preconditions…"></textarea>
+          </ng-template>
+        </article>
+
+        <!-- Procedure -->
+        <article class="section-card section-card--procedure">
+          <header class="section-card-header">
+            <span class="section-icon">📜</span>
+            <div>
+              <h3 class="section-title">Procedure</h3>
+              <p class="section-subtitle">Step-by-step actions to perform</p>
+            </div>
+          </header>
+          <div *ngIf="!isEditing('procedure'); else editProcedure"
+               class="section-view section-view--procedure inline-edit-view"
+               (click)="startEdit('procedure')"
+               title="Click to edit">
+            <pre *ngIf="testCase()?.procedure; else emptyProcedure" class="section-view-pre">{{ testCase()?.procedure }}</pre>
+            <ng-template #emptyProcedure>
+              <span class="inline-edit-placeholder">Click to add step-by-step procedure…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
           </div>
-          <div class="meta-item" *ngIf="testCase()?.associated_requirement_id">
-            <span class="meta-label">Requirement ID:</span>
-            <span class="meta-value">
-              <a (click)="navigateToRequirement(testCase()!.associated_requirement_id!)" 
-                 class="requirement-link" 
-                 title="View requirement details">
-                📋 {{ testCase()?.associated_requirement_id }}
-              </a>
-            </span>
+          <ng-template #editProcedure>
+            <textarea
+              data-edit-field="procedure"
+              class="section-textarea section-textarea--procedure"
+              [value]="testCase()?.procedure || ''"
+              (input)="onFieldChange('procedure', $any($event.target).value)"
+              (blur)="stopEdit()"
+              (keydown)="onEditKeydown($event, true)"
+              placeholder="1. First step&#10;2. Second step&#10;3. …"></textarea>
+          </ng-template>
+        </article>
+
+        <!-- Expected Behavior -->
+        <article class="section-card section-card--expected">
+          <header class="section-card-header">
+            <span class="section-icon">✅</span>
+            <div>
+              <h3 class="section-title">Expected Behavior</h3>
+              <p class="section-subtitle">What should happen if the test passes</p>
+            </div>
+          </header>
+          <div *ngIf="!isEditing('expected_behavior'); else editExpected"
+               class="section-view inline-edit-view"
+               (click)="startEdit('expected_behavior')"
+               title="Click to edit">
+            <p *ngIf="testCase()?.expected_behavior; else emptyExpected" class="section-view-text">{{ testCase()?.expected_behavior }}</p>
+            <ng-template #emptyExpected>
+              <span class="inline-edit-placeholder">Click to add expected behavior…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Feature:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="testCase()?.feature || ''"
-              (input)="onFieldChange('feature', $any($event.target).value)"
-              placeholder="Feature">
+          <ng-template #editExpected>
+            <textarea
+              data-edit-field="expected_behavior"
+              class="section-textarea"
+              [value]="testCase()?.expected_behavior || ''"
+              (input)="onFieldChange('expected_behavior', $any($event.target).value)"
+              (blur)="stopEdit()"
+              (keydown)="onEditKeydown($event, true)"
+              placeholder="Enter expected behavior…"></textarea>
+          </ng-template>
+        </article>
+
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="content-side">
+
+        <!-- Linked Requirement -->
+        <article class="side-card" *ngIf="testCase()?.associated_requirement_id || testCase()?.requirement_type">
+          <header class="side-card-header">
+            <span class="side-icon">🔗</span>
+            <h4>Linked Requirement</h4>
+          </header>
+          <div class="side-card-body">
+            <a *ngIf="testCase()?.associated_requirement_id"
+               (click)="navigateToRequirement(testCase()!.associated_requirement_id!)"
+               class="requirement-chip"
+               title="View requirement details">
+              <span class="req-chip-icon">📋</span>
+              <div class="req-chip-text">
+                <span class="req-chip-label">Requirement ID</span>
+                <span class="req-chip-id">{{ testCase()?.associated_requirement_id }}</span>
+              </div>
+              <span class="req-chip-arrow">→</span>
+            </a>
+            <div class="side-row" *ngIf="testCase()?.requirement_type">
+              <span class="side-label">Type</span>
+              <span class="side-value">{{ testCase()?.requirement_type }}</span>
+            </div>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Screen ID:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="testCase()?.screen_id || ''"
-              (input)="onFieldChange('screen_id', $any($event.target).value)"
-              placeholder="Screen ID">
+        </article>
+
+        <!-- Classification -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🗂️</span>
+            <h4>Classification</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label">🚗 Vehicle Model</label>
+              <div *ngIf="!isEditing('vehicle_model'); else editVehicle"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('vehicle_model')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.vehicle_model; else emptyVehicle">{{ testCase()?.vehicle_model }}</span>
+                <ng-template #emptyVehicle><span class="inline-edit-placeholder">Add vehicle model…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editVehicle>
+                <input
+                  type="text"
+                  data-edit-field="vehicle_model"
+                  class="side-input"
+                  [value]="testCase()?.vehicle_model || ''"
+                  (input)="onFieldChange('vehicle_model', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="e.g., Volvo EX90, Polestar 3">
+              </ng-template>
+            </div>
+            <div class="side-field">
+              <label class="side-label">🎯 Feature</label>
+              <div *ngIf="!isEditing('feature'); else editFeature"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('feature')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.feature; else emptyFeature">{{ testCase()?.feature }}</span>
+                <ng-template #emptyFeature><span class="inline-edit-placeholder">Add feature…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editFeature>
+                <input
+                  type="text"
+                  data-edit-field="feature"
+                  class="side-input"
+                  [value]="testCase()?.feature || ''"
+                  (input)="onFieldChange('feature', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Feature">
+              </ng-template>
+            </div>
+            <div class="side-field">
+              <label class="side-label">📱 Screen ID</label>
+              <div *ngIf="!isEditing('screen_id'); else editScreen"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('screen_id')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.screen_id; else emptyScreen">{{ testCase()?.screen_id }}</span>
+                <ng-template #emptyScreen><span class="inline-edit-placeholder">Add screen ID…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editScreen>
+                <input
+                  type="text"
+                  data-edit-field="screen_id"
+                  class="side-input"
+                  [value]="testCase()?.screen_id || ''"
+                  (input)="onFieldChange('screen_id', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Screen ID">
+              </ng-template>
+            </div>
+            <div class="side-field">
+              <label class="side-label">📐 Requirement Type</label>
+              <div *ngIf="!isEditing('requirement_type'); else editReqType"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('requirement_type')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.requirement_type; else emptyReqType">{{ testCase()?.requirement_type }}</span>
+                <ng-template #emptyReqType><span class="inline-edit-placeholder">Add requirement type…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editReqType>
+                <input
+                  type="text"
+                  data-edit-field="requirement_type"
+                  class="side-input"
+                  [value]="testCase()?.requirement_type || ''"
+                  (input)="onFieldChange('requirement_type', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Requirement type">
+              </ng-template>
+            </div>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Requirement Type:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="testCase()?.requirement_type || ''"
-              (input)="onFieldChange('requirement_type', $any($event.target).value)"
-              placeholder="Requirement type">
+        </article>
+
+        <!-- Scope -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🌐</span>
+            <h4>Scope</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label">🌍 Region</label>
+              <div *ngIf="!isEditing('region'); else editRegion"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('region')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.region; else emptyRegion">{{ testCase()?.region }}</span>
+                <ng-template #emptyRegion><span class="inline-edit-placeholder">Add region…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editRegion>
+                <input
+                  type="text"
+                  data-edit-field="region"
+                  class="side-input"
+                  [value]="testCase()?.region || ''"
+                  (input)="onFieldChange('region', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Region">
+              </ng-template>
+            </div>
+            <div class="side-field">
+              <label class="side-label">🏷️ Brand</label>
+              <div *ngIf="!isEditing('brand'); else editBrand"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('brand')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.brand; else emptyBrand">{{ testCase()?.brand }}</span>
+                <ng-template #emptyBrand><span class="inline-edit-placeholder">Add brand…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editBrand>
+                <input
+                  type="text"
+                  data-edit-field="brand"
+                  class="side-input"
+                  [value]="testCase()?.brand || ''"
+                  (input)="onFieldChange('brand', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Brand">
+              </ng-template>
+            </div>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Region:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="testCase()?.region || ''"
-              (input)="onFieldChange('region', $any($event.target).value)"
-              placeholder="Region">
+        </article>
+
+        <!-- Timeline -->
+        <article class="side-card" *ngIf="testCase()?.created_at || testCase()?.updated_at">
+          <header class="side-card-header">
+            <span class="side-icon">🕒</span>
+            <h4>Timeline</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="timeline-item" *ngIf="testCase()?.created_at">
+              <span class="timeline-dot timeline-dot--created"></span>
+              <div class="timeline-text">
+                <span class="timeline-label">Created</span>
+                <span class="timeline-value">{{ testCase()?.created_at }}</span>
+              </div>
+            </div>
+            <div class="timeline-item" *ngIf="testCase()?.updated_at">
+              <span class="timeline-dot timeline-dot--updated"></span>
+              <div class="timeline-text">
+                <span class="timeline-label">Last updated</span>
+                <span class="timeline-value">{{ testCase()?.updated_at }}</span>
+              </div>
+            </div>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Brand:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="testCase()?.brand || ''"
-              (input)="onFieldChange('brand', $any($event.target).value)"
-              placeholder="Brand">
-          </div>
-          <div class="meta-item" *ngIf="testCase()?.created_at">
-            <span class="meta-label">Created:</span>
-            <span class="meta-value">{{ testCase()?.created_at }}</span>
-          </div>
-          <div class="meta-item" *ngIf="testCase()?.updated_at">
-            <span class="meta-label">Updated:</span>
-            <span class="meta-value">{{ testCase()?.updated_at }}</span>
-          </div>
-        </div>
-      </div>
+        </article>
+
+      </aside>
     </div>
   </div>
 </div>
-

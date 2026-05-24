@@ -1,0 +1,15 @@
+---
+description: Backend Flask/Python delta-edit rules
+globs: backend/**
+alwaysApply: false
+---
+
+# Flask Backend Edit Rules
+
+1. Apply isolated modifications directly to route functions, services, or repositories. Do not reprint adjacent route structures, blueprint registrations, or `main.py` initializations.
+2. Resolve services through `src/infrastructure/dependency_injection.py` getters; never instantiate services or DB clients inline in controllers/services.
+3. SQL must be parameterized — pass `params` tuples to execution methods. No string interpolation of user input into queries.
+4. Acquire loggers via `src.infrastructure.logging_config`. Do not introduce `print()` for diagnostics.
+5. Writes go through `HybridDatabaseService` so version metadata + Git sync stay consistent. Do not write to the SQLite file directly from controllers.
+6. Outbound network calls beyond `localhost` / whitelisted Git hosts are blocked by `network_restrictor.py` — do not add new external integrations without updating the allowlist.
+7. Use Python omission marker `# ... existing code ...` when truncating context in chat snippets.

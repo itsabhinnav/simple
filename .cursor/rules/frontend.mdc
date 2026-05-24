@@ -1,0 +1,16 @@
+---
+description: Frontend Angular/TS delta-edit rules
+globs: frontend/**
+alwaysApply: false
+---
+
+# Angular Frontend Edit Rules
+
+1. Execute precise delta insertions on TS components, structural blocks, or HTML templates. Do not reprint adjacent `@Component` decorators, imports, or class boilerplate.
+2. `effect()` calls MUST live in class field initializers or the `constructor()` — never inside `ngOnInit`, `ngOnChanges`, or other lifecycle/custom methods (NG0203).
+3. State uses Angular Signals (`signal`, `computed`, `effect`). Avoid RxJS Subjects for new component state unless interop is required.
+4. Inject dependencies with field-level `inject(...)` rather than constructor parameter DI for new code.
+5. Styling: Vanilla CSS with `var(--color-*)` tokens from `src/index.css`. Do NOT introduce Tailwind, utility frameworks, or new global stylesheets.
+6. Mask sensitive user fields in templates (e.g. `user.email_masked || user.email`).
+7. Respect Angular bundle budgets — keep deps lean; verify with `npm run build` after non-trivial changes.
+8. Use omission markers `// ... existing code ...` (TS/JS) and `<!-- ... existing code -->` (HTML) when truncating context in chat snippets.

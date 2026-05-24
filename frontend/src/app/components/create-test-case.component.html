@@ -1,218 +1,326 @@
 <div class="detail-container">
-  <!-- Header -->
-  <header class="detail-header">
-    <div class="header-left">
-      <nav class="breadcrumb">
-        <a routerLink="/" class="breadcrumb-link">
-          <i class="icon-database"></i>
-          Dashboard
-        </a>
-        <span class="breadcrumb-separator">›</span>
-        <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
-        <span class="breadcrumb-separator">›</span>
-        <span class="breadcrumb-current">Create New</span>
-      </nav>
-      <h1 class="page-title">
-        <i class="icon-test-cases"></i>
-        Create Test Case
-      </h1>
-    </div>
-    <div class="header-actions">
-      <div class="save-status" *ngIf="isSubmitting()">
-        <span class="status-saving">Creating...</span>
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <nav class="breadcrumb">
+      <a routerLink="/" class="breadcrumb-link">
+        <span class="breadcrumb-icon">🏠</span>
+        Dashboard
+      </a>
+      <span class="breadcrumb-separator">/</span>
+      <a routerLink="/test-cases" class="breadcrumb-link">Test Cases</a>
+      <span class="breadcrumb-separator">/</span>
+      <span class="breadcrumb-current">New</span>
+    </nav>
+
+    <div class="top-bar-actions">
+      <div class="save-status-pill" *ngIf="isSubmitting()" data-state="saving">
+        <span class="status-dot"></span>
+        <span>Creating…</span>
       </div>
-      <button class="back-btn" (click)="goBack()" title="Back">
-        <i class="icon-back"></i>
-        Cancel
+      <button type="button" class="btn btn-ghost" (click)="goBack()" title="Cancel">
+        <span>←</span> Cancel
       </button>
-      <button 
-        class="submit-btn" 
-        (click)="onSubmit()" 
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="onSubmit()"
         [disabled]="testCaseForm.invalid || isSubmitting()"
-        title="Create Test Case">
-        <i class="icon-save"></i>
-        {{ isSubmitting() ? 'Creating...' : 'Create' }}
+        title="Create test case">
+        <span>＋</span>
+        {{ isSubmitting() ? 'Creating…' : 'Create test case' }}
       </button>
     </div>
   </header>
 
   <!-- Error State -->
-  <div *ngIf="errorMessage()" class="error-container">
-    <i class="icon-error"></i>
-    <p>{{ errorMessage() }}</p>
+  <div *ngIf="errorMessage()" class="alert alert--error" role="alert">
+    <span class="alert-icon">⚠️</span>
+    <div class="alert-body">
+      <strong class="alert-title">Could not create test case</strong>
+      <p class="alert-message">{{ errorMessage() }}</p>
+    </div>
   </div>
 
   <!-- Success State -->
-  <div *ngIf="successMessage()" class="success-container">
-    <i class="icon-success"></i>
-    <p>{{ successMessage() }}</p>
+  <div *ngIf="successMessage()" class="alert alert--success" role="status">
+    <span class="alert-icon">✓</span>
+    <div class="alert-body">
+      <strong class="alert-title">Created</strong>
+      <p class="alert-message">{{ successMessage() }}</p>
+    </div>
   </div>
 
-  <!-- Test Case Form -->
-  <div class="detail-content">
-    <form [formGroup]="testCaseForm" (ngSubmit)="onSubmit()">
-      <div class="detail-card">
-        <!-- Card Header -->
-        <div class="card-header">
-          <div class="header-top">
-            <div class="title-group">
-              <input 
-                type="text" 
-                class="card-title editable-title" 
-                formControlName="title"
-                placeholder="Test case title (e.g., Verify radio playback on Pixel auto)">
-              <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
-                <span class="req-id">{{ testCaseForm.get('test_case_id')?.value || 'Generating ID...' }}</span>
-                <span *ngIf="isGeneratingId()" style="color: #5f6368; font-size: 12px;">Generating...</span>
-              </div>
-            </div>
-            <div class="badges-group">
-              <select 
-                class="priority-badge editable-select"
-                formControlName="priority"
-                [class]="getPriorityClass(testCaseForm.get('priority')?.value || '')">
-                <option value="">Priority</option>
-                <option value="P4">P4</option>
-                <option value="P3">P3</option>
-                <option value="P2">P2</option>
-                <option value="P1">P1</option>
-              </select>
-              <select 
-                class="type-badge editable-select"
-                formControlName="test_type"
-                [class]="getTypeClass(testCaseForm.get('test_type')?.value || '')">
-                <option value="">Test Type</option>
-                <option value="Positive">Positive</option>
-                <option value="Negative">Negative</option>
-                <option value="Boundary">Boundary</option>
-                <option value="Performance">Performance</option>
-              </select>
+  <!-- Create Form -->
+  <form [formGroup]="testCaseForm" (ngSubmit)="onSubmit()" class="detail-content">
+
+    <!-- HERO SUMMARY CARD -->
+    <section class="hero-card">
+      <div class="hero-top">
+        <div class="hero-id-block">
+          <div class="hero-id-pill">
+            <span class="hero-id-icon">🧪</span>
+            <div class="hero-id-text">
+              <span class="hero-id-label">Test Case</span>
+              <span class="hero-id-value">
+                {{ testCaseForm.get('test_case_id')?.value || 'Generating ID…' }}
+              </span>
             </div>
           </div>
+          <span *ngIf="isGeneratingId()" class="id-hint">Generating next ID…</span>
         </div>
 
-        <!-- Card Body -->
-        <div class="card-body">
-          <!-- Description -->
-          <div class="detail-section">
-            <h3 class="section-title">Description</h3>
-            <textarea 
-              class="section-content editable-textarea"
-              formControlName="description"
-              placeholder="Plain-language description of what this test covers..."></textarea>
+        <div class="hero-badges">
+          <div class="hero-badge-group">
+            <label class="hero-badge-label" for="tc-priority">Priority</label>
+            <select
+              id="tc-priority"
+              class="hero-badge editable-select"
+              formControlName="priority"
+              [class]="getPriorityClass(testCaseForm.get('priority')?.value || '')">
+              <option value="">—</option>
+              <option value="P1">P1 · High</option>
+              <option value="P2">P2 · Medium</option>
+              <option value="P3">P3 · Low</option>
+              <option value="P4">P4 · Trivial</option>
+            </select>
           </div>
 
-          <!-- Test Objective -->
-          <div class="detail-section">
-            <h3 class="section-title">Test Objective</h3>
-            <textarea 
-              class="section-content editable-textarea"
-              formControlName="test_objective"
-              placeholder="Concrete objective for this test..."></textarea>
+          <div class="hero-badge-group">
+            <label class="hero-badge-label" for="tc-type">Test Type</label>
+            <select
+              id="tc-type"
+              class="hero-badge editable-select"
+              formControlName="test_type"
+              [class]="getTypeClass(testCaseForm.get('test_type')?.value || '')">
+              <option value="">—</option>
+              <option value="Positive">✓ Positive</option>
+              <option value="Negative">✗ Negative</option>
+              <option value="Boundary">↔ Boundary</option>
+              <option value="Performance">⚡ Performance</option>
+            </select>
           </div>
 
-          <!-- Preconditions -->
-          <div class="detail-section">
-            <h3 class="section-title">Preconditions</h3>
-            <textarea 
-              class="section-content editable-textarea"
-              formControlName="preconditions"
-              placeholder="Enter preconditions..."></textarea>
-          </div>
-
-          <!-- Procedure -->
-          <div class="detail-section">
-            <h3 class="section-title">Procedure</h3>
-            <textarea 
-              class="section-content editable-textarea"
-              formControlName="procedure"
-              placeholder="Enter procedure..."></textarea>
-          </div>
-
-          <!-- Expected Behavior -->
-          <div class="detail-section">
-            <h3 class="section-title">Expected Behavior</h3>
-            <textarea 
-              class="section-content editable-textarea"
-              formControlName="expected_behavior"
-              placeholder="Enter expected behavior..."></textarea>
-          </div>
-
-          <!-- Metadata -->
-          <div class="detail-meta">
-            <div class="meta-item">
-              <span class="meta-label">Vehicle Model:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="vehicle_model"
-                placeholder="e.g., Volvo EX90, Polestar 3, Tata Curvv.ev">
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Severity:</span>
-              <select 
-                class="meta-value editable-input"
-                formControlName="severity">
-                <option value="">Select severity</option>
-                <option value="Blocker">Blocker</option>
-                <option value="Critical">Critical</option>
-                <option value="Major">Major</option>
-                <option value="Minor">Minor</option>
-                <option value="Trivial">Trivial</option>
-              </select>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Feature:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="feature"
-                placeholder="Feature">
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Screen ID:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="screen_id"
-                placeholder="Screen ID">
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Requirement Type:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="requirement_type"
-                placeholder="Requirement type">
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Region:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="region"
-                placeholder="Region">
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Associated Requirement ID:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="associated_requirement_id"
-                placeholder="e.g., REQ_001">
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Reference Document:</span>
-              <input 
-                type="text" 
-                class="meta-value editable-input"
-                formControlName="reference_document"
-                placeholder="Reference document">
-            </div>
+          <div class="hero-badge-group">
+            <label class="hero-badge-label" for="tc-severity">Severity</label>
+            <select
+              id="tc-severity"
+              class="hero-badge editable-select severity-select"
+              formControlName="severity"
+              [attr.data-severity]="testCaseForm.get('severity')?.value || ''">
+              <option value="">—</option>
+              <option value="Blocker">🚫 Blocker</option>
+              <option value="Critical">🔴 Critical</option>
+              <option value="Major">🟠 Major</option>
+              <option value="Minor">🟡 Minor</option>
+              <option value="Trivial">⚪ Trivial</option>
+            </select>
           </div>
         </div>
       </div>
-    </form>
-  </div>
-</div>
 
+      <div class="hero-title-row">
+        <input
+          type="text"
+          class="hero-title editable-title"
+          formControlName="title"
+          placeholder="Untitled test case — e.g. Verify radio playback on Pixel auto…">
+      </div>
+
+      <p class="hero-helper">
+        Give this test case a clear, specific name. Fill in the sections below to describe how
+        it should be executed. You can leave non-essential fields blank for now.
+      </p>
+    </section>
+
+    <!-- TWO-COLUMN CONTENT -->
+    <div class="content-grid">
+
+      <!-- MAIN COLUMN -->
+      <main class="content-main">
+
+        <!-- Description -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">📝</span>
+            <div>
+              <h3 class="section-title">Description</h3>
+              <p class="section-subtitle">Plain-language summary of what this test covers.</p>
+            </div>
+          </header>
+          <textarea
+            class="section-textarea"
+            formControlName="description"
+            placeholder="Describe the scenario, the user, and the area of the product under test…"></textarea>
+        </article>
+
+        <!-- Test Objective -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">🎯</span>
+            <div>
+              <h3 class="section-title">Test Objective</h3>
+              <p class="section-subtitle">What this test aims to validate.</p>
+            </div>
+          </header>
+          <textarea
+            class="section-textarea"
+            formControlName="test_objective"
+            placeholder="Concrete objective for this test…"></textarea>
+        </article>
+
+        <!-- Preconditions -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">⚙️</span>
+            <div>
+              <h3 class="section-title">Preconditions</h3>
+              <p class="section-subtitle">State and setup required before execution.</p>
+            </div>
+          </header>
+          <textarea
+            class="section-textarea"
+            formControlName="preconditions"
+            placeholder="e.g. User is signed in, vehicle is in park, network reachable…"></textarea>
+        </article>
+
+        <!-- Procedure -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">📜</span>
+            <div>
+              <h3 class="section-title">Procedure</h3>
+              <p class="section-subtitle">Step-by-step actions to perform.</p>
+            </div>
+          </header>
+          <textarea
+            class="section-textarea section-textarea--procedure"
+            formControlName="procedure"
+            placeholder="1. First step&#10;2. Second step&#10;3. …"></textarea>
+        </article>
+
+        <!-- Expected Behavior -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">✅</span>
+            <div>
+              <h3 class="section-title">Expected Behavior</h3>
+              <p class="section-subtitle">What should happen if the test passes.</p>
+            </div>
+          </header>
+          <textarea
+            class="section-textarea"
+            formControlName="expected_behavior"
+            placeholder="The expected outcome, UI state, or system response…"></textarea>
+        </article>
+
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="content-side">
+
+        <!-- Linked Requirement -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🔗</span>
+            <h4>Linked Requirement</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label" for="tc-req-id">Requirement ID</label>
+              <input
+                id="tc-req-id"
+                type="text"
+                class="side-input"
+                formControlName="associated_requirement_id"
+                placeholder="e.g. REQ_001">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="tc-req-type">Requirement Type</label>
+              <input
+                id="tc-req-type"
+                type="text"
+                class="side-input"
+                formControlName="requirement_type"
+                placeholder="e.g. Functional, UX, Safety">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="tc-ref-doc">Reference Document</label>
+              <input
+                id="tc-ref-doc"
+                type="text"
+                class="side-input"
+                formControlName="reference_document"
+                placeholder="Spec / doc reference">
+            </div>
+          </div>
+        </article>
+
+        <!-- Classification -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🗂️</span>
+            <h4>Classification</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label" for="tc-vehicle">🚗 Vehicle Model</label>
+              <input
+                id="tc-vehicle"
+                type="text"
+                class="side-input"
+                formControlName="vehicle_model"
+                placeholder="e.g. Volvo EX90, Polestar 3">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="tc-feature">🎯 Feature</label>
+              <input
+                id="tc-feature"
+                type="text"
+                class="side-input"
+                formControlName="feature"
+                placeholder="Feature area">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="tc-screen">📱 Screen ID</label>
+              <input
+                id="tc-screen"
+                type="text"
+                class="side-input"
+                formControlName="screen_id"
+                placeholder="Screen ID">
+            </div>
+          </div>
+        </article>
+
+        <!-- Scope -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🌐</span>
+            <h4>Scope</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label" for="tc-region">🌍 Region</label>
+              <input
+                id="tc-region"
+                type="text"
+                class="side-input"
+                formControlName="region"
+                placeholder="e.g. EU, NA, APAC">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="tc-brand">🏷️ Brand</label>
+              <input
+                id="tc-brand"
+                type="text"
+                class="side-input"
+                formControlName="brand"
+                placeholder="Brand">
+            </div>
+          </div>
+        </article>
+
+      </aside>
+    </div>
+  </form>
+</div>

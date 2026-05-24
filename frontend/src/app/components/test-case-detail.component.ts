@@ -26,6 +26,7 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
   testCaseId = signal<string | null>(null);
   isSaving = signal(false);
   saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  editingField = signal<string | null>(null);
   
   private saveSubject = new Subject<{ field: string; value: any }>();
   private saveSubscription?: Subscription;
@@ -148,6 +149,42 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
         alert(`Failed to load requirement ${requirementId}`);
       }
     });
+  }
+
+  startEdit(field: string) {
+    this.editingField.set(field);
+    setTimeout(() => {
+      if (typeof document === 'undefined') return;
+      const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        `[data-edit-field="${field}"]`
+      );
+      if (!el) return;
+      el.focus();
+      if (el.tagName === 'TEXTAREA') {
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      } else if ('select' in el && typeof (el as HTMLInputElement).select === 'function') {
+        (el as HTMLInputElement).select();
+      }
+    }, 0);
+  }
+
+  stopEdit() {
+    this.editingField.set(null);
+  }
+
+  isEditing(field: string): boolean {
+    return this.editingField() === field;
+  }
+
+  onEditKeydown(event: KeyboardEvent, isMultiline: boolean = false) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.stopEdit();
+    } else if (event.key === 'Enter' && !isMultiline && !event.shiftKey) {
+      event.preventDefault();
+      this.stopEdit();
+    }
   }
 
   onFieldChange(field: string, value: any) {

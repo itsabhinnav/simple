@@ -1,35 +1,29 @@
 <div class="detail-container">
-  <!-- Header -->
-  <header class="detail-header">
-    <div class="header-left">
-      <nav class="breadcrumb">
-        <a routerLink="/" class="breadcrumb-link">
-          <i class="icon-database"></i>
-          Dashboard
-        </a>
-        <span class="breadcrumb-separator">›</span>
-        <a routerLink="/requirements" class="breadcrumb-link">Requirements</a>
-        <span class="breadcrumb-separator">›</span>
-        <span class="breadcrumb-current">{{ requirement()?.requirement_id || 'Detail' }}</span>
-      </nav>
-      <h1 class="page-title">
-        <i class="icon-requirements"></i>
-        Requirement Details
-      </h1>
-    </div>
-    <div class="header-actions">
-      <div class="save-status" *ngIf="saveStatus() !== 'idle'">
-        <span *ngIf="saveStatus() === 'saving'" class="status-saving">💾 Saving...</span>
-        <span *ngIf="saveStatus() === 'saved'" class="status-saved">✓ Saved</span>
-        <span *ngIf="saveStatus() === 'error'" class="status-error">✗ Error saving</span>
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <nav class="breadcrumb">
+      <a routerLink="/" class="breadcrumb-link">
+        <span class="breadcrumb-icon">🏠</span>
+        Dashboard
+      </a>
+      <span class="breadcrumb-separator">/</span>
+      <a routerLink="/requirements" class="breadcrumb-link">Requirements</a>
+      <span class="breadcrumb-separator">/</span>
+      <span class="breadcrumb-current">{{ requirement()?.requirement_id || 'Detail' }}</span>
+    </nav>
+
+    <div class="top-bar-actions">
+      <div class="save-status-pill" *ngIf="saveStatus() !== 'idle'" [attr.data-state]="saveStatus()">
+        <span *ngIf="saveStatus() === 'saving'" class="status-dot"></span>
+        <span *ngIf="saveStatus() === 'saving'">Saving…</span>
+        <span *ngIf="saveStatus() === 'saved'">✓ All changes saved</span>
+        <span *ngIf="saveStatus() === 'error'">✗ Error saving</span>
       </div>
-      <button class="back-btn" (click)="goBack()" title="Back">
-        <i class="icon-back"></i>
-        Back
+      <button class="btn btn-ghost" (click)="goBack()" title="Back">
+        <span>←</span> Back
       </button>
-      <button class="delete-btn" (click)="deleteRequirement()" title="Delete">
-        <i class="icon-delete"></i>
-        Delete
+      <button class="btn btn-danger" (click)="deleteRequirement()" title="Delete">
+        <span>🗑</span> Delete
       </button>
     </div>
   </header>
@@ -37,173 +31,446 @@
   <!-- Loading State -->
   <div *ngIf="isLoading()" class="loading-container">
     <div class="spinner"></div>
-    <p>Loading requirement...</p>
+    <p>Loading requirement…</p>
   </div>
 
   <!-- Error State -->
   <div *ngIf="error() && !isLoading()" class="error-container">
-    <i class="icon-error"></i>
+    <div class="error-icon">⚠️</div>
     <p>{{ error() }}</p>
     <button (click)="loadRequirement(requirementId()!)" class="retry-btn">Retry</button>
   </div>
 
   <!-- Requirement Detail -->
   <div *ngIf="requirement() && !isLoading()" class="detail-content">
-    <div class="detail-card">
-      <!-- Card Header -->
-      <div class="card-header">
-        <div class="header-top">
-          <div class="title-group">
-            <input 
-              type="text" 
-              class="card-title editable-title" 
-              [value]="requirement()?.title || ''"
-              (input)="onFieldChange('title', $any($event.target).value)"
-              placeholder="Requirement title">
-            <span class="req-id">{{ requirement()?.requirement_id }}</span>
+
+    <!-- HERO SUMMARY CARD -->
+    <section class="hero-card">
+      <div class="hero-top">
+        <div class="hero-id-block">
+          <div class="hero-id-pill">
+            <span class="hero-id-icon">📋</span>
+            <div class="hero-id-text">
+              <span class="hero-id-label">REQUIREMENT</span>
+              <span class="hero-id-value">{{ requirement()?.requirement_id }}</span>
+            </div>
           </div>
-          <div class="badges-group">
-            <select 
-              class="priority-badge editable-select"
+        </div>
+
+        <div class="hero-badges">
+          <div class="hero-badge-group">
+            <label class="hero-badge-label">Priority</label>
+            <select
+              class="hero-badge editable-select"
               [value]="requirement()?.priority || ''"
               (change)="onFieldChange('priority', $any($event.target).value)"
               [class]="getPriorityClass(requirement()?.priority || '')">
-              <option value="P4">P4</option>
-              <option value="P3">P3</option>
-              <option value="P2">P2</option>
-              <option value="P1">P1</option>
+              <option value="P1">P1 · Critical</option>
+              <option value="P2">P2 · High</option>
+              <option value="P3">P3 · Medium</option>
+              <option value="P4">P4 · Low</option>
             </select>
-            <select 
-              class="status-badge editable-select"
+          </div>
+
+          <div class="hero-badge-group">
+            <label class="hero-badge-label">Status</label>
+            <select
+              class="hero-badge editable-select"
               [value]="requirement()?.status || ''"
               (change)="onFieldChange('status', $any($event.target).value)"
               [class]="getStatusClass(requirement()?.status || '')">
-              <option value="Draft">Draft</option>
-              <option value="Approved">Approved</option>
-              <option value="Implemented">Implemented</option>
-              <option value="Tested">Tested</option>
-              <option value="Closed">Closed</option>
+              <option value="Draft">📝 Draft</option>
+              <option value="Approved">✅ Approved</option>
+              <option value="Implemented">🔧 Implemented</option>
+              <option value="Tested">🧪 Tested</option>
+              <option value="Closed">🔒 Closed</option>
             </select>
           </div>
         </div>
       </div>
 
-      <!-- Card Body -->
-      <div class="card-body">
-        <!-- Description -->
-        <div class="detail-section">
-          <h3 class="section-title">Description</h3>
-          <textarea 
-            class="section-content editable-textarea"
-            [value]="requirement()?.description || ''"
-            (input)="onFieldChange('description', $any($event.target).value)"
-            placeholder="Enter description..."></textarea>
-        </div>
+      <div class="hero-title-row">
+        <ng-container *ngIf="!isEditing('title'); else editTitle">
+          <h1 class="hero-title hero-title--view inline-edit-view"
+              (click)="startEdit('title')"
+              title="Click to edit">
+            <ng-container *ngIf="requirement()?.title; else emptyTitle">
+              {{ requirement()?.title }}
+            </ng-container>
+            <ng-template #emptyTitle>
+              <span class="inline-edit-placeholder">Untitled requirement — click to add a title…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
+          </h1>
+        </ng-container>
+        <ng-template #editTitle>
+          <input
+            type="text"
+            data-edit-field="title"
+            class="hero-title editable-title"
+            [value]="requirement()?.title || ''"
+            (input)="onFieldChange('title', $any($event.target).value)"
+            (blur)="stopEdit()"
+            (keydown)="onEditKeydown($event, false)"
+            placeholder="Requirement title">
+        </ng-template>
+      </div>
 
-        <!-- GIVEN-WHEN-THEN -->
-        <div class="detail-section gwt-section">
-          <h3 class="section-title">Acceptance Criteria</h3>
-          <div class="gwt-container">
-            <div class="gwt-item">
-              <span class="gwt-label">GIVEN</span>
-              <textarea 
-                class="gwt-content editable-textarea"
-                [value]="requirement()?.given || ''"
-                (input)="onFieldChange('given', $any($event.target).value)"
-                placeholder="Given..."></textarea>
-            </div>
-            <div class="gwt-item">
-              <span class="gwt-label">WHEN</span>
-              <textarea 
-                class="gwt-content editable-textarea"
-                [value]="requirement()?.when_action || ''"
-                (input)="onFieldChange('when_action', $any($event.target).value)"
-                placeholder="When..."></textarea>
-            </div>
-            <div class="gwt-item">
-              <span class="gwt-label">THEN</span>
-              <textarea 
-                class="gwt-content editable-textarea"
-                [value]="requirement()?.then_result || ''"
-                (input)="onFieldChange('then_result', $any($event.target).value)"
-                placeholder="Then..."></textarea>
-            </div>
-          </div>
+      <div class="hero-quick-facts">
+        <div class="quick-fact" *ngIf="requirement()?.requirement_type">
+          <span class="qf-icon">📐</span>
+          <span class="qf-label">Type</span>
+          <span class="qf-value">{{ requirement()?.requirement_type }}</span>
         </div>
-
-        <!-- Linked Test Cases -->
-        <div class="detail-section" *ngIf="linkedTestCases().length > 0">
-          <h3 class="section-title">Linked Test Cases</h3>
-          <div class="linked-items">
-            <div *ngFor="let tc of linkedTestCases()" class="linked-item" (click)="navigateToTestCase(tc.test_case_id)">
-              <span class="linked-icon">🧪</span>
-              <span class="linked-id">{{ tc.test_case_id }}</span>
-              <span class="linked-title">{{ tc.test_objective || 'Test Case' }}</span>
-            </div>
-          </div>
+        <div class="quick-fact" *ngIf="requirement()?.assignee">
+          <span class="qf-icon">👤</span>
+          <span class="qf-label">Assignee</span>
+          <span class="qf-value">{{ requirement()?.assignee }}</span>
         </div>
-
-        <!-- Linked Designs -->
-        <div class="detail-section" *ngIf="linkedDesigns().length > 0">
-          <h3 class="section-title">Linked Designs</h3>
-          <div class="linked-items">
-            <div *ngFor="let design of linkedDesigns()" class="linked-item" (click)="navigateToDesign(design.design_ticket_id)">
-              <span class="linked-icon">🎨</span>
-              <span class="linked-id">{{ design.design_ticket_id }}</span>
-              <span class="linked-title">{{ design.title || 'Design' }}</span>
-            </div>
-          </div>
+        <div class="quick-fact" *ngIf="requirement()?.linked_spec_id">
+          <span class="qf-icon">📄</span>
+          <span class="qf-label">Spec</span>
+          <span class="qf-value">{{ requirement()?.linked_spec_id }}</span>
         </div>
-
-        <!-- Metadata -->
-        <div class="detail-meta">
-          <div class="meta-item">
-            <span class="meta-label">Type:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="requirement()?.requirement_type || ''"
-              (input)="onFieldChange('requirement_type', $any($event.target).value)"
-              placeholder="Type">
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Assignee:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="requirement()?.assignee || ''"
-              (input)="onFieldChange('assignee', $any($event.target).value)"
-              placeholder="Assignee">
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Tags:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="requirement()?.tags || ''"
-              (input)="onFieldChange('tags', $any($event.target).value)"
-              placeholder="Tags">
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Specification ID:</span>
-            <input 
-              type="text" 
-              class="meta-value editable-input"
-              [value]="requirement()?.linked_spec_id || ''"
-              (input)="onFieldChange('linked_spec_id', $any($event.target).value)"
-              placeholder="SPEC_0001">
-          </div>
-          <div class="meta-item" *ngIf="requirement()?.created_at">
-            <span class="meta-label">Created:</span>
-            <span class="meta-value">{{ requirement()?.created_at }}</span>
-          </div>
-          <div class="meta-item" *ngIf="requirement()?.updated_at">
-            <span class="meta-label">Updated:</span>
-            <span class="meta-value">{{ requirement()?.updated_at }}</span>
-          </div>
+        <div class="quick-fact" *ngIf="requirement()?.tags">
+          <span class="qf-icon">🏷️</span>
+          <span class="qf-label">Tags</span>
+          <span class="qf-value">{{ requirement()?.tags }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="linkedTestCases().length > 0">
+          <span class="qf-icon">🧪</span>
+          <span class="qf-label">Test Cases</span>
+          <span class="qf-value">{{ linkedTestCases().length }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="linkedDesigns().length > 0">
+          <span class="qf-icon">🎨</span>
+          <span class="qf-label">Designs</span>
+          <span class="qf-value">{{ linkedDesigns().length }}</span>
         </div>
       </div>
+    </section>
+
+    <!-- TWO-COLUMN CONTENT -->
+    <div class="content-grid">
+
+      <!-- MAIN COLUMN -->
+      <main class="content-main">
+
+        <!-- Description -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">📝</span>
+            <div>
+              <h3 class="section-title">Description</h3>
+              <p class="section-subtitle">Plain-language summary of the requirement</p>
+            </div>
+          </header>
+          <div *ngIf="!isEditing('description'); else editDescription"
+               class="section-view inline-edit-view"
+               (click)="startEdit('description')"
+               title="Click to edit">
+            <p *ngIf="requirement()?.description; else emptyDescription" class="section-view-text">{{ requirement()?.description }}</p>
+            <ng-template #emptyDescription>
+              <span class="inline-edit-placeholder">Click to add a description…</span>
+            </ng-template>
+            <span class="inline-edit-pencil">✎</span>
+          </div>
+          <ng-template #editDescription>
+            <textarea
+              data-edit-field="description"
+              class="section-textarea"
+              [value]="requirement()?.description || ''"
+              (input)="onFieldChange('description', $any($event.target).value)"
+              (blur)="stopEdit()"
+              (keydown)="onEditKeydown($event, true)"
+              placeholder="Enter description…"></textarea>
+          </ng-template>
+        </article>
+
+        <!-- Acceptance Criteria (G/W/T) -->
+        <article class="section-card">
+          <header class="section-card-header">
+            <span class="section-icon">✅</span>
+            <div>
+              <h3 class="section-title">Acceptance Criteria</h3>
+              <p class="section-subtitle">Given · When · Then — conditions for passing</p>
+            </div>
+          </header>
+
+          <div class="gwt-list">
+            <!-- GIVEN -->
+            <div class="gwt-row">
+              <span class="gwt-chip gwt-chip--given">GIVEN</span>
+              <div class="gwt-body">
+                <div *ngIf="!isEditing('given'); else editGiven"
+                     class="section-view inline-edit-view gwt-view"
+                     (click)="startEdit('given')"
+                     title="Click to edit">
+                  <p *ngIf="requirement()?.given; else emptyGiven" class="section-view-text">{{ requirement()?.given }}</p>
+                  <ng-template #emptyGiven>
+                    <span class="inline-edit-placeholder">Describe the initial context…</span>
+                  </ng-template>
+                  <span class="inline-edit-pencil">✎</span>
+                </div>
+                <ng-template #editGiven>
+                  <textarea
+                    data-edit-field="given"
+                    class="section-textarea section-textarea--compact"
+                    [value]="requirement()?.given || ''"
+                    (input)="onFieldChange('given', $any($event.target).value)"
+                    (blur)="stopEdit()"
+                    (keydown)="onEditKeydown($event, true)"
+                    placeholder="Given…"></textarea>
+                </ng-template>
+              </div>
+            </div>
+
+            <!-- WHEN -->
+            <div class="gwt-row">
+              <span class="gwt-chip gwt-chip--when">WHEN</span>
+              <div class="gwt-body">
+                <div *ngIf="!isEditing('when_action'); else editWhen"
+                     class="section-view inline-edit-view gwt-view"
+                     (click)="startEdit('when_action')"
+                     title="Click to edit">
+                  <p *ngIf="requirement()?.when_action; else emptyWhen" class="section-view-text">{{ requirement()?.when_action }}</p>
+                  <ng-template #emptyWhen>
+                    <span class="inline-edit-placeholder">Describe the action or trigger…</span>
+                  </ng-template>
+                  <span class="inline-edit-pencil">✎</span>
+                </div>
+                <ng-template #editWhen>
+                  <textarea
+                    data-edit-field="when_action"
+                    class="section-textarea section-textarea--compact"
+                    [value]="requirement()?.when_action || ''"
+                    (input)="onFieldChange('when_action', $any($event.target).value)"
+                    (blur)="stopEdit()"
+                    (keydown)="onEditKeydown($event, true)"
+                    placeholder="When…"></textarea>
+                </ng-template>
+              </div>
+            </div>
+
+            <!-- THEN -->
+            <div class="gwt-row">
+              <span class="gwt-chip gwt-chip--then">THEN</span>
+              <div class="gwt-body">
+                <div *ngIf="!isEditing('then_result'); else editThen"
+                     class="section-view inline-edit-view gwt-view"
+                     (click)="startEdit('then_result')"
+                     title="Click to edit">
+                  <p *ngIf="requirement()?.then_result; else emptyThen" class="section-view-text">{{ requirement()?.then_result }}</p>
+                  <ng-template #emptyThen>
+                    <span class="inline-edit-placeholder">Describe the expected outcome…</span>
+                  </ng-template>
+                  <span class="inline-edit-pencil">✎</span>
+                </div>
+                <ng-template #editThen>
+                  <textarea
+                    data-edit-field="then_result"
+                    class="section-textarea section-textarea--compact"
+                    [value]="requirement()?.then_result || ''"
+                    (input)="onFieldChange('then_result', $any($event.target).value)"
+                    (blur)="stopEdit()"
+                    (keydown)="onEditKeydown($event, true)"
+                    placeholder="Then…"></textarea>
+                </ng-template>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Linked Test Cases -->
+        <article class="section-card" *ngIf="linkedTestCases().length > 0">
+          <header class="section-card-header">
+            <span class="section-icon">🧪</span>
+            <div>
+              <h3 class="section-title">Linked Test Cases</h3>
+              <p class="section-subtitle">{{ linkedTestCases().length }} test case<span *ngIf="linkedTestCases().length !== 1">s</span> verify this requirement</p>
+            </div>
+          </header>
+          <div class="linked-list">
+            <button *ngFor="let tc of linkedTestCases()"
+                    class="linked-row"
+                    (click)="navigateToTestCase(tc.test_case_id)"
+                    type="button">
+              <span class="linked-icon">🧪</span>
+              <div class="linked-content">
+                <span class="linked-id">{{ tc.test_case_id }}</span>
+                <span class="linked-title">{{ tc.title || tc.test_objective || 'Untitled test case' }}</span>
+              </div>
+              <span class="linked-arrow">→</span>
+            </button>
+          </div>
+        </article>
+
+        <!-- Linked Designs -->
+        <article class="section-card" *ngIf="linkedDesigns().length > 0">
+          <header class="section-card-header">
+            <span class="section-icon">🎨</span>
+            <div>
+              <h3 class="section-title">Linked Designs</h3>
+              <p class="section-subtitle">{{ linkedDesigns().length }} design ticket<span *ngIf="linkedDesigns().length !== 1">s</span> reference this requirement</p>
+            </div>
+          </header>
+          <div class="linked-list">
+            <button *ngFor="let design of linkedDesigns()"
+                    class="linked-row"
+                    (click)="navigateToDesign(design.design_ticket_id)"
+                    type="button">
+              <span class="linked-icon">🎨</span>
+              <div class="linked-content">
+                <span class="linked-id">{{ design.design_ticket_id }}</span>
+                <span class="linked-title">{{ design.title || 'Untitled design' }}</span>
+              </div>
+              <span class="linked-arrow">→</span>
+            </button>
+          </div>
+        </article>
+
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="content-side">
+
+        <!-- People -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">👥</span>
+            <h4>People</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label">👤 Assignee</label>
+              <div *ngIf="!isEditing('assignee'); else editAssignee"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('assignee')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.assignee; else emptyAssignee">{{ requirement()?.assignee }}</span>
+                <ng-template #emptyAssignee><span class="inline-edit-placeholder">Unassigned</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editAssignee>
+                <input
+                  type="text"
+                  data-edit-field="assignee"
+                  class="side-input"
+                  [value]="requirement()?.assignee || ''"
+                  (input)="onFieldChange('assignee', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Assignee">
+              </ng-template>
+            </div>
+            <div class="side-field" *ngIf="requirement()?.created_by">
+              <label class="side-label">✍️ Created by</label>
+              <span class="side-static">{{ requirement()?.created_by }}</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Classification -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🗂️</span>
+            <h4>Classification</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label">📐 Type</label>
+              <div *ngIf="!isEditing('requirement_type'); else editType"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('requirement_type')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.requirement_type; else emptyType">{{ requirement()?.requirement_type }}</span>
+                <ng-template #emptyType><span class="inline-edit-placeholder">Add type…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editType>
+                <input
+                  type="text"
+                  data-edit-field="requirement_type"
+                  class="side-input"
+                  [value]="requirement()?.requirement_type || ''"
+                  (input)="onFieldChange('requirement_type', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="Type">
+              </ng-template>
+            </div>
+            <div class="side-field">
+              <label class="side-label">🏷️ Tags</label>
+              <div *ngIf="!isEditing('tags'); else editTags"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('tags')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.tags; else emptyTags">{{ requirement()?.tags }}</span>
+                <ng-template #emptyTags><span class="inline-edit-placeholder">Add tags…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editTags>
+                <input
+                  type="text"
+                  data-edit-field="tags"
+                  class="side-input"
+                  [value]="requirement()?.tags || ''"
+                  (input)="onFieldChange('tags', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="comma, separated, tags">
+              </ng-template>
+            </div>
+            <div class="side-field">
+              <label class="side-label">📄 Specification ID</label>
+              <div *ngIf="!isEditing('linked_spec_id'); else editSpec"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('linked_spec_id')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.linked_spec_id; else emptySpec">{{ requirement()?.linked_spec_id }}</span>
+                <ng-template #emptySpec><span class="inline-edit-placeholder">Add spec ID…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editSpec>
+                <input
+                  type="text"
+                  data-edit-field="linked_spec_id"
+                  class="side-input"
+                  [value]="requirement()?.linked_spec_id || ''"
+                  (input)="onFieldChange('linked_spec_id', $any($event.target).value)"
+                  (blur)="stopEdit()"
+                  (keydown)="onEditKeydown($event, false)"
+                  placeholder="SPEC_0001">
+              </ng-template>
+            </div>
+          </div>
+        </article>
+
+        <!-- Timeline -->
+        <article class="side-card" *ngIf="requirement()?.created_at || requirement()?.updated_at">
+          <header class="side-card-header">
+            <span class="side-icon">🕒</span>
+            <h4>Timeline</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="timeline-item" *ngIf="requirement()?.created_at">
+              <span class="timeline-dot timeline-dot--created"></span>
+              <div class="timeline-text">
+                <span class="timeline-label">Created</span>
+                <span class="timeline-value">{{ requirement()?.created_at }}</span>
+              </div>
+            </div>
+            <div class="timeline-item" *ngIf="requirement()?.updated_at">
+              <span class="timeline-dot timeline-dot--updated"></span>
+              <div class="timeline-text">
+                <span class="timeline-label">Last updated</span>
+                <span class="timeline-value">{{ requirement()?.updated_at }}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </aside>
     </div>
   </div>
 </div>
-

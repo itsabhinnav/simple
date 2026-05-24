@@ -1,58 +1,129 @@
 @import './test-case-detail.component.scss';
 
-.submit-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 24px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-  background: #1a73e8;
-  color: white;
+// =============================================================
+// Create Test Case — additions on top of the detail design
+// =============================================================
+
+// Primary "Create" CTA button to complement .btn-ghost / .btn-danger
+.top-bar .btn.btn-primary {
+  color: #ffffff;
+  background: $accent;
+  border-color: $accent;
+  font-weight: 600;
+  letter-spacing: 0.005em;
 
   &:hover:not(:disabled) {
-    background: #1557b0;
+    background: $accent-hover;
+    border-color: $accent-hover;
   }
 
   &:disabled {
-    background: #bdbdbd;
+    background: #cbd5e1;
+    border-color: #cbd5e1;
+    color: #f8fafc;
     cursor: not-allowed;
-    opacity: 0.6;
   }
 }
 
-.success-container {
-  background: #e8f5e9;
-  border: 1px solid #81c784;
-  color: #2e7d32;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  i {
-    font-size: 20px;
+// Inline ID generating hint
+.hero-card {
+  .hero-id-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
-  p {
+  .id-hint {
+    font-size: 12px;
+    color: $text-muted;
+    font-style: italic;
+  }
+
+  // Helper paragraph under the title input
+  .hero-helper {
     margin: 0;
-    font-weight: 500;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px dashed $border;
+    border-radius: $radius-sm;
+    font-size: 13px;
+    line-height: 1.55;
+    color: $text-muted;
+    letter-spacing: -0.002em;
+    max-width: 75ch;
+  }
+
+  // Make the title input visually consistent with the detail page
+  .hero-title.editable-title {
+    border: 1px solid transparent;
+
+    &:hover { background: #f8fafc; }
+    &:focus {
+      background: white;
+      border-color: $accent;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
   }
 }
 
-.icon-success::before {
-  content: "✓";
-  color: #2e7d32;
-  font-weight: bold;
+// Larger, more comfortable section labels in the sidebar (improves readability)
+.side-card .side-label {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0.005em;
+  font-weight: 600;
+  color: #475569;
 }
 
-.icon-save::before {
-  content: "💾";
-}
+// =============================================================
+// Alerts (error / success) — modern, readable
+// =============================================================
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: $radius-md;
+  margin-bottom: 20px;
+  border: 1px solid transparent;
+  box-shadow: $shadow-sm;
 
+  .alert-icon {
+    font-size: 20px;
+    line-height: 1.2;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .alert-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .alert-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+
+  .alert-message {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+
+  &.alert--error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+
+  &.alert--success {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    color: #065f46;
+  }
+}
