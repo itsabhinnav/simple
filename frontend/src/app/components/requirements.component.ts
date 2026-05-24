@@ -66,10 +66,18 @@ export class RequirementsComponent implements OnInit {
   requirements = signal<Requirement[]>([]);
   isLoading = signal(false);
   error = signal<string | null>(null);
-  searchTerm = '';
+  searchTerm = signal<string>('');
   selectedStatus = signal<string>('all');
   selectedPriority = signal<string>('all');
   selectedAssignee = signal<string>('all');
+  selectedType = signal<string>('all');
+  selectedTags = signal<string[]>([]);
+  dateFrom = signal<string>('');
+  dateTo = signal<string>('');
+  hasDescription = signal<'all' | 'with' | 'without'>('all');
+  sortBy = signal<'updated_at' | 'created_at' | 'priority' | 'status' | 'requirement_id' | 'title'>('updated_at');
+  sortDir = signal<'asc' | 'desc'>('desc');
+  showAdvancedFilters = signal<boolean>(false);
 
   showModal = signal(false);
   isEditMode = signal(false);
@@ -127,32 +135,161 @@ export class RequirementsComponent implements OnInit {
   filteredRequirements(): Requirement[] {
     let filtered = this.requirements();
 
-    // Filter by search term
-    if (this.searchTerm.trim()) {
-      const term = this.searchTerm.toLowerCase();
+    const term = this.searchTerm().trim().toLowerCase();
+    if (term) {
       filtered = filtered.filter(req =>
         req.title.toLowerCase().includes(term) ||
         req.requirement_id.toLowerCase().includes(term) ||
-        (req.description && req.description.toLowerCase().includes(term))
+        (req.description?.toLowerCase().includes(term) ?? false) ||
+        (req.assignee?.toLowerCase().includes(term) ?? false) ||
+        (req.tags?.toLowerCase().includes(term) ?? false) ||
+        (req.given?.toLowerCase().includes(term) ?? false) ||
+        (req.when_action?.toLowerCase().includes(term) ?? false) ||
+        (req.then_result?.toLowerCase().includes(term) ?? false)
       );
     }
 
-    // Filter by status
     if (this.selectedStatus() !== 'all') {
       filtered = filtered.filter(req => req.status === this.selectedStatus());
     }
 
-    // Filter by priority
     if (this.selectedPriority() !== 'all') {
       filtered = filtered.filter(req => req.priority === this.selectedPriority());
     }
 
-    // Filter by assignee
     if (this.selectedAssignee() !== 'all') {
-      filtered = filtered.filter(req => req.assignee === this.selectedAssignee());
+      const sel = this.selectedAssignee();
+      filtered = sel === '__unassigned__'
+        ? filtered.filter(req => !req.assignee || req.assignee.trim() === '')
+        : filtered.filter(req => req.assignee === sel);
     }
 
+    if (this.selectedType() !== 'all') {
+      filtered = filtered.filter(req => (req.requirement_type || 'Functional') === this.selectedType());
+    }
+
+    const tagFilter = this.selectedTags();
+    if (tagFilter.length > 0) {
+      filtered = filtered.filter(req => {
+        const reqTags = this.parseTags(req.tags);
+        return tagFilter.every(t => reqTags.includes(t));
+      });
+    }
+
+    const from = this.dateFrom();
+    const to = this.dateTo();
+    if (from || to) {
+      const fromTs = from ? new Date(from).getTime() : -Infinity;
+      const toTs = to ? new Date(to).getTime() + 86399999 : Infinity;
+      filtered = filtered.filter(req => {
+        if (!req.created_at) return false;
+        const ts = new Date(req.created_at).getTime();
+        return ts >= fromTs && ts <= toTs;
+      });
+    }
+
+    if (this.hasDescription() === 'with') {
+      filtered = filtered.filter(req => !!req.description?.trim());
+    } else if (this.hasDescription() === 'without') {
+      filtered = filtered.filter(req => !req.description?.trim());
+    }
+
+    const sortBy = this.sortBy();
+    const dir = this.sortDir() === 'asc' ? 1 : -1;
+    const priorityOrder: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
+    const statusOrder: Record<string, number> = { Draft: 1, Approved: 2, Implemented: 3, Tested: 4, Closed: 5 };
+    filtered = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case 'priority':
+          cmp = (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99);
+          break;
+        case 'status':
+          cmp = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
+          break;
+        case 'requirement_id':
+          cmp = a.requirement_id.localeCompare(b.requirement_id, undefined, { numeric: true });
+          break;
+        case 'title':
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case 'created_at':
+          cmp = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+          break;
+        case 'updated_at':
+        default:
+          cmp = new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime();
+      }
+      return cmp * dir;
+    });
+
     return filtered;
+  }
+
+  private parseTags(tags: string | undefined | null): string[] {
+    if (!tags) return [];
+    return tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+  }
+
+  getUniqueTags(): string[] {
+    const all = this.requirements().flatMap(req => this.parseTags(req.tags));
+    return [...new Set(all)].sort((a, b) => a.localeCompare(b));
+  }
+
+  getUniqueTypes(): string[] {
+    const types = this.requirements()
+      .map(req => req.requirement_type)
+      .filter((t): t is string => !!t && t.trim() !== '');
+    return [...new Set(types)].sort();
+  }
+
+  toggleTag(tag: string) {
+    const current = this.selectedTags();
+    this.selectedTags.set(
+      current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag]
+    );
+  }
+
+  isTagSelected(tag: string): boolean {
+    return this.selectedTags().includes(tag);
+  }
+
+  toggleSortDir() {
+    this.sortDir.set(this.sortDir() === 'asc' ? 'desc' : 'asc');
+  }
+
+  toggleAdvancedFilters() {
+    this.showAdvancedFilters.set(!this.showAdvancedFilters());
+  }
+
+  activeFilterCount(): number {
+    let count = 0;
+    if (this.searchTerm().trim()) count++;
+    if (this.selectedStatus() !== 'all') count++;
+    if (this.selectedPriority() !== 'all') count++;
+    if (this.selectedAssignee() !== 'all') count++;
+    if (this.selectedType() !== 'all') count++;
+    count += this.selectedTags().length;
+    if (this.dateFrom()) count++;
+    if (this.dateTo()) count++;
+    if (this.hasDescription() !== 'all') count++;
+    return count;
+  }
+
+  hasActiveFilters(): boolean {
+    return this.activeFilterCount() > 0;
+  }
+
+  clearAllFilters() {
+    this.searchTerm.set('');
+    this.selectedStatus.set('all');
+    this.selectedPriority.set('all');
+    this.selectedAssignee.set('all');
+    this.selectedType.set('all');
+    this.selectedTags.set([]);
+    this.dateFrom.set('');
+    this.dateTo.set('');
+    this.hasDescription.set('all');
   }
 
   openCreateModal() {
@@ -274,7 +411,7 @@ export class RequirementsComponent implements OnInit {
     const assignees = this.requirements()
       .map(req => req.assignee)
       .filter((assignee): assignee is string => assignee !== undefined && assignee !== null && assignee.trim() !== '');
-    return [...new Set(assignees)];
+    return [...new Set(assignees)].sort((a, b) => a.localeCompare(b));
   }
 
   navigateToDetail(id: number | undefined) {
