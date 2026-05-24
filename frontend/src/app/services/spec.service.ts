@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { API_URL } from '../app-settings';
 
 export interface Spec {
   id?: number;
@@ -18,7 +19,7 @@ export interface ApiResponse<T> { success: boolean; message?: string; data?: T; 
 @Injectable({ providedIn: 'root' })
 export class SpecService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:5000/api/specs';
+  private readonly baseUrl = `${API_URL}/specs`;
 
   getSpecs(): Observable<Spec[]> {
     return new Observable<Spec[]>((observer) => {

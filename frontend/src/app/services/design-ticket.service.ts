@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { API_URL } from '../app-settings';
 
 export interface DesignTicket {
   id?: number;
@@ -62,7 +63,7 @@ export interface ApiResponse<T> {
 })
 export class DesignTicketService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:5000/api';
+  private readonly baseUrl = API_URL;
 
   getDesignTickets(): Observable<DesignTicket[]> {
     return this.http.get<ApiResponse<DesignTicket[]>>(`${this.baseUrl}/design-tickets`)

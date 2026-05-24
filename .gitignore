@@ -436,3 +436,14 @@ swagger-ui/
  
 # Graphify
 graphify-out/
+
+# ===========================================
+# Deployment artifacts
+# ===========================================
+
+# Built frontend bundle staged for Flask to serve. Re-generated on every
+# setup.sh / setup.ps1 run from frontend/dist/frontend/browser.
+backend/static/
+
+# Python virtualenv created by the bootstrap scripts.
+.venv/

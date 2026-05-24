@@ -2,7 +2,7 @@ import { Injectable, signal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
-import { APP_SETTINGS, AUTH_DISABLED_USER } from '../app-settings';
+import { APP_SETTINGS, AUTH_DISABLED_USER, API_URL } from '../app-settings';
 
 export interface User {
   id: number;
@@ -42,7 +42,7 @@ export interface AuthResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly API_URL = 'http://localhost:5000/api/auth';
+  private readonly API_URL = `${API_URL}/auth`;
   /** Public, read-only flag: when false, the app runs without any login/signup flow. */
   readonly authEnabled = APP_SETTINGS.auth.enabled;
   private currentUser = signal<User | null>(null);

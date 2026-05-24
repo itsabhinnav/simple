@@ -12,7 +12,20 @@ from pathlib import Path
 from flask import Flask, request, send_from_directory, jsonify
 from flask_cors import CORS
 
-# Add src to Python path
+# Load environment variables from .env file at the project root if present.
+# Done before any other backend imports so that secrets like JWT_SECRET_KEY,
+# ENCRYPTION_KEY, ALLOWED_ORIGINS, ENABLE_NETWORK_RESTRICTIONS etc. are
+# visible to the rest of the application during module-level initialisation.
+try:
+    from dotenv import load_dotenv
+
+    _backend_dir = Path(__file__).resolve().parent
+    for _env_path in (_backend_dir / ".env", _backend_dir.parent / ".env"):
+        if _env_path.exists():
+            load_dotenv(_env_path, override=False)
+except Exception:
+    pass
+
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 

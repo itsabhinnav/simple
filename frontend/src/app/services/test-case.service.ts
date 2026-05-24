@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { API_URL } from '../app-settings';
 
 export interface TestCase {
   id?: number;
@@ -164,7 +165,7 @@ export interface TestCaseImportFieldsResponse {
 })
 export class TestCaseService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:5000/api';
+  private readonly baseUrl = API_URL;
   
   private testCasesSubject = new BehaviorSubject<TestCase[]>([]);
   public testCases$ = this.testCasesSubject.asObservable();

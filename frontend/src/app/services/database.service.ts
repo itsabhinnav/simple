@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { API_URL } from '../app-settings';
 
 export interface Database {
   name: string;
@@ -46,7 +47,7 @@ export interface HealthStatus {
 })
 export class DatabaseService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:5000/api';
+  private readonly baseUrl = API_URL;
   
   private databasesSubject = new BehaviorSubject<Database[]>([]);
   public databases$ = this.databasesSubject.asObservable();

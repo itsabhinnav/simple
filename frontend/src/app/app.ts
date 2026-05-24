@@ -11,6 +11,7 @@ import { TestCase } from './services/test-case.service';
 import { TranslationService } from './services/translation.service';
 import { TranslatePipe } from './services/translate.pipe';
 import { AutoTranslateDirective } from './services/auto-translate.directive';
+import { API_BASE } from './app-settings';
 
 @Component({
   selector: 'app-root',
@@ -52,7 +53,7 @@ export class App implements OnInit {
   }
   
   ngOnInit() {
-    this.http.get<any>('http://localhost:5000/health').subscribe({
+    this.http.get<any>(`${API_BASE}/health`).subscribe({
       next: (data) => this.message.set(data.message),
       error: (err) => this.message.set('Backend connection failed')
     });

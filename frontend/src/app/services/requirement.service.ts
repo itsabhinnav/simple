@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { API_URL } from '../app-settings';
 
 export interface Requirement {
   id?: number;
@@ -63,7 +64,7 @@ export interface ApiResponse<T> {
 })
 export class RequirementService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:5000/api';
+  private readonly baseUrl = API_URL;
 
   getRequirements(): Observable<Requirement[]> {
     return this.http.get<ApiResponse<Requirement[]>>(`${this.baseUrl}/requirements`)

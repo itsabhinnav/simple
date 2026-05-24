@@ -1,7 +1,5 @@
 Flask==3.1.2
 Flask-CORS==6.0.1
-aiohttp==3.9.1
-asyncio-mqtt==0.16.1
 python-dotenv==1.0.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
@@ -9,11 +7,14 @@ requests==2.32.3
 pyyaml==6.0.2
 PyJWT==2.8.0
 Werkzeug==3.1.3
-graphifyy
 cryptography==42.0.5
 flask-limiter==3.5.0
 flask-talisman==1.1.0
-gunicorn==21.2.0
-gevent==24.2.1
-psycopg2-binary==2.9.9
 openpyxl==3.1.5
+# Imported at module load time by src.services.postgresql_database_service.
+# psycopg2-binary ships pre-built wheels for all common Linux/Windows/macOS
+# targets, so installing it does not require a local PostgreSQL toolchain.
+psycopg2-binary==2.9.9
+# Production WSGI servers (gunicorn on Linux/macOS, waitress on Windows).
+gunicorn==21.2.0; sys_platform != "win32"
+waitress==3.0.0

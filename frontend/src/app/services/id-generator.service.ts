@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map, catchError } from 'rxjs';
 import { of } from 'rxjs';
+import { API_URL } from '../app-settings';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -16,7 +17,7 @@ export interface ApiResponse<T> {
 })
 export class IdGeneratorService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:5000/api';
+  private readonly baseUrl = API_URL;
 
   /**
    * Generate next Requirement ID in format REQ_XXXX
