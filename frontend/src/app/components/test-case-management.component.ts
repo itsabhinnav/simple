@@ -37,14 +37,13 @@ import { SplitViewComponent } from './split-view.component';
           </h1>
         </div>
         <div class="header-right">
-          <button
+          <a
             class="add-btn import-btn"
-            (click)="openImportModal()"
-            [disabled]="isLoading() || isImporting()"
-            title="Import test cases from one or more spreadsheets (.xlsx, .xlsm, .csv)">
+            routerLink="/test-cases/import"
+            title="Bulk-import test cases — drag & drop spreadsheets, preview every sheet, save column-mapping presets.">
             <i class="icon-upload"></i>
             Import Test Cases
-          </button>
+          </a>
           <button 
             class="add-btn" 
             routerLink="/test-cases/create"

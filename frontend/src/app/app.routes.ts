@@ -6,6 +6,7 @@ import { RequirementsComponent } from './components/requirements.component';
 import { ForgotPasswordComponent } from './components/forgot-password.component';
 import { CreateRequirementComponent } from './components/create-requirement.component';
 import { CreateTestCaseComponent } from './components/create-test-case.component';
+import { ImportTestCasesComponent } from './components/import-test-cases.component';
 import { RequirementDetailComponent } from './components/requirement-detail.component';
 import { TestCaseDetailComponent } from './components/test-case-detail.component';
 import { SplitViewComponent } from './components/split-view.component';
@@ -38,6 +39,7 @@ export const routes: Routes = [
   { path: 'users', component: UserManagementComponent, canActivate: [AuthGuard, AdminGuard] },
   { path: 'test-cases', component: TestCaseManagementComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/create', component: CreateTestCaseComponent, canActivate: [AuthGuard] },
+  { path: 'test-cases/import', component: ImportTestCasesComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/:id', component: TestCaseDetailComponent, canActivate: [AuthGuard] },
   { path: 'design-tickets', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'design-tickets/create', component: CreateDesignTicket, canActivate: [AuthGuard] },

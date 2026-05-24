@@ -1,0 +1,135 @@
+<div class="specs-container">
+  <header class="specs-header">
+    <div class="header-left">
+      <nav class="breadcrumb">
+        <a routerLink="/" class="breadcrumb-link">
+          <i class="icon-database"></i>
+          Dashboard
+        </a>
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-current">Specifications</span>
+      </nav>
+      <h1 class="page-title">
+        <i class="icon-spec"></i>
+        Specifications
+      </h1>
+    </div>
+    <div class="header-actions">
+      <label class="btn-import" [class.disabled]="isImporting()">
+        <input type="file" (change)="onFileSelected($event)" hidden [disabled]="isImporting()" />
+        <i class="icon-upload"></i>
+        {{ isImporting() ? 'Importing...' : 'Import' }}
+      </label>
+      <button type="button" class="btn-primary" (click)="toggleCreateForm()">
+        <i class="icon-plus"></i>
+        {{ showCreateForm() ? 'Close' : 'New Spec' }}
+      </button>
+    </div>
+  </header>
+
+  <div *ngIf="importError()" class="card" style="border-color:#fca5a5;background:#fef2f2;">
+    <div class="card-body" style="color:#991b1b;font-size:13px;">{{ importError() }}</div>
+  </div>
+
+  <section *ngIf="showCreateForm()" class="card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="icon-plus"></i>
+        Create Specification
+      </h3>
+    </div>
+    <div class="card-body">
+      <form [formGroup]="form" (ngSubmit)="onCreate()">
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label">Spec ID *</label>
+            <input class="form-input" formControlName="spec_id" placeholder="SPEC_0001" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Title *</label>
+            <input class="form-input" formControlName="title" placeholder="Specification title" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Category</label>
+            <input class="form-input" formControlName="category" placeholder="SRS / PRD" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Version</label>
+            <input class="form-input" formControlName="version" placeholder="1.0" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Status</label>
+            <select class="form-select" formControlName="status">
+              <option value="Draft">Draft</option>
+              <option value="In Review">In Review</option>
+              <option value="Approved">Approved</option>
+              <option value="Archived">Archived</option>
+            </select>
+          </div>
+          <div class="form-field form-field--full">
+            <label class="form-label">Description</label>
+            <textarea class="form-textarea" formControlName="description" placeholder="Describe the scope and intent of this specification..."></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" (click)="onCancelCreate()">Cancel</button>
+          <button type="submit" class="btn-primary" [disabled]="form.invalid || isSubmitting()">
+            {{ isSubmitting() ? 'Saving...' : 'Create Spec' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="icon-requirements"></i>
+        All Specifications
+      </h3>
+      <span class="card-subtitle">{{ totalSpecs() }} total</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <ng-container *ngIf="specs().length > 0; else emptyTpl">
+        <div class="specs-table-wrap">
+          <table class="specs-table">
+            <thead>
+              <tr>
+                <th style="width:140px;">Spec ID</th>
+                <th>Title</th>
+                <th style="width:140px;">Category</th>
+                <th style="width:90px;">Version</th>
+                <th style="width:120px;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of specs()">
+                <td><span class="spec-id">{{ s.spec_id }}</span></td>
+                <td><span class="spec-title">{{ s.title }}</span></td>
+                <td>
+                  <span class="spec-meta-pill" *ngIf="s.category">{{ s.category }}</span>
+                  <span *ngIf="!s.category" style="color:#94a3b8;">—</span>
+                </td>
+                <td>
+                  <span class="spec-meta-pill" *ngIf="s.version">v{{ s.version }}</span>
+                  <span *ngIf="!s.version" style="color:#94a3b8;">—</span>
+                </td>
+                <td>
+                  <span class="spec-meta-pill" [class]="'spec-meta-pill ' + statusClass(s.status)">
+                    {{ s.status || 'Draft' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+      <ng-template #emptyTpl>
+        <div class="empty-state">
+          <span class="empty-icon">📄</span>
+          No specifications yet. Click <strong>New Spec</strong> to create your first one.
+        </div>
+      </ng-template>
+    </div>
+  </section>
+</div>
