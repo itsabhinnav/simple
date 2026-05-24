@@ -39,6 +39,37 @@ warn() { printf '\033[1;33m[sakura]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[sakura]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
+# 0. Corporate proxy detection
+# ---------------------------------------------------------------------------
+# pip and npm read HTTP_PROXY / HTTPS_PROXY / NO_PROXY env vars when present,
+# but expect different casing depending on the tool. Normalise whichever the
+# user has set and re-export BOTH upper- and lower-case variants so every
+# child process picks them up consistently.
+mask_proxy() {
+  printf '%s' "$1" | sed -E 's#(://)[^:@/]+:[^@/]+@#\1***:***@#'
+}
+
+HTTPS_PROXY="${HTTPS_PROXY:-${https_proxy:-}}"
+HTTP_PROXY="${HTTP_PROXY:-${http_proxy:-}}"
+NO_PROXY="${NO_PROXY:-${no_proxy:-}}"
+
+if [ -n "$HTTPS_PROXY$HTTP_PROXY" ]; then
+  log "Detected corporate proxy:"
+  [ -n "$HTTPS_PROXY" ] && log "  HTTPS_PROXY = $(mask_proxy "$HTTPS_PROXY")"
+  [ -n "$HTTP_PROXY"  ] && log "  HTTP_PROXY  = $(mask_proxy "$HTTP_PROXY")"
+  [ -n "$NO_PROXY"    ] && log "  NO_PROXY    = $NO_PROXY"
+
+  [ -n "$HTTPS_PROXY" ] && export HTTPS_PROXY https_proxy="$HTTPS_PROXY"
+  [ -n "$HTTP_PROXY"  ] && export HTTP_PROXY  http_proxy="$HTTP_PROXY"
+  [ -n "$NO_PROXY"    ] && export NO_PROXY    no_proxy="$NO_PROXY"
+fi
+
+PIP_PROXY_ARGS=()
+if [ -n "$HTTPS_PROXY" ]; then PIP_PROXY_ARGS=(--proxy "$HTTPS_PROXY")
+elif [ -n "$HTTP_PROXY" ]; then PIP_PROXY_ARGS=(--proxy "$HTTP_PROXY")
+fi
+
+# ---------------------------------------------------------------------------
 # 1. Dependency checks
 # ---------------------------------------------------------------------------
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"; }
@@ -83,13 +114,22 @@ ensure_pip() {
   if "$VENV_PY" -m pip --version >/dev/null 2>&1; then return; fi
 
   warn "ensurepip failed; downloading get-pip.py from https://bootstrap.pypa.io"
-  local tmp
+  local tmp curl_proxy wget_proxy
   tmp=$(mktemp -t sakura-get-pip.XXXXXX.py)
+  curl_proxy=()
+  wget_proxy=()
+  if [ -n "$HTTPS_PROXY" ]; then
+    curl_proxy=(--proxy "$HTTPS_PROXY")
+    wget_proxy=(-e use_proxy=yes -e "https_proxy=$HTTPS_PROXY")
+  elif [ -n "$HTTP_PROXY" ]; then
+    curl_proxy=(--proxy "$HTTP_PROXY")
+    wget_proxy=(-e use_proxy=yes -e "http_proxy=$HTTP_PROXY")
+  fi
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$tmp" \
+    curl -fsSL "${curl_proxy[@]}" https://bootstrap.pypa.io/get-pip.py -o "$tmp" \
       || { rm -f "$tmp"; die "Could not download get-pip.py. Install pip manually."; }
   elif command -v wget >/dev/null 2>&1; then
-    wget -q https://bootstrap.pypa.io/get-pip.py -O "$tmp" \
+    wget -q "${wget_proxy[@]}" https://bootstrap.pypa.io/get-pip.py -O "$tmp" \
       || { rm -f "$tmp"; die "Could not download get-pip.py. Install pip manually."; }
   else
     rm -f "$tmp"; die "Need curl or wget to bootstrap pip."
@@ -106,8 +146,8 @@ ensure_pip
 source "$VENV_DIR/bin/activate"
 
 log "Installing backend Python dependencies"
-python -m pip install --upgrade pip setuptools wheel >/dev/null
-python -m pip install -r backend/requirements.txt
+python -m pip "${PIP_PROXY_ARGS[@]}" install --upgrade pip setuptools wheel >/dev/null
+python -m pip "${PIP_PROXY_ARGS[@]}" install -r backend/requirements.txt
 
 # ---------------------------------------------------------------------------
 # 3. Frontend deps + build

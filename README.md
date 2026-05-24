@@ -104,6 +104,63 @@ frontend source (so the static bundle gets rebuilt).
 
 ---
 
+## Corporate proxies
+
+Both `setup.sh` and `setup.ps1` honour the standard proxy environment
+variables for `pip`, `npm` and the get-pip.py bootstrap fallback. Set them
+once in your shell (either casing works — the scripts normalise and
+re-export both):
+
+```bash
+# Linux / macOS
+export HTTPS_PROXY=http://user:pass@proxy.corp.local:8080
+export HTTP_PROXY=$HTTPS_PROXY
+export NO_PROXY=localhost,127.0.0.1,.corp.local
+./setup.sh
+```
+
+```powershell
+# Windows
+$env:HTTPS_PROXY = "http://user:pass@proxy.corp.local:8080"
+$env:HTTP_PROXY  = $env:HTTPS_PROXY
+$env:NO_PROXY    = "localhost,127.0.0.1,.corp.local"
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+When a proxy is detected the script prints a masked banner (credentials are
+hidden) and forwards it to `pip --proxy`, `Invoke-WebRequest -Proxy`, and the
+child npm process via `HTTPS_PROXY` / `HTTP_PROXY` env vars.
+
+---
+
+## Resetting the local database
+
+To wipe the SQLite database and let the backend re-create an empty schema on
+the next start, use the bundled cleaner. By default it only touches the
+local SQLite file (and its WAL / SHM sidecars) and prompts for confirmation
+before deleting anything.
+
+```bash
+# Linux / macOS
+./clean_db.sh                          # prompts before deleting
+./clean_db.sh --force                  # skip prompt
+./clean_db.sh --force --with-remote --with-uploads  # also wipe Git workspace + uploads
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File .\clean_db.ps1
+powershell -ExecutionPolicy Bypass -File .\clean_db.ps1 -Force
+powershell -ExecutionPolicy Bypass -File .\clean_db.ps1 -Force -WithRemote -WithUploads
+```
+
+After cleaning, run `./start.sh` (or `start.ps1`) — `HybridDatabaseService`
+creates the tables on first connect and `provision_master_admin` recreates
+the admin user from `.env`. **Stop the server before running the cleaner**;
+SQLite holds an exclusive lock while the backend is up.
+
+---
+
 ## Runtime configuration
 
 All runtime knobs live in `.env` at the project root. Look at

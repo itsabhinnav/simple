@@ -32,6 +32,33 @@ function Warn    { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Yello
 function Fail    { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Red; exit 1 }
 
 # ---------------------------------------------------------------------------
+# 0. Corporate proxy detection
+# ---------------------------------------------------------------------------
+# pip and npm both honour HTTP_PROXY / HTTPS_PROXY / NO_PROXY env vars when
+# present, but they expect specific casing depending on the tool/platform. We
+# normalise whichever the user has set and re-export BOTH the upper- and
+# lower-case variants so every child process picks them up consistently.
+function Mask-ProxyUrl([string]$url) {
+    if (-not $url) { return '' }
+    return ($url -replace '(://)([^:@/]+):([^@/]+)@', '$1***:***@')
+}
+
+$HttpsProxy = if ($env:HTTPS_PROXY) { $env:HTTPS_PROXY } else { $env:https_proxy }
+$HttpProxy  = if ($env:HTTP_PROXY)  { $env:HTTP_PROXY }  else { $env:http_proxy }
+$NoProxy    = if ($env:NO_PROXY)    { $env:NO_PROXY }    else { $env:no_proxy }
+
+if ($HttpsProxy -or $HttpProxy) {
+    Log "Detected corporate proxy:"
+    if ($HttpsProxy) { Log "  HTTPS_PROXY = $(Mask-ProxyUrl $HttpsProxy)" }
+    if ($HttpProxy)  { Log "  HTTP_PROXY  = $(Mask-ProxyUrl $HttpProxy)"  }
+    if ($NoProxy)    { Log "  NO_PROXY    = $NoProxy" }
+
+    if ($HttpsProxy) { $env:HTTPS_PROXY = $HttpsProxy; $env:https_proxy = $HttpsProxy }
+    if ($HttpProxy)  { $env:HTTP_PROXY  = $HttpProxy;  $env:http_proxy  = $HttpProxy  }
+    if ($NoProxy)    { $env:NO_PROXY    = $NoProxy;    $env:no_proxy    = $NoProxy    }
+}
+
+# ---------------------------------------------------------------------------
 # 1. Dependency checks
 # ---------------------------------------------------------------------------
 function Test-Command($name) {
@@ -128,8 +155,10 @@ function Ensure-Pip {
 
     Warn "ensurepip failed; downloading get-pip.py from https://bootstrap.pypa.io"
     $getPip = Join-Path $env:TEMP "sakura-get-pip.py"
+    $iwrArgs = @{ Uri = 'https://bootstrap.pypa.io/get-pip.py'; OutFile = $getPip; UseBasicParsing = $true }
+    if ($HttpsProxy) { $iwrArgs['Proxy'] = $HttpsProxy }
     try {
-        Invoke-WebRequest -UseBasicParsing -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $getPip
+        Invoke-WebRequest @iwrArgs
     } catch {
         Fail "Could not download get-pip.py: $($_.Exception.Message)`nInstall pip manually with: $VenvPython -m ensurepip --upgrade"
     }
@@ -142,8 +171,12 @@ function Ensure-Pip {
 Ensure-Pip
 
 Log "Installing backend Python dependencies"
-& $VenvPython -m pip install --upgrade pip setuptools wheel | Out-Null
-& $VenvPython -m pip install -r backend\requirements.txt
+$PipProxyArgs = @()
+if ($HttpsProxy) { $PipProxyArgs += @('--proxy', $HttpsProxy) }
+elseif ($HttpProxy) { $PipProxyArgs += @('--proxy', $HttpProxy) }
+
+& $VenvPython -m pip @PipProxyArgs install --upgrade pip setuptools wheel | Out-Null
+& $VenvPython -m pip @PipProxyArgs install -r backend\requirements.txt
 if ($LASTEXITCODE -ne 0) { Fail "Failed to install backend dependencies." }
 
 # ---------------------------------------------------------------------------
