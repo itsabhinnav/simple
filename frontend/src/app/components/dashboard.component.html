@@ -198,70 +198,197 @@
 
   <!-- Dashboard Section (shown after login) -->
   <section class="dashboard-section" *ngIf="authReady() && authed()">
-    <div class="dashboard-grid">
-      <!-- Stat Tile 1: Requirements -->
-      <div class="stat-tile-grid">
-        <div class="stat-header-grid">
-          <span class="stat-icon-large">📋</span>
-          <h3 class="stat-title">{{ 'dashboard.requirements' | translate }}</h3>
-        </div>
-        <div class="stat-value-large">{{ requirementsCount() }}</div>
-        <a routerLink="/requirements" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
-      </div>
-      
-      <!-- Stat Tile 2: Test Cases -->
-      <div class="stat-tile-grid">
-        <div class="stat-header-grid">
-          <span class="stat-icon-large">🧪</span>
-          <h3 class="stat-title">{{ 'dashboard.test_cases' | translate }}</h3>
-        </div>
-        <div class="stat-value-large">{{ testCasesCount() }}</div>
-        <a routerLink="/test-cases" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
-      </div>
-      
-      <!-- Stat Tile 3: Designs -->
-      <div class="stat-tile-grid">
-        <div class="stat-header-grid">
-          <span class="stat-icon-large">🎨</span>
-          <h3 class="stat-title">{{ 'dashboard.designs' | translate }}</h3>
-        </div>
-        <div class="stat-value-large">{{ designTicketsCount() }}</div>
-        <a routerLink="/design-tickets" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
-      </div>
+    <div class="dashboard-wrap">
 
-      <!-- Stat Tile 4: Specifications -->
-      <div class="stat-tile-grid">
-        <div class="stat-header-grid">
-          <span class="stat-icon-large">📑</span>
-          <h3 class="stat-title">{{ 'dashboard.specifications' | translate }}</h3>
-        </div>
-        <div class="stat-value-large">{{ specsCount() }}</div>
-        <div class="stat-actions" style="display:flex; gap:8px; align-items:center;">
-          <a routerLink="/specs" class="stat-link-grid">{{ 'dashboard.view_all' | translate }} →</a>
-          <label class="stat-link-grid" style="cursor:pointer;">
-            <input type="file" accept=".xlsx,.xls,.csv,.doc,.docx,.pdf" (change)="importSpecFile($event)" hidden>
-            {{ 'dashboard.import' | translate }}
-          </label>
-        </div>
-      </div>
+      <!-- Stat tiles - wide horizontal layout -->
+      <div class="stats-grid">
 
-      <!-- Admin Only: User Management Tile -->
-      <div class="stat-tile-grid" *ngIf="isAdmin()">
-        <div class="stat-header-grid">
-          <span class="stat-icon-large">👥</span>
-          <h3 class="stat-title">{{ 'dashboard.user_management' | translate }}</h3>
+        <!-- Specifications -->
+        <div class="stat-tile stat-tile--specs stat-tile--no-link">
+          <div class="stat-tile-icon-block">
+            <span class="stat-tile-icon">📑</span>
+          </div>
+          <div class="stat-tile-main">
+            <div class="stat-tile-top">
+              <div class="stat-tile-headings">
+                <div class="stat-tile-title">{{ 'dashboard.specifications' | translate }}</div>
+                <div class="stat-tile-subtitle">Source documents</div>
+              </div>
+              <div class="stat-tile-value">{{ specsCount() }}</div>
+            </div>
+
+            <div class="stat-tile-chips stat-tile-chips--specs">
+              <span class="chip chip--info">
+                <span class="chip-label">Formats</span>
+                <span class="chip-value">XLSX · CSV · PDF · DOCX</span>
+              </span>
+            </div>
+          </div>
+          <div class="stat-tile-cta stat-tile-cta--split">
+            <a routerLink="/specs" class="cta-link">
+              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+              <span class="cta-arrow">→</span>
+            </a>
+            <label class="cta-import">
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv,.doc,.docx,.pdf"
+                (change)="importSpecFile($event)"
+                hidden>
+              <span class="import-icon">⬆</span>
+              {{ 'dashboard.import' | translate }}
+            </label>
+          </div>
         </div>
-        <div class="stat-value-large">{{ 'dashboard.admin' | translate }}</div>
-        <a routerLink="/users" class="stat-link-grid">{{ 'dashboard.manage_users' | translate }} →</a>
-      </div>
-      
-      <!-- Debug: Show admin status -->
-      <div style="padding: 10px; background: #f0f0f0; margin-top: 20px; font-size: 12px;">
-        <strong>Debug Info:</strong><br>
-        Is Authenticated: {{ authed() }}<br>
-        Is Admin: {{ isAdmin() }}<br>
-        User Role: {{ getCurrentUserRole() }}<br>
-        Username: {{ getCurrentUsername() }}
+
+        <!-- Requirements -->
+        <a routerLink="/requirements" class="stat-tile stat-tile--requirements">
+          <div class="stat-tile-icon-block">
+            <span class="stat-tile-icon">📋</span>
+          </div>
+          <div class="stat-tile-main">
+            <div class="stat-tile-top">
+              <div class="stat-tile-headings">
+                <div class="stat-tile-title">{{ 'dashboard.requirements' | translate }}</div>
+                <div class="stat-tile-subtitle">Acceptance criteria & specs</div>
+              </div>
+              <div class="stat-tile-value">{{ requirementsCount() }}</div>
+            </div>
+
+            <div class="stat-tile-chips" *ngIf="requirementPriorityBreakdown().length > 0">
+              <span
+                *ngFor="let row of requirementPriorityBreakdown()"
+                class="chip"
+                [class]="'chip--' + row.key.toLowerCase()">
+                <span class="chip-label">{{ row.key }}</span>
+                <span class="chip-value">{{ row.count }}</span>
+              </span>
+              <span
+                *ngFor="let row of requirementStatusBreakdown()"
+                class="chip chip--status"
+                [attr.data-status]="row.key">
+                <span class="chip-dot"></span>
+                <span class="chip-label">{{ row.key }}</span>
+                <span class="chip-value">{{ row.count }}</span>
+              </span>
+            </div>
+            <div class="stat-tile-chips stat-tile-chips--empty" *ngIf="requirementPriorityBreakdown().length === 0">
+              <span class="empty-hint">No requirements yet.</span>
+            </div>
+          </div>
+          <div class="stat-tile-cta">
+            <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+            <span class="cta-arrow">→</span>
+          </div>
+        </a>
+
+        <!-- Designs -->
+        <a routerLink="/design-tickets" class="stat-tile stat-tile--designs">
+          <div class="stat-tile-icon-block">
+            <span class="stat-tile-icon">🎨</span>
+          </div>
+          <div class="stat-tile-main">
+            <div class="stat-tile-top">
+              <div class="stat-tile-headings">
+                <div class="stat-tile-title">{{ 'dashboard.designs' | translate }}</div>
+                <div class="stat-tile-subtitle">Mockups & visual specs</div>
+              </div>
+              <div class="stat-tile-value">{{ designTicketsCount() }}</div>
+            </div>
+
+            <div class="stat-tile-chips" *ngIf="designStatusBreakdown().length > 0">
+              <span
+                *ngFor="let row of designStatusBreakdown()"
+                class="chip chip--status"
+                [attr.data-status]="row.key">
+                <span class="chip-dot"></span>
+                <span class="chip-label">{{ row.key }}</span>
+                <span class="chip-value">{{ row.count }}</span>
+              </span>
+            </div>
+            <div class="stat-tile-chips stat-tile-chips--empty" *ngIf="designStatusBreakdown().length === 0">
+              <span class="empty-hint">No design tickets yet.</span>
+            </div>
+          </div>
+          <div class="stat-tile-cta">
+            <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+            <span class="cta-arrow">→</span>
+          </div>
+        </a>
+
+        <!-- Test Cases -->
+        <a routerLink="/test-cases" class="stat-tile stat-tile--testcases">
+          <div class="stat-tile-icon-block">
+            <span class="stat-tile-icon">🧪</span>
+          </div>
+          <div class="stat-tile-main">
+            <div class="stat-tile-top">
+              <div class="stat-tile-headings">
+                <div class="stat-tile-title">{{ 'dashboard.test_cases' | translate }}</div>
+                <div class="stat-tile-subtitle">Verification scenarios</div>
+              </div>
+              <div class="stat-tile-value">{{ testCasesCount() }}</div>
+            </div>
+
+            <div class="stat-tile-chips" *ngIf="testCasePriorityBreakdown().length > 0">
+              <span
+                *ngFor="let row of testCasePriorityBreakdown()"
+                class="chip"
+                [class]="'chip--' + row.key.toLowerCase()">
+                <span class="chip-label">{{ row.key }}</span>
+                <span class="chip-value">{{ row.count }}</span>
+              </span>
+              <span
+                *ngFor="let row of testCaseTypeBreakdown()"
+                class="chip chip--type"
+                [attr.data-type]="row.key">
+                <span class="chip-dot"></span>
+                <span class="chip-label">{{ row.key }}</span>
+                <span class="chip-value">{{ row.count }}</span>
+              </span>
+            </div>
+            <div class="stat-tile-chips stat-tile-chips--empty" *ngIf="testCasePriorityBreakdown().length === 0">
+              <span class="empty-hint">No test cases yet.</span>
+            </div>
+          </div>
+          <div class="stat-tile-cta">
+            <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+            <span class="cta-arrow">→</span>
+          </div>
+        </a>
+
+        <!-- Admin Only: User Management -->
+        <a *ngIf="isAdmin()" routerLink="/users" class="stat-tile stat-tile--admin">
+          <div class="stat-tile-icon-block">
+            <span class="stat-tile-icon">👥</span>
+          </div>
+          <div class="stat-tile-main">
+            <div class="stat-tile-top">
+              <div class="stat-tile-headings">
+                <div class="stat-tile-title">{{ 'dashboard.user_management' | translate }}</div>
+                <div class="stat-tile-subtitle">Roles, access & permissions</div>
+              </div>
+              <div class="stat-tile-value stat-tile-value--text">
+                {{ 'dashboard.admin' | translate }}
+              </div>
+            </div>
+            <div class="stat-tile-chips">
+              <span class="chip chip--admin">
+                <span class="chip-dot"></span>
+                <span class="chip-label">Admin-only</span>
+              </span>
+              <span class="chip chip--info">
+                <span class="chip-label">Logged in as</span>
+                <span class="chip-value">{{ getCurrentUsername() }}</span>
+              </span>
+            </div>
+          </div>
+          <div class="stat-tile-cta">
+            <span class="cta-label">{{ 'dashboard.manage_users' | translate }}</span>
+            <span class="cta-arrow">→</span>
+          </div>
+        </a>
+
       </div>
     </div>
   </section>

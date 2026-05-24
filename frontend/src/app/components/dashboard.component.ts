@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, effect } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl } from '@angular/forms';
@@ -41,11 +41,47 @@ export class DashboardComponent implements OnInit {
   designTicketsCount = signal(0);
   specsCount = signal(0);
   isLoadingStats = signal(false);
-  
+
+  // Full lists (used to derive breakdowns)
+  allRequirements = signal<Requirement[]>([]);
+  allTestCases = signal<TestCase[]>([]);
+  allDesignTickets = signal<DesignTicket[]>([]);
+
   // Recent items
   recentRequirements = signal<Requirement[]>([]);
   recentTestCases = signal<TestCase[]>([]);
   recentDesignTickets = signal<DesignTicket[]>([]);
+
+  // Derived breakdowns for richer tile detail
+  requirementPriorityBreakdown = computed(() =>
+    this.countBy(this.allRequirements(), (r) => (r.priority || '').toUpperCase(), ['P1', 'P2', 'P3', 'P4'])
+  );
+  requirementStatusBreakdown = computed(() =>
+    this.countBy(this.allRequirements(), (r) => r.status || '', ['Draft', 'Approved', 'Implemented', 'Tested', 'Closed'])
+  );
+  testCasePriorityBreakdown = computed(() =>
+    this.countBy(this.allTestCases(), (t) => (t.priority || '').toUpperCase(), ['P1', 'P2', 'P3', 'P4'])
+  );
+  testCaseTypeBreakdown = computed(() =>
+    this.countBy(this.allTestCases(), (t) => t.test_type || '', ['Positive', 'Negative', 'Boundary', 'Performance'])
+  );
+  designStatusBreakdown = computed(() =>
+    this.countBy(this.allDesignTickets(), (d) => d.status || '', ['Draft', 'In Review', 'Approved', 'Implemented'])
+  );
+
+  private countBy<T>(items: T[], key: (x: T) => string, order: string[]): { key: string; count: number }[] {
+    const map: Record<string, number> = {};
+    for (const item of items) {
+      const k = key(item);
+      if (!k) continue;
+      map[k] = (map[k] || 0) + 1;
+    }
+    const ordered = order.map((k) => ({ key: k, count: map[k] || 0 }));
+    const extras = Object.keys(map)
+      .filter((k) => !order.includes(k))
+      .map((k) => ({ key: k, count: map[k] }));
+    return [...ordered, ...extras].filter((entry) => entry.count > 0);
+  }
 
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -92,34 +128,38 @@ export class DashboardComponent implements OnInit {
     this.requirementService.getRequirements().subscribe({
       next: (requirements) => {
         this.requirementsCount.set(requirements.length);
-        // Get recent requirements (last 5)
-        const recent = requirements.slice(0, 5);
-        this.recentRequirements.set(recent);
+        this.allRequirements.set(requirements);
+        this.recentRequirements.set(requirements.slice(0, 5));
       },
-      error: () => this.requirementsCount.set(0)
+      error: () => {
+        this.requirementsCount.set(0);
+        this.allRequirements.set([]);
+      }
     });
-    
+
     // Load test cases count
     this.testCaseService.getTestCases().subscribe({
       next: (testCases) => {
         this.testCasesCount.set(testCases.length);
-        // Get recent test cases (last 5)
-        const recent = testCases.slice(0, 5);
-        this.recentTestCases.set(recent);
+        this.allTestCases.set(testCases);
+        this.recentTestCases.set(testCases.slice(0, 5));
       },
-      error: () => this.testCasesCount.set(0)
+      error: () => {
+        this.testCasesCount.set(0);
+        this.allTestCases.set([]);
+      }
     });
-    
+
     // Load design tickets count
     this.designTicketService.getDesignTickets().subscribe({
       next: (designTickets) => {
         this.designTicketsCount.set(designTickets.length);
-        // Get recent design tickets (last 5)
-        const recent = designTickets.slice(0, 5);
-        this.recentDesignTickets.set(recent);
+        this.allDesignTickets.set(designTickets);
+        this.recentDesignTickets.set(designTickets.slice(0, 5));
       },
       error: () => {
         this.designTicketsCount.set(0);
+        this.allDesignTickets.set([]);
       }
     });
 
