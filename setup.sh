@@ -61,10 +61,47 @@ fi
 # 2. Python virtualenv
 # ---------------------------------------------------------------------------
 VENV_DIR="$ROOT_DIR/.venv"
-if [ ! -d "$VENV_DIR" ]; then
+VENV_PY="$VENV_DIR/bin/python"
+
+if [ ! -x "$VENV_PY" ]; then
   log "Creating Python virtualenv at .venv"
-  python3 -m venv "$VENV_DIR"
+  # --upgrade-deps was added in Python 3.9 and primes the venv with up-to-date
+  # pip/setuptools. Fall back to a plain `python3 -m venv` if unsupported.
+  python3 -m venv --upgrade-deps "$VENV_DIR" 2>/dev/null \
+    || python3 -m venv "$VENV_DIR" \
+    || die "Failed to create virtualenv. On Debian/Ubuntu, install python3-venv:\n  sudo apt-get install -y python3-venv"
 fi
+[ -x "$VENV_PY" ] || die "Virtualenv created but $VENV_PY is missing."
+
+# Some Python distributions ship a venv without pip (most notably Debian-based
+# systems before python3-venv is installed). Repair it via ensurepip, falling
+# back to get-pip.py from PyPA on the rare systems where ensurepip is absent.
+ensure_pip() {
+  if "$VENV_PY" -m pip --version >/dev/null 2>&1; then return; fi
+  warn "pip is missing from the venv; attempting to bootstrap via ensurepip"
+  "$VENV_PY" -m ensurepip --upgrade --default-pip >/dev/null 2>&1 || true
+  if "$VENV_PY" -m pip --version >/dev/null 2>&1; then return; fi
+
+  warn "ensurepip failed; downloading get-pip.py from https://bootstrap.pypa.io"
+  local tmp
+  tmp=$(mktemp -t sakura-get-pip.XXXXXX.py)
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$tmp" \
+      || { rm -f "$tmp"; die "Could not download get-pip.py. Install pip manually."; }
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q https://bootstrap.pypa.io/get-pip.py -O "$tmp" \
+      || { rm -f "$tmp"; die "Could not download get-pip.py. Install pip manually."; }
+  else
+    rm -f "$tmp"; die "Need curl or wget to bootstrap pip."
+  fi
+  "$VENV_PY" "$tmp" || { rm -f "$tmp"; die "get-pip.py failed."; }
+  rm -f "$tmp"
+  "$VENV_PY" -m pip --version >/dev/null 2>&1 \
+    || die "Bootstrapping pip into the venv failed."
+}
+
+ensure_pip
+
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 

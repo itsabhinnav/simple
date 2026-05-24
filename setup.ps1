@@ -74,9 +74,72 @@ $VenvPython = Join-Path $VenvDir 'Scripts\python.exe'
 
 if (-not (Test-Path $VenvPython)) {
     Log "Creating Python virtualenv at .venv"
-    & python -m venv $VenvDir
-    if ($LASTEXITCODE -ne 0) { Fail "Failed to create virtualenv." }
+    # --upgrade-deps was added in Python 3.9 and makes the freshly created
+    # venv ship with up-to-date pip/setuptools. If the flag isn't supported
+    # we fall back to a plain `python -m venv` invocation.
+    & python -m venv --upgrade-deps $VenvDir 2>$null
+    if (($LASTEXITCODE -ne 0) -or (-not (Test-Path $VenvPython))) {
+        & python -m venv $VenvDir
+    }
+    if (-not (Test-Path $VenvPython)) { Fail "Failed to create virtualenv at $VenvDir." }
 }
+
+# Some Python distributions (Microsoft Store builds, slimmed-down installs,
+# distros without python3-venv on Linux) leave the venv without pip. Detect
+# that and try to repair it via ensurepip, then get-pip.py from PyPA.
+#
+# Native-command stderr can be promoted to a terminating error under
+# $ErrorActionPreference='Stop' on PS 7.3+, so every pip-check is wrapped
+# in a try/catch with a per-call EAP override and we only trust $LASTEXITCODE.
+
+function Test-VenvPip {
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 0
+    try {
+        & $VenvPython -m pip --version *> $null
+    } catch {
+        $global:LASTEXITCODE = 1
+    } finally {
+        $ErrorActionPreference = $oldEap
+    }
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Invoke-VenvBootstrap([string[]]$Args) {
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 0
+    try {
+        & $VenvPython @Args
+    } catch {
+        # Swallow - we only judge success by $LASTEXITCODE / a follow-up probe.
+    } finally {
+        $ErrorActionPreference = $oldEap
+    }
+}
+
+function Ensure-Pip {
+    if (Test-VenvPip) { return }
+
+    Warn "pip is missing from the venv; attempting to bootstrap it via ensurepip"
+    Invoke-VenvBootstrap @('-m', 'ensurepip', '--upgrade', '--default-pip')
+    if (Test-VenvPip) { return }
+
+    Warn "ensurepip failed; downloading get-pip.py from https://bootstrap.pypa.io"
+    $getPip = Join-Path $env:TEMP "sakura-get-pip.py"
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $getPip
+    } catch {
+        Fail "Could not download get-pip.py: $($_.Exception.Message)`nInstall pip manually with: $VenvPython -m ensurepip --upgrade"
+    }
+    Invoke-VenvBootstrap @($getPip)
+    Remove-Item -Force $getPip -ErrorAction SilentlyContinue
+
+    if (-not (Test-VenvPip)) { Fail "Bootstrapping pip into the venv failed." }
+}
+
+Ensure-Pip
 
 Log "Installing backend Python dependencies"
 & $VenvPython -m pip install --upgrade pip setuptools wheel | Out-Null
