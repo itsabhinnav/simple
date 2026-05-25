@@ -215,14 +215,13 @@ class ApplicationContainer:
                 factory=lambda: LocalDatabaseService()
             )
         
-        # Register Hybrid database service. When database.git_sync_enabled is
-        # false the service runs in local-only mode and skips every remote/git
-        # operation, which is what we want for server-hosted deployments.
-        git_sync_enabled = bool(
-            self._config_manager.get_config("database.git_sync_enabled", True)
-        )
+        # Git/remote DB sync is permanently disabled across all environments.
+        # The Hybrid database service always runs in local-only mode and the
+        # config flag is intentionally ignored.
+        git_sync_enabled = False
         logger.info(
-            f"Hybrid database service configured with git_sync_enabled={git_sync_enabled}"
+            "Hybrid database service configured with git_sync_enabled=False "
+            "(remote/git DB sync is permanently disabled)"
         )
         self.container.register_singleton(
             HybridDatabaseService,
@@ -336,20 +335,10 @@ class ApplicationContainer:
                     else:
                         logger.info("Storage provider health check passed")
             
-            # Initialize Git database service if using Git AND git sync is enabled
-            if (
-                self._config_manager.get_storage_provider() == "git"
-                and bool(self._config_manager.get_config("database.git_sync_enabled", True))
-            ):
-                git_db_service = self.container.get(GitDatabaseService)
-                if hasattr(git_db_service, 'initialize'):
-                    init_success = git_db_service.initialize()
-                    if not init_success:
-                        logger.warning("Git database service initialization failed")
-                    else:
-                        logger.info("Git database service initialized successfully")
-            else:
-                logger.info("Skipping git database service initialization (sync disabled or non-git provider)")
+            logger.info(
+                "Skipping git database service initialization "
+                "(remote/git DB sync is permanently disabled)"
+            )
             
             logger.info("Configuration-based application container initialized successfully")
             

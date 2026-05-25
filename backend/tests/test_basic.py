@@ -215,11 +215,11 @@ class TestGitFileStorage:
     """Test cases for GitFileStorage"""
     
     def test_init_default_params(self, mock_logger):
-        """Test initialization with default parameters"""
+        """Default init now leaves repo_url empty - remote/git sync is permanently disabled."""
         with patch('src.implementations.git_file_storage.get_logger', return_value=mock_logger):
             storage = GitFileStorage()
-            
-            assert storage.repo_url == "https://gitlab.com/android-devops/sakura-db"
+
+            assert storage.repo_url == ""
             assert storage.local_repo_path == Path("remote")
             assert storage.data_path == Path("data")
             assert storage.git_path == Path("remote") / ".git"

@@ -13,13 +13,24 @@ class LocalDatabaseService:
     
     def __init__(self):
         self.config_manager = get_config_manager()
-        
-        # Get configuration values
-        self.local_db_path = Path(self.config_manager.get_config("database.local_db_path", "data/local/dev/database/local.db"))
-        
+
+        # The env var SAKURA_LOCAL_DB_PATH takes absolute priority over the
+        # config file. The portable PyInstaller bundle sets this to an
+        # absolute path next to the .exe so the database lives in a
+        # user-writable location instead of inside the read-only _MEIPASS
+        # extraction directory.
+        env_override = os.environ.get("SAKURA_LOCAL_DB_PATH")
+        if env_override:
+            self.local_db_path = Path(env_override)
+        else:
+            self.local_db_path = Path(self.config_manager.get_config(
+                "database.local_db_path",
+                "data/local/dev/database/local.db",
+            ))
+
         # Ensure directory exists
         self.local_db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         logger.info(f"Local database service initialized with path: {self.local_db_path}")
     
     def initialize(self) -> bool:
@@ -183,7 +194,31 @@ class LocalDatabaseService:
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """
-            
+
+            # design_tickets used to live in scripts/migrate_add_design_tickets.py only,
+            # which meant a fresh DB (e.g. after clean_db.ps1) lacked the table and
+            # GET /api/design-tickets crashed with "no such table: design_tickets".
+            # Mirror the migration's schema here so startup recreates it idempotently.
+            create_design_tickets_table = """
+                CREATE TABLE IF NOT EXISTS design_tickets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    design_ticket_id TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    design_type TEXT,
+                    diagram_type TEXT,
+                    image_url TEXT,
+                    priority TEXT,
+                    status TEXT,
+                    linked_requirement_id TEXT,
+                    assignee TEXT,
+                    tags TEXT,
+                    created_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+
             # Execute table creation queries
             self.execute_query(create_users_table, "default")
             self.execute_query(create_test_cases_table, "default")
@@ -193,6 +228,15 @@ class LocalDatabaseService:
             self.execute_query(create_local_cache_table, "default")
             self.execute_query(create_sync_status_table, "default")
             self.execute_query(create_database_metadata_table, "default")
+            self.execute_query(create_design_tickets_table, "default")
+
+            # Pair the design_tickets table with the requirements.design_ticket_id
+            # column the migration script also adds, so the link from a requirement
+            # to its design ticket survives a clean rebuild.
+            self._add_missing_columns(
+                requirements_table,
+                {"design_ticket_id": "TEXT"},
+            )
             
             # Idempotent column additions for existing databases that pre-date
             # newer columns. SQLite < 3.35 does not support `ADD COLUMN IF NOT

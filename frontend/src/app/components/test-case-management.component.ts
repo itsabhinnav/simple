@@ -3029,17 +3029,13 @@ export class TestCaseManagementComponent implements OnInit {
       };
 
       this.testCaseService.createTestCase(createData).subscribe({
-        next: (newTestCase) => {
-          if (newTestCase) {
-            this.closeModal();
-            // Service will automatically update the observable
-          } else {
-            this.error.set('Failed to create test case');
-          }
+        next: () => {
+          this.closeModal();
+          // Service pushes the new row through testCases$ so the list refreshes.
           this.isSubmitting.set(false);
         },
         error: (err) => {
-          this.error.set('Failed to create test case');
+          this.error.set(err?.message || 'Failed to create test case');
           this.isSubmitting.set(false);
           console.error('Error creating test case:', err);
         }

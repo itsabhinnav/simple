@@ -19,8 +19,6 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '::1',
-    'gitlab.com',
-    '35.182.246.103',  # Example GitLab IP
 ]
 
 ALLOWED_PORTS = [80, 443, 22, 5000, 4200, 8080]

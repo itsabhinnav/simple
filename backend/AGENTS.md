@@ -64,8 +64,8 @@ On startup, `HybridDatabaseService.initialize()`:
 
 The application enforces strict network isolation:
 - [`src/infrastructure/network_restrictor.py`](file:///c:/workspace/sources/Simple/backend/src/infrastructure/network_restrictor.py) monkey-patches `socket.socket.connect` during module import.
-- Allowed connections: `localhost`, loopbacks (`127.0.0.1`, `::1`), and whitelisted domains like `gitlab.com` (which the Git database uses to sync).
-- Any attempt to reach unapproved domains (e.g. www.google.com) will raise a `ConnectionRefusedError`.
+- Allowed connections: `localhost` and loopbacks (`127.0.0.1`, `::1`) only. Remote/git DB sync is permanently disabled across all environments, so no external hosts are whitelisted.
+- Any attempt to reach any external domain (e.g. `gitlab.com`, `www.google.com`) will raise a `ConnectionRefusedError`.
 
 ---
 

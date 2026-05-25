@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Observable, BehaviorSubject, throwError } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { API_URL } from '../app-settings';
@@ -225,23 +225,28 @@ export class TestCaseService {
   }
 
   /**
-   * Create a new test case
+   * Create a new test case.
+   *
+   * Errors must propagate to the caller — silently returning `null` on backend
+   * failure causes the standalone create page to flash a "created successfully"
+   * banner for rows that were actually rejected (e.g. invalid test_case_id
+   * format), which is what users were seeing.
    */
-  createTestCase(testCaseData: TestCaseCreateRequest): Observable<TestCase | null> {
+  createTestCase(testCaseData: TestCaseCreateRequest): Observable<TestCase> {
     return this.http.post<ApiResponse<TestCase>>(`${this.baseUrl}/test-cases/`, testCaseData)
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            // Update local cache
             const currentTestCases = this.testCasesSubject.value;
             this.testCasesSubject.next([response.data, ...currentTestCases]);
             return response.data;
           }
-          return null;
+          throw new Error(response.message || response.error || 'Failed to create test case');
         }),
         catchError(error => {
           console.error('Error creating test case:', error);
-          return of(null);
+          const msg = error?.error?.message || error?.error?.error || error?.message || 'Failed to create test case';
+          return throwError(() => new Error(msg));
         })
       );
   }

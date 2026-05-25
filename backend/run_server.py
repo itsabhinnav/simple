@@ -30,16 +30,29 @@ from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent
 SRC_DIR = BACKEND_DIR / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-if str(BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(BACKEND_DIR))
 
-os.chdir(BACKEND_DIR)
+# When running as a PyInstaller-frozen exe the BACKEND_DIR resolves to a path
+# inside the read-only _MEIPASS extraction tree. portable_entry.py has
+# already chdir'd to a writable app dir and set SAKURA_LOCAL_DB_PATH /
+# SAKURA_STATIC_DIR, so we must NOT clobber that here. Likewise the sys.path
+# additions are unnecessary because PyInstaller's bootloader already injects
+# the bundle on sys.path with higher priority.
+_IS_FROZEN = bool(getattr(sys, "frozen", False))
+
+if not _IS_FROZEN:
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
+    if str(BACKEND_DIR) not in sys.path:
+        sys.path.insert(0, str(BACKEND_DIR))
+    os.chdir(BACKEND_DIR)
 
 try:
     from dotenv import load_dotenv
-    for _env_path in (BACKEND_DIR / ".env", BACKEND_DIR.parent / ".env"):
+    _env_search = [BACKEND_DIR / ".env", BACKEND_DIR.parent / ".env"]
+    if _IS_FROZEN:
+        # In the portable build the .env lives next to the .exe.
+        _env_search.insert(0, Path(sys.executable).resolve().parent / ".env")
+    for _env_path in _env_search:
         if _env_path.exists():
             load_dotenv(_env_path, override=False)
 except Exception:

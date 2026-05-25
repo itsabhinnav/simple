@@ -1,0 +1,19 @@
+# Extra dependencies required to build the Sakura portable distribution
+# (PyInstaller bundle). These are NOT runtime dependencies of the app -
+# they only need to be present in the developer's venv at build time.
+#
+# Install with:
+#   pip install -r backend/requirements-portable.txt
+#
+# Then run:
+#   python build_portable.py
+
+-r requirements.txt
+
+# PyInstaller 6.x is the first series with first-class Python 3.12/3.13 wheels
+# and an updated bootloader that handles the cryptography .pyd's correctly.
+pyinstaller>=6.6,<7
+# pyinstaller-hooks-contrib carries community hooks (cryptography, pydantic,
+# openpyxl, ...) that PyInstaller itself does not ship. Without it, the
+# bundled exe is missing the cryptography backend's compiled shims.
+pyinstaller-hooks-contrib>=2024.7

@@ -13,23 +13,16 @@ logger = get_logger(__name__)
 
 
 def sync_remote_database(username: str, git_token: str, repo_url: str, local_repo_path: str) -> bool:
-    """
-    Fetch and sync remote database for a user who just logged in with their Git token.
-    
-    This happens after:
-    1. User creates account with Git token
-    2. User logs in for the first time
-    3. User database operations trigger remote sync
-    
-    Args:
-        username: Username of the logged-in user
-        git_token: User's Git access token
-        repo_url: Remote repository URL
-        local_repo_path: Path to local repository
-    
-    Returns:
-        bool: True if sync successful, False otherwise
-    """
+    """No-op: remote/git DB sync is permanently disabled across all envs."""
+    logger.debug(
+        f"sync_remote_database skipped for user={username}: "
+        "remote/git DB sync is permanently disabled"
+    )
+    return True
+
+
+def _legacy_sync_remote_database(username: str, git_token: str, repo_url: str, local_repo_path: str) -> bool:
+    """Disabled legacy implementation, kept for reference only."""
     try:
         logger.info(f"Starting remote database sync for user: {username}")
         
@@ -146,13 +139,12 @@ def get_user_git_token_from_db(username: str) -> Optional[str]:
 
 
 def should_sync_remote(username: str) -> bool:
-    """
-    Determine if remote database should be synced.
-    This is true if:
-    - User has a Git token
-    - Remote repository exists
-    - Local database is empty or outdated
-    """
+    """Always False: remote/git DB sync is permanently disabled."""
+    return False
+
+
+def _legacy_should_sync_remote(username: str) -> bool:
+    """Disabled legacy implementation, kept for reference only."""
     try:
         # Check if user has a Git token
         git_token = get_user_git_token_from_db(username)

@@ -71,7 +71,12 @@ def create_app() -> Flask:
     Returns:
         Flask: Configured Flask application instance
     """
-    app = Flask(__name__, static_folder='static')
+    # In the portable PyInstaller bundle the static folder lives inside the
+    # _MEIPASS extraction directory, not next to a real main.py on disk.
+    # SAKURA_STATIC_DIR (set by portable_entry.py) lets us point Flask at
+    # the absolute extracted path instead of relying on relative resolution.
+    static_dir = os.environ.get('SAKURA_STATIC_DIR') or 'static'
+    app = Flask(__name__, static_folder=static_dir)
     
     # Disable strict slashes to prevent redirects
     app.url_map.strict_slashes = False

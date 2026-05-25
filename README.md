@@ -104,6 +104,41 @@ frontend source (so the static bundle gets rebuilt).
 
 ---
 
+## Setup script flags
+
+| Flag (Bash / PowerShell)                          | Effect                                                                                              |
+|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| `--no-start` / `-NoStart`                         | Install + build only; do not launch the server.                                                     |
+| `--skip-frontend-install` / `-SkipFrontendInstall`| Skip `npm ci` / `npm install`; useful when `node_modules/` is known good.                           |
+| `--insecure-ssl` / `-InsecureSsl`                 | Disable TLS verification for pip + npm + Node (for corporate MITM proxies).                         |
+| `--clean-build` / `-CleanBuild`                   | Wipe `frontend/dist` and the Angular cache before rebuilding (use after switching SSR ↔ SPA mode).  |
+| `PORT=<n>` env var                                | Override the bind port (default 5000). Setup also runs a non-fatal preflight on this port.          |
+| `HOST=<addr>` env var                             | Override the bind address (default 0.0.0.0).                                                        |
+
+---
+
+## Things to watch out for
+
+- **`setup.sh` line endings**: if you cloned on Windows with `core.autocrlf=true`
+  and copied the tree to a Linux box, run `sed -i 's/\r$//' setup.sh start.sh clean_db.sh`
+  before executing. Otherwise bash will report `bad interpreter: /usr/bin/env bash^M`.
+- **Port already in use**: setup prints a warning naming the owning process;
+  pick a free port with `PORT=5050 ./setup.sh` (or `$env:PORT="5050"`).
+- **Corporate proxy with self-signed cert**: pair `HTTPS_PROXY=...` with
+  `--insecure-ssl` so pip/npm accept the proxy's intercepted TLS.
+- **Windows long paths**: nested `node_modules` can exceed 260 chars. Enable
+  long paths once on the machine: `git config --global core.longpaths true`
+  and run `New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1 -PropertyType DWord -Force`.
+- **Stale SSR artefacts after upgrading**: if you used an older SSR-based
+  build of this project, run `setup.* -CleanBuild` once so `frontend/dist`
+  doesn't keep a leftover `server/` folder.
+- **SQLite is locked during a clean**: stop the server (`Ctrl+C`) before
+  running `clean_db.*`, or Windows will refuse to delete the open file.
+- **`.env` permissions on POSIX**: setup.sh chmods the generated `.env` to
+  600. If you copy it across hosts, re-apply: `chmod 600 .env`.
+
+---
+
 ## Corporate proxies
 
 Both `setup.sh` and `setup.ps1` honour the standard proxy environment
@@ -222,12 +257,153 @@ production bundle uses same-origin relative URLs.
 
 ---
 
+## Portable Windows distribution (no Python on the target PC)
+
+To deploy on a PC that does *not* have Python installed, build a
+self-contained PyInstaller bundle. The bundle ships a Python interpreter, all
+DLLs, the Angular SPA, and a seed copy of the SQLite database, so the only
+prerequisite on the target machine is Windows itself.
+
+### One-time build setup (developer machine)
+
+Run the regular `setup.ps1` once so the venv and Angular bundle exist, then
+install the extra build deps:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-portable.txt
+```
+
+### Build the bundle
+
+```powershell
+# One-folder build (faster startup, recommended for shipping to clients)
+.\.venv\Scripts\python.exe build_portable.py
+
+# One-file build (single .exe; slower first launch because it self-extracts)
+.\.venv\Scripts\python.exe build_portable.py --onefile
+
+# Zip the result for distribution
+.\.venv\Scripts\python.exe build_portable.py --zip
+
+# Pick a specific seed DB (the script otherwise auto-picks the largest
+# existing sakura_db.db under data\)
+.\.venv\Scripts\python.exe build_portable.py `
+    --seed-db data\remote\data\remote\dev\database\sakura_db.db
+```
+
+The build script:
+
+1. Builds the Angular frontend (skipped with `--skip-frontend`) and publishes
+   it to `backend\static\`.
+2. Picks the largest `sakura_db.db` found under `data\` and bundles it as the
+   seed database (or use `--seed-db <path>` to point at a specific file).
+3. Generates a fresh `sakura.spec` referencing `backend\portable_entry.py`
+   as the entry point.
+4. Invokes PyInstaller with `collect_all` for native packages
+   (`cryptography`, `pydantic`, `flask`, `waitress`, `openpyxl`, ...) so all
+   `.pyd` / `.dll` files travel with the exe.
+5. Drops a `Start-Sakura.bat` launcher and a copy of `.env.example` next to
+   the executable so end users can edit secrets without unpacking the
+   bundle.
+
+The output lands in `dist\Sakura\` (one-folder) or `dist\Sakura.exe`
+(`--onefile`).
+
+### What end users see
+
+On first launch the bundled `portable_entry.py` copies the seed database to a
+writable directory:
+
+- next to the .exe by default (fully portable), or
+- under `%LOCALAPPDATA%\Sakura\` if the install dir is read-only (e.g. when
+  the bundle was extracted under `C:\Program Files\`).
+
+The runtime database then lives at:
+
+```
+<install-folder>\data\local\dev\database\sakura_db.db
+```
+
+Delete that file to reset to the bundled snapshot. The exe also reads a
+`.env` placed next to it, so port / secret overrides survive across
+upgrades.
+
+> **Why was the bundled DB showing 0 rows before?** PyInstaller extracts
+> bundled resources into a read-only temp folder (`_MEIxxxxx`). The previous
+> build never copied the seed DB out of that temp folder, so the running
+> process happily created a fresh empty SQLite file in the working directory
+> and reported 0 rows for every table. `backend\portable_entry.py` fixes
+> this by seeding a writable copy on first launch and forcing the backend
+> (via the `SAKURA_LOCAL_DB_PATH` env var) to use it instead of the bundled
+> path.
+
+---
+
+## Python version compatibility
+
+`backend/requirements.txt` uses compatible-version ranges (e.g.
+`cryptography>=42.0.5`, `pydantic>=2.5,<3`) rather than exact pins so the
+same file installs on Python 3.10 through 3.13+. Several of the packages
+(`cryptography`, `psycopg2-binary`, `pydantic-core`) only publish prebuilt
+wheels for a narrow band of Python versions per release; exact pins would
+force a from-source build on newer interpreters and fail on any machine
+without a C toolchain.
+
+If `pip install` still fails on a machine whose Python version is too new
+(or too old) for one of the packages:
+
+- `setup.ps1` and `setup.sh` automatically retry with `--prefer-binary` and
+  then fall back to installing packages one-by-one to surface the
+  offender's name.
+- For a reproducible deploy, freeze a successful install once
+  (`pip freeze > requirements.lock.txt`) and ship the lock file alongside
+  the repo so other machines install the exact same versions where wheels
+  exist.
+- As a last resort, install one of the Python versions known to have
+  wheels for every dependency (3.11 or 3.12 are the safest choices today)
+  and re-run `setup.ps1` with that interpreter on `PATH`.
+
+---
+
 ## Docker (optional)
 
 A unified container image is also available for environments where Docker is
-preferred over a native install. See `Dockerfile.unified`, `docker-compose.yml`
-and `bootstrap.sh` / `bootstrap.ps1` for the existing flow; that path is
-unchanged.
+preferred over a native install.
+
+```bash
+# Default - SQLite + volume-backed persistence
+docker compose up -d --build
+
+# With a corporate proxy (forwarded to apt, pip and npm during the build
+# AND to the running container so it can reach the Git remote):
+HTTP_PROXY=http://user:pass@proxy.corp.local:8080 \
+HTTPS_PROXY=http://user:pass@proxy.corp.local:8080 \
+NO_PROXY=localhost,127.0.0.1,.corp.local \
+  docker compose up -d --build
+
+# Optional Postgres add-on (mostly for shared deployments):
+docker compose --profile postgres up -d --build
+```
+
+Highlights of the Docker setup:
+
+- Multi-stage `Dockerfile.unified` builds the Angular SPA in Node 20, then
+  copies the bundle into `backend/static/` inside a Python 3.10-slim runtime
+  image. Single image, single port (`5000`).
+- `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` are accepted as `--build-arg`s
+  and re-exported at runtime — corporate networks work out of the box.
+- Container uses `python backend/run_server.py` (Gunicorn), so the bootstrap
+  path is identical to the native deployment (DB init + master admin
+  provision on first boot).
+- A `HEALTHCHECK` against `/health` is baked into both the Dockerfile and
+  `docker-compose.yml`.
+- Named volumes `sakura-data` and `sakura-uploads` keep the SQLite database
+  and uploaded spec files across container recreations.
+- `.dockerignore` strips dev artefacts (`.venv`, `node_modules`, `dist`,
+  `__pycache__`, `data`, etc.) so build context stays small.
+
+`bootstrap.sh` / `bootstrap.ps1` still drive `docker compose up -d --build`
+for users who prefer a single script over invoking compose directly.
 
 ---
 

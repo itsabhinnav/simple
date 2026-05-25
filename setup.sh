@@ -191,7 +191,33 @@ source "$VENV_DIR/bin/activate"
 
 log "Installing backend Python dependencies"
 python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install --upgrade pip setuptools wheel >/dev/null
-python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install -r backend/requirements.txt
+if ! python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install -r backend/requirements.txt; then
+  # The strict pin set can fail on Python versions for which one of the
+  # packages has no prebuilt wheel. Retry with --prefer-binary, and as a
+  # last resort install one package at a time so the offender is named.
+  warn "Initial pip install failed; retrying with --prefer-binary"
+  if ! python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install --prefer-binary --upgrade -r backend/requirements.txt; then
+    warn "Bulk install still failing; trying package-by-package to surface the culprit"
+    failed=()
+    while IFS= read -r line; do
+      pkg="${line%%#*}"
+      pkg="${pkg##* }"
+      pkg="${pkg// /}"
+      [ -z "$pkg" ] && continue
+      if ! python -m pip "${PIP_PROXY_ARGS[@]}" "${PIP_INSECURE_ARGS[@]}" install --prefer-binary "$line"; then
+        failed+=("$line")
+      fi
+    done < <(grep -v '^[[:space:]]*#' backend/requirements.txt | sed '/^[[:space:]]*$/d')
+    if [ "${#failed[@]}" -gt 0 ]; then
+      printf '\n[sakura] Failed to install: %s\n' "${failed[*]}"
+      printf '[sakura] Your Python (%s.%s) has no prebuilt wheel for one of these.\n' "$py_major" "$py_minor"
+      printf '[sakura] Fix options:\n'
+      printf '  * Install Python 3.10/3.11/3.12 alongside the current one and re-run setup.sh with that interpreter on PATH.\n'
+      printf '  * Edit backend/requirements.txt to drop the lower bound on the failing package.\n'
+      exit 1
+    fi
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Frontend deps + build

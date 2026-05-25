@@ -51,7 +51,7 @@ The frontend uses standard Angular components with standalone flag enabled (no t
 
 The backend features a **Network Restrictor** middleware:
 - In production, it monkey-patches `socket.socket.connect`.
-- Any external request that does not target `localhost` (127.0.0.1, ::1) or the Git remote server (such as `gitlab.com`) is **blocked immediately**.
+- Remote/git DB sync is permanently disabled, so the allow-list is now limited to `localhost` and loopbacks (`127.0.0.1`, `::1`). Any other host (including former remotes like `gitlab.com`) is **blocked immediately**.
 - Keep this restriction in mind if implementing external network operations; external API integrations (like Google, OpenAI) will be blocked unless explicitly whitelisted in the configuration or the restrictor itself.
 
 ---

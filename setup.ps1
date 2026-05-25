@@ -217,7 +217,31 @@ $PipAllArgs = $PipProxyArgs + $PipInsecureArgs
 
 & $VenvPython -m pip @PipAllArgs install --upgrade pip setuptools wheel | Out-Null
 & $VenvPython -m pip @PipAllArgs install -r backend\requirements.txt
-if ($LASTEXITCODE -ne 0) { Fail "Failed to install backend dependencies." }
+if ($LASTEXITCODE -ne 0) {
+    # Common failure on machines whose Python version has no prebuilt wheel
+    # for one of the pinned packages (e.g. psycopg2-binary or cryptography on
+    # a brand-new Python release). Retry with --prefer-binary so pip skips
+    # source builds, and as a last resort install one package at a time so
+    # the offender is named explicitly.
+    Warn "Initial pip install failed; retrying with --prefer-binary"
+    & $VenvPython -m pip @PipAllArgs install --prefer-binary --upgrade -r backend\requirements.txt
+    if ($LASTEXITCODE -ne 0) {
+        Warn "Bulk install still failing; trying package-by-package to surface the culprit"
+        $reqLines = Get-Content backend\requirements.txt | Where-Object {
+            $_ -and (-not $_.StartsWith('#'))
+        }
+        $failed = @()
+        foreach ($line in $reqLines) {
+            $pkg = $line.Trim()
+            if (-not $pkg) { continue }
+            & $VenvPython -m pip @PipAllArgs install --prefer-binary $pkg
+            if ($LASTEXITCODE -ne 0) { $failed += $pkg }
+        }
+        if ($failed.Count -gt 0) {
+            Fail ("Failed to install: {0}`nLikely cause: your Python ({1}) has no prebuilt wheel for one of these packages.`nFix options:`n  * Install Python 3.10/3.11/3.12 alongside the current one and re-run setup.ps1 with that interpreter on PATH.`n  * Edit backend\requirements.txt to drop the lower bound on the failing package (e.g. cryptography>=X)." -f ($failed -join ', '), $pyVersion)
+        }
+    }
+}
 
 # ---------------------------------------------------------------------------
 # 3. Frontend deps + build

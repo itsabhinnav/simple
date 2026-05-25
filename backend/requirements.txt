@@ -1,20 +1,38 @@
-Flask==3.1.2
-Flask-CORS==6.0.1
-python-dotenv==1.0.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
-requests==2.32.3
-pyyaml==6.0.2
-PyJWT==2.8.0
-Werkzeug==3.1.3
-cryptography==42.0.5
-flask-limiter==3.5.0
-flask-talisman==1.1.0
-openpyxl==3.1.5
+# Sakura backend runtime dependencies.
+#
+# Pins are intentionally written as >=, <next-major ranges (rather than ==X.Y.Z)
+# so the same file installs cleanly on Python 3.10 through 3.13+. Several of
+# these packages only publish prebuilt wheels for a narrow band of Python
+# versions per release, so exact pins (cryptography==42.0.5,
+# psycopg2-binary==2.9.9, pydantic==2.5.0, ...) would force a from-source build
+# on newer interpreters and fail on machines without a C toolchain.
+#
+# If you need 100% reproducible builds, run `pip freeze > requirements.lock.txt`
+# after a successful install and ship that lock file instead. The unpinned
+# ranges below are what the public setup.{sh,ps1} scripts use.
+
+Flask>=3.1,<4
+Flask-CORS>=4,<7
+python-dotenv>=1,<2
+pydantic>=2.5,<3
+pydantic-settings>=2.1,<3
+requests>=2.32,<3
+pyyaml>=6,<7
+PyJWT>=2.8,<3
+Werkzeug>=3.1,<4
+# cryptography ships prebuilt wheels for a narrow Python window per release.
+# Keep the lower bound at the version we developed against and let pip pick
+# the newest one with a matching wheel on the current interpreter.
+cryptography>=42.0.5
+flask-limiter>=3.5,<4
+flask-talisman>=1.1,<2
+openpyxl>=3.1,<4
 # Imported at module load time by src.services.postgresql_database_service.
 # psycopg2-binary ships pre-built wheels for all common Linux/Windows/macOS
 # targets, so installing it does not require a local PostgreSQL toolchain.
-psycopg2-binary==2.9.9
+# Older 2.9.x wheels do not exist for Python 3.13+, so leave the upper end
+# open.
+psycopg2-binary>=2.9.9
 # Production WSGI servers (gunicorn on Linux/macOS, waitress on Windows).
-gunicorn==21.2.0; sys_platform != "win32"
-waitress==3.0.0
+gunicorn>=21,<24; sys_platform != "win32"
+waitress>=3,<4

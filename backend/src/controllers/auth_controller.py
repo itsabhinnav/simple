@@ -411,42 +411,12 @@ class AuthController:
             }), 500
     
     def _sync_remote_if_needed(self, username: str, git_token_encrypted: str = None):
-        """Trigger remote database sync if needed and user has Git token"""
-        try:
-            if not git_token_encrypted:
-                return
-
-            # Respect the global git-sync flag - in local-only/server-hosted
-            # deployments we must not spawn any thread that talks to Git.
-            from src.infrastructure.dependency_injection import get_hybrid_database_service
-            hybrid_service = get_hybrid_database_service()
-            if not getattr(hybrid_service, 'git_sync_enabled', True):
-                logger.debug("Skipping remote sync trigger: git sync is disabled")
-                return
-            
-            # Decrypt Git token
-            git_token = fernet.decrypt(git_token_encrypted.encode('utf-8')).decode('utf-8')
-            
-            # Import and use sync service
-            from src.services.sync_remote_on_login import sync_remote_database
-            from src.infrastructure.configuration_manager import get_config_manager
-            
-            config = get_config_manager()
-            repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura-db")
-            local_repo_path = config.get_config("storage.local_repo_path", "data/remote/dev")
-            
-            # Trigger sync in background thread
-            import threading
-            sync_thread = threading.Thread(
-                target=sync_remote_database,
-                args=(username, git_token, repo_url, local_repo_path),
-                daemon=True
-            )
-            sync_thread.start()
-            logger.info(f"Triggered remote sync for user: {username}")
-            
-        except Exception as e:
-            logger.error(f"Failed to trigger remote sync: {e}")
+        """No-op: remote/git DB sync is permanently disabled across all envs."""
+        logger.debug(
+            f"_sync_remote_if_needed skipped for user={username}: "
+            "remote/git DB sync is permanently disabled"
+        )
+        return
     
     def _sanitize_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """Remove sensitive information from user data"""

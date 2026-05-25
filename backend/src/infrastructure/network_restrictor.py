@@ -13,13 +13,14 @@ from typing import List, Set
 
 logger = logging.getLogger(__name__)
 
-# Default allowed hosts (can be overridden by configuration)
+# Default allowed hosts (can be overridden by configuration).
+# Remote/git DB sync is permanently disabled, so external hosts like
+# gitlab.com are intentionally NOT in the default allow-list.
 DEFAULT_ALLOWED_HOSTS: Set[str] = {
     'localhost',
     '127.0.0.1',
     '::1',
     '0.0.0.0',
-    'gitlab.com',
 }
 
 # Allowed hosts loaded from configuration
@@ -75,17 +76,10 @@ def is_host_allowed(host: str) -> bool:
         # Allow private IP ranges
         if ip.is_private or ip.is_loopback:
             return True
-        # Allow specific GitLab IPs (if known)
-        if host == '35.182.246.103':  # Example GitLab IP
-            return True
     except ValueError:
         # Not a valid IP address
         pass
-    
-    # Check if host contains allowed domains
-    if 'gitlab.com' in host_lower:
-        return True
-    
+
     return False
 
 

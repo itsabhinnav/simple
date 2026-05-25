@@ -68,15 +68,13 @@ Flask app (:5000)
    ├── controllers (blueprints) ──► services ──► repositories ──┐
    │                                                             ▼
    │                                              Local SQLite (sakura_db.db)
-   │                                                             │
-   └── HybridDatabaseService ──► GitDatabaseService ──► Git remote (e.g. gitlab.com)
-                       ▲                    │
-                       └── background _sync_worker (daemon thread)
+   │
+   └── HybridDatabaseService (local-only mode, remote/git sync permanently disabled)
 ```
 
 - **Reads**: controllers → services → `LocalDatabaseService` → SQLite.
-- **Writes**: controllers → services → `HybridDatabaseService` → SQLite → bump `database_metadata` version → copy file into Git workspace → commit + push (using user's decrypted `git_token_encrypted` when available).
-- **Startup sync**: clone/fetch remote → compare local vs. remote `database_metadata` version → copy whichever is newer → start background sync worker.
+- **Writes**: controllers → services → `HybridDatabaseService` → SQLite → bump `database_metadata` version. No Git workspace copy, no remote commit/push.
+- **Remote/git DB sync is permanently disabled across all environments.** `GitDatabaseService`, `GitFileStorage`, the startup sync, the background `_sync_worker`, and the login-time `sync_remote_database` hook are all no-ops. `storage.base_url` is intentionally empty.
 
 ## 4. Dependency Injection
 

@@ -1,4 +1,4 @@
-# Sakura Unified Configuration
+﻿# Sakura Unified Configuration
 # This is the single source of truth for all application configuration
 
 # Environment: development, production, or testing
@@ -8,21 +8,22 @@ environment: development
 database:
   provider: hybrid  # sqlite, postgresql, mysql, mongodb, hybrid
   name: sakura_db
-  
+
   # Hybrid database settings
   hybrid_mode: true
-  # Disable git sync to run as a server-hosted, local-DB-only deployment.
-  # When false, HybridDatabaseService skips remote init, startup sync, the
-  # periodic sync worker, and per-write commits to the Git workspace.
+  # Remote/git DB sync is permanently disabled across all environments.
+  # This flag is now ignored by the DI container, which always wires the
+  # HybridDatabaseService in local-only mode. The value is kept here only
+  # for documentation purposes.
   git_sync_enabled: false
   sync_interval: 300  # seconds
   cache_expiry: 3600  # seconds
   local_db_path: data/local/dev/database/sakura_db.db
-  
+
   # SQLite settings (when using SQLite)
   data_directory: data/local/dev
   cache_directory: data/local/dev/database
-  
+
   # PostgreSQL settings (when using PostgreSQL)
   host: localhost
   port: 5432
@@ -33,33 +34,36 @@ database:
   connection_timeout: 30
   ssl_enabled: false
   ssl_cert_path: null
-  
+
   # Table names
   table_names:
     users: users
     test_cases: test_cases
     requirements: requirements
 
-# Remote Storage Configuration (GitLab/GitHub/Artifactory)
+# Remote Storage Configuration (DISABLED)
+# Remote/git DB sync is permanently disabled in all environments.
+# base_url, credentials, and the remote provider are intentionally cleared
+# so no code path can accidentally reach out to a remote repository.
 storage:
-  provider: git  # git, artifactory, github, gitlab, local
-  
-  # Git/GitLab/GitHub settings
-  base_url: https://gitlab.com/android-devops/sakura-db
-  repository: android-devops/sakura-db
+  provider: local  # git, artifactory, github, gitlab, local
+
+  # Git/GitLab/GitHub settings (disabled)
+  base_url: ""
+  repository: ""
   branch: main
   local_repo_path: data/remote/dev
   data_path: data/local/dev
-  
-  # Git authentication
-  username: admin
-  password: password
+
+  # Git authentication (disabled)
+  username: ""
+  password: ""
   git_username: null
   git_token: null
-  
+
   # Artifactory settings (when using Artifactory)
   artifactory_repo_type: generic-local
-  
+
   # Connection settings
   timeout: 30
   retry_attempts: 3
@@ -73,12 +77,12 @@ authentication:
   default_admin_username: admin
   default_admin_password: password
   default_admin_email: admin@sakura.com
-  
+
   # Session settings
   session_timeout: 3600  # 1 hour in seconds
   max_login_attempts: 5
   lockout_duration: 900  # 15 minutes in seconds
-  
+
   # Reserved usernames that cannot be used
   reserved_usernames:
     - admin
@@ -86,7 +90,7 @@ authentication:
     - system
     - administrator
     - sa
-  
+
   # Password requirements
   min_password_length: 8
   require_special_chars: true
@@ -100,7 +104,7 @@ server:
   debug: true
   mock_mode: true
   mock_server_port: 8080
-  
+
   # CORS settings
   cors_origins:
     - "*"
@@ -112,7 +116,7 @@ server:
   cors_headers:
     - Content-Type
     - Authorization
-  
+
   # Rate limiting
   rate_limit_enabled: true
   rate_limit_requests: 100
@@ -135,17 +139,15 @@ features:
   user_management: true
   test_case_management: true
   requirement_management: true
-  git_integration: true
+  git_integration: false
   artifactory_integration: false
   advanced_logging: false
 
 # Network Restrictions
+# gitlab.com is intentionally NOT in the allow-list because remote/git DB
+# sync is permanently disabled across all environments.
 network:
   allowed_hosts:
-    - gitlab.com
-    - github.com
-    - artifactory.company.com
     - localhost
     - 127.0.0.1
   restrict_network: false
-

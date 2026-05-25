@@ -39,15 +39,14 @@ def test_config_loading():
         print(f"  Repository: {storage_config.get('repository', 'N/A')}")
         print()
         
-        # Test specific getters
-        gitlab_url = config.get_storage_base_url()
-        print(f"✓ GitLab URL from config: {gitlab_url}")
-        
-        # Verify it's from config.yaml (not hardcoded)
-        if gitlab_url and "android-devops" in gitlab_url:
-            print("✓ URL loaded from configuration file")
+        # Remote/git DB sync is permanently disabled; storage.base_url must be
+        # empty so no code path can accidentally talk to a remote.
+        storage_base_url = config.get_storage_base_url()
+        print(f"✓ Storage base URL from config: {storage_base_url!r}")
+        if storage_base_url:
+            print(f"⚠ Warning: storage.base_url should be empty (remote sync disabled): {storage_base_url}")
         else:
-            print(f"⚠ Warning: URL may not be from config.yaml: {gitlab_url}")
+            print("✓ storage.base_url is empty (remote/git sync disabled)")
         print()
         
         # Test environment

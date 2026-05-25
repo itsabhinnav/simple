@@ -6,6 +6,7 @@ that supports multiple configuration sources and environments.
 """
 
 import os
+import sys
 import json
 from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
@@ -242,23 +243,36 @@ class ConfigurationManager(IConfigurationProvider):
         """Initialize default configuration sources"""
         # Environment variables (highest priority)
         self.add_source(EnvironmentConfigSource())
-        
+
         # File-based configuration - ONLY use config.yaml (unified configuration)
-        config_files = [
+        config_candidates = [
             "backend/config/config.yaml",  # Unified configuration file (primary)
             "config/config.yaml",  # Fallback location
             "backend/config.yaml",  # Legacy location
             "config.yaml",  # Fallback location
         ]
-        
+
+        # When running as a PyInstaller-frozen exe the working directory is
+        # the user's app dir (writable) but config.yaml lives in the bundled
+        # _MEIPASS extraction tree. Probe there first so the bundled config
+        # wins over a stale on-disk copy.
+        search_roots = [Path.cwd()]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            search_roots.insert(0, Path(meipass))
+
         config_loaded = False
-        for config_file in config_files:
-            if Path(config_file).exists():
-                self.add_source(FileConfigSource(config_file))
-                logger.info(f"Configuration loaded from: {config_file}")
-                config_loaded = True
+        for root in search_roots:
+            for rel in config_candidates:
+                candidate = (root / rel) if not Path(rel).is_absolute() else Path(rel)
+                if candidate.exists():
+                    self.add_source(FileConfigSource(str(candidate)))
+                    logger.info(f"Configuration loaded from: {candidate}")
+                    config_loaded = True
+                    break
+            if config_loaded:
                 break
-        
+
         if not config_loaded:
             logger.warning("No config.yaml found. Using default configuration from code.")
     
@@ -367,8 +381,7 @@ class ConfigurationManager(IConfigurationProvider):
                 # Check required fields
                 required_fields = [
                     "database.name",
-                    "storage.base_url",
-                    "authentication.default_admin_username"
+                    "authentication.default_admin_username",
                 ]
                 
                 for field in required_fields:
@@ -446,15 +459,20 @@ class ConfigurationManager(IConfigurationProvider):
         return self.get_config("storage.provider", "git")
     
     def get_storage_repository(self) -> str:
-        """Get storage repository"""
-        return self.get_config("storage.repository", "sakura-db")
+        """Get storage repository (empty by default - remote sync disabled)."""
+        return self.get_config("storage.repository", "")
     
     def get_storage_base_url(self) -> str:
-        """Get storage base URL"""
+        """Get storage base URL.
+
+        Remote/git DB sync is permanently disabled, so callers should not rely
+        on this for live network operations. Returns an empty string when no
+        URL is configured instead of falling back to a hardcoded remote.
+        """
         url = self.get_config("storage.base_url")
-        if url is None:
-            logger.warning("storage.base_url not configured, using default")
-            url = "https://gitlab.com/android-devops/sakura-db"
+        if not url:
+            logger.debug("storage.base_url not configured (remote sync disabled)")
+            return ""
         return url
 
 

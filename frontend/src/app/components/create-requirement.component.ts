@@ -112,6 +112,15 @@ export class CreateRequirementComponent implements OnInit {
 
     this.requirementService.createRequirement(createRequest).subscribe({
       next: (requirement) => {
+        // Defensive: a falsy payload means the backend rejected the row even
+        // though the HTTP layer didn't surface an error. Don't pretend the
+        // requirement was created in that case.
+        if (!requirement) {
+          this.isSubmitting.set(false);
+          this.errorMessage.set('Failed to create requirement. The server did not return the new record.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
         console.log('Requirement created successfully:', requirement);
         this.isSubmitting.set(false);
         this.successMessage.set('Requirement created successfully!');

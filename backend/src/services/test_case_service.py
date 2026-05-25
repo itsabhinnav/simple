@@ -101,32 +101,36 @@ class TestCaseService(ITestCaseService):
     
     def create_test_case(self, test_case_data: TestCaseCreateSchema) -> Dict[str, Any]:
         """Create test case with business logic validation"""
+        # Validation errors must propagate as ValueError so the controller can map
+        # them to HTTP 400 instead of the generic 500. Wrapping every exception
+        # in `Exception(...)` previously hid the type and caused the frontend to
+        # see a 500, swallow it as null, and falsely report "created successfully".
         try:
-            # Business logic validation
             self._validate_test_case_creation(test_case_data)
-            
-            # Check if test case ID already exists
+
             existing_test_case = self.test_case_repository.find_by_id(test_case_data.test_case_id)
             if existing_test_case:
                 raise ValueError(f"Test case ID '{test_case_data.test_case_id}' already exists")
-            
-            # Create test case
+
             test_case = self.test_case_repository.create(test_case_data)
-            
-            # Apply business logic transformations
+
             if test_case:
                 test_case['is_high_priority'] = test_case.get('priority') == 'P1'
                 test_case['has_requirements'] = bool(test_case.get('associated_requirement_id'))
                 test_case['test_complexity'] = self._calculate_test_complexity(test_case)
-                
-                # Commit changes to git if service is available
-                if self.git_database_service:
+
+                # `git_database_service` is wired to HybridDatabaseService in the DI
+                # container, which doesn't expose `commit_changes` — guard with
+                # hasattr so we don't spam AttributeError warnings on every write.
+                if self.git_database_service and hasattr(self.git_database_service, "commit_changes"):
                     try:
                         self.git_database_service.commit_changes(f"Create test case: {test_case_data.test_case_id}")
                     except Exception as e:
                         logger.warning(f"Failed to commit test case creation to git: {e}")
-            
+
             return test_case
+        except ValueError:
+            raise
         except Exception as e:
             raise Exception(f"Service error: Failed to create test case - {str(e)}")
     
@@ -194,15 +198,15 @@ class TestCaseService(ITestCaseService):
     
     def _validate_test_case_creation(self, test_case_data: TestCaseCreateSchema) -> None:
         """Validate test case creation business rules"""
-        # Validate test case ID format
         if not self._is_valid_test_case_id_format(test_case_data.test_case_id):
-            raise ValueError("Test case ID must follow format: XX_FEATURE_XXX1")
-        
-        # Validate priority
+            raise ValueError(
+                "Test case ID must start with uppercase letters and end with _<digits> "
+                "(e.g. TC_0001 or TC_FEATURE_001)"
+            )
+
         if test_case_data.priority and test_case_data.priority not in ['P1', 'P2', 'P3']:
             raise ValueError("Priority must be P1, P2, or P3")
-        
-        # Validate test type
+
         if test_case_data.test_type and test_case_data.test_type not in ['Positive', 'Negative', 'Boundary', 'Performance']:
             raise ValueError("Test type must be Positive, Negative, Boundary, or Performance")
     
@@ -217,11 +221,18 @@ class TestCaseService(ITestCaseService):
             raise ValueError("Test type must be Positive, Negative, Boundary, or Performance")
     
     def _is_valid_test_case_id_format(self, test_case_id: str) -> bool:
-        """Validate test case ID format: XX_FEATURE_XXX1"""
+        """Validate test case ID format.
+
+        Accepts both the short auto-generated form (``TC_0001``) and the
+        legacy feature-segmented form (``TC_AAOS_BT_001``). The id must:
+          * start with two or more uppercase letters
+          * optionally include any number of ``_LETTER_OR_UNDERSCORE`` segments
+          * end with ``_<digits>``
+        """
         if not test_case_id:
             return False
         import re
-        pattern = r'^[A-Z]{2}_[A-Z_]+_\d+$'
+        pattern = r'^[A-Z]{2,}(?:_[A-Z_]+)*_\d+$'
         return bool(re.match(pattern, test_case_id))
     
     def _calculate_test_complexity(self, test_case: Dict[str, Any]) -> str:

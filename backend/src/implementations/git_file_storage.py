@@ -12,30 +12,33 @@ logger = get_logger(__name__)
 class GitFileStorage(IGitFileStorage):
     """Git-based file storage implementation"""
     
-    def __init__(self, repo_url: str = None, 
+    def __init__(self, repo_url: str = None,
                  local_repo_path: str = "remote", data_path: str = "data"):
-        # Load repo_url from config if not provided
-        if repo_url is None:
-            try:
-                from src.infrastructure.configuration_manager import get_config_manager
-                config = get_config_manager()
-                repo_url = config.get_config("storage.base_url", "https://gitlab.com/android-devops/sakura-db")
-            except Exception as e:
-                logger.warning(f"Could not load configuration: {e}")
-                repo_url = "https://gitlab.com/android-devops/sakura-db"
-        
-        self.repo_url = repo_url
+        # Remote DB sync is permanently disabled - we never read storage.base_url
+        # from config and never fall back to any default URL. Any caller passing
+        # a repo_url is recorded but never used to talk to a remote.
+        self.repo_url = repo_url or ""
+
         self.local_repo_path = Path(local_repo_path)
         self.data_path = Path(data_path)
         self.git_path = self.local_repo_path / ".git"
-        
-        # Ensure data directory exists
+
         self.data_path.mkdir(exist_ok=True)
-        
-        logger.info(f"Git file storage initialized with repo: {repo_url}")
-    
+
+        logger.info(
+            "Git file storage initialized in disabled mode "
+            "(remote URL ignored, no remote operations will be performed)"
+        )
+
     def clone_or_fetch_repo(self) -> bool:
-        """Clone repository if not exists, or fetch latest changes if exists"""
+        """No-op: remote/git DB sync is permanently disabled."""
+        logger.debug(
+            "clone_or_fetch_repo skipped: remote/git DB sync is permanently disabled"
+        )
+        return True
+
+    def _legacy_clone_or_fetch_repo(self) -> bool:
+        """Disabled legacy implementation, kept for reference only."""
         try:
             if self.git_path.exists():
                 # Repository exists, fetch latest changes
@@ -120,7 +123,14 @@ class GitFileStorage(IGitFileStorage):
             return False
     
     def push_changes(self, commit_message: str = "Update database files", git_token: str = None) -> bool:
-        """Push local changes to remote repository using user's Git token"""
+        """No-op: remote/git DB sync is permanently disabled."""
+        logger.debug(
+            "push_changes skipped: remote/git DB sync is permanently disabled"
+        )
+        return True
+
+    def _legacy_push_changes(self, commit_message: str = "Update database files", git_token: str = None) -> bool:
+        """Disabled legacy implementation, kept for reference only."""
         try:
             # Add all changes
             subprocess.run(

@@ -45,26 +45,19 @@ class GitStorageProvider(IGitProvider):
         return True  # Git authentication is typically handled via tokens/SSH
     
     def health_check(self) -> bool:
-        """Check if git repository is accessible"""
-        try:
-            if self.git_path.exists():
-                result = subprocess.run(
-                    ["git", "status"],
-                    cwd=self.local_repo_path,
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                return result.returncode == 0
-            else:
-                # Try to clone the repository
-                return self.clone_or_fetch_repo()
-        except Exception as e:
-            logger.error(f"Git health check failed: {e}")
-            return False
-    
+        """No-op: remote/git DB sync is permanently disabled."""
+        return True
+
     def clone_or_fetch_repo(self) -> bool:
-        """Clone repository if not exists, or fetch latest changes if exists"""
+        """No-op: remote/git DB sync is permanently disabled."""
+        logger.debug(
+            "GitStorageProvider.clone_or_fetch_repo skipped: "
+            "remote/git DB sync is permanently disabled"
+        )
+        return True
+
+    def _legacy_clone_or_fetch_repo(self) -> bool:
+        """Disabled legacy implementation, kept for reference only."""
         try:
             if self.git_path.exists():
                 # Repository exists, fetch latest changes
@@ -156,9 +149,16 @@ class GitStorageProvider(IGitProvider):
             return False
     
     def push_changes(self, commit_message: str = "Update files") -> bool:
-        """Push local changes to remote repository"""
+        """No-op: remote/git DB sync is permanently disabled."""
+        logger.debug(
+            "GitStorageProvider.push_changes skipped: "
+            "remote/git DB sync is permanently disabled"
+        )
+        return True
+
+    def _legacy_push_changes(self, commit_message: str = "Update files") -> bool:
+        """Disabled legacy implementation, kept for reference only."""
         try:
-            # Add all changes
             subprocess.run(
                 ["git", "add", "."],
                 cwd=self.local_repo_path,

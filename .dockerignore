@@ -1,17 +1,67 @@
+# =============================================================================
+# Sakura - docker build context exclusions.
+# Keep the build context tiny: only backend/ source + frontend/ source +
+# requirements/package files are needed by the multi-stage build.
+# =============================================================================
+
+# Git + IDE
 .git
 .gitignore
-.pytest_cache
+.gitattributes
+.cursor
+.cursorignore
+.cursorrules
+.vscode
+.idea
+*.suo
+*.code-workspace
+
+# Python caches + venv (rebuilt inside the image)
 __pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+**/.pytest_cache
+.venv
+.env
+.env.local
+.env.production
+
+# Node / Angular caches + build output (frontend is rebuilt inside Stage 1)
 frontend/node_modules
 frontend/.angular
+frontend/dist
+
+# Local runtime data + previously-published static bundle
+backend/static
+backend/data
+backend/uploads
+backend/.coverage
 backend/__pycache__
 backend/.pytest_cache
-dist
-graphify-out
-tests
+
+# Docs, tests, helper scripts that don't ship in the image
 *.md
+docs/
+tests/
+graphify-out/
+
+# Other deploy helpers (not needed inside the container)
 bootstrap.sh
 bootstrap.ps1
 deploy_lan.sh
 deploy_lan.ps1
+setup.sh
+setup.ps1
+start.sh
+start.ps1
+clean_db.sh
+clean_db.ps1
+build_portable.py
+Dockerfile
 Dockerfile.unified
+
+# OS noise
+Thumbs.db
+.DS_Store
+ng-serve.log

@@ -77,57 +77,46 @@ export class IdGeneratorService {
   }
 
   /**
-   * Extract maximum ID number from requirements (REQ_XXXX format)
+   * Pull the trailing numeric suffix off of an ID string.
+   *
+   * Handles both flat (`REQ_0001`) and feature-segmented
+   * (`TC_AAOS_BT_001`) conventions — anything that ends with
+   * `[_-]?<digits>` counts. The old per-prefix regex (e.g. `TC[_-]?(\d+)`)
+   * silently returned 0 for IDs like `TC_AAOS_BT_001`, which made the next
+   * generated ID collide-by-prefix and (worse) reset the counter to 0001,
+   * then the backend rejected it for failing the format check.
    */
+  private trailingNumber(id: string): number | null {
+    if (!id) return null;
+    const match = id.match(/(\d+)\s*$/);
+    if (!match) return null;
+    const num = parseInt(match[1], 10);
+    return isNaN(num) ? null : num;
+  }
+
   private getMaxIdFromRequirements(requirements: any[]): number {
     let maxId = 0;
     for (const req of requirements) {
-      const reqId = req.requirement_id || '';
-      const match = reqId.match(/REQ[_-]?(\d+)/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxId) {
-          maxId = num;
-        }
-      }
+      const num = this.trailingNumber(req?.requirement_id || '');
+      if (num !== null && num > maxId) maxId = num;
     }
     return maxId;
   }
 
-  /**
-   * Extract maximum ID number from test cases (TC_XXXX format)
-   */
   private getMaxIdFromTestCases(testCases: any[]): number {
     let maxId = 0;
     for (const tc of testCases) {
-      const tcId = tc.test_case_id || '';
-      // Match TC_XXXX, TC-XXXX, or TCXXXX format
-      const match = tcId.match(/TC[_-]?(\d+)/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxId) {
-          maxId = num;
-        }
-      }
+      const num = this.trailingNumber(tc?.test_case_id || '');
+      if (num !== null && num > maxId) maxId = num;
     }
     return maxId;
   }
 
-  /**
-   * Extract maximum ID number from design tickets (DT_XXXX format)
-   */
   private getMaxIdFromDesignTickets(designs: any[]): number {
     let maxId = 0;
     for (const design of designs) {
-      const designId = design.design_ticket_id || '';
-      // Match DT_XXXX, DT-XXXX, or DTXXXX format
-      const match = designId.match(/DT[_-]?(\d+)/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxId) {
-          maxId = num;
-        }
-      }
+      const num = this.trailingNumber(design?.design_ticket_id || '');
+      if (num !== null && num > maxId) maxId = num;
     }
     return maxId;
   }

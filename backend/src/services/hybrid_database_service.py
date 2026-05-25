@@ -13,22 +13,22 @@ logger = get_logger(__name__)
 class HybridDatabaseService:
     """Hybrid database service managing both local and remote databases.
 
-    When ``git_sync_enabled`` is ``False`` the service degrades into a
-    local-only mode: all remote initialization, startup sync, the periodic
-    sync worker, and per-write commits to the Git workspace are skipped.
-    Reads and writes still go through the local SQLite database, so callers
-    do not need to know whether sync is on or off.
+    Remote/git DB sync is permanently disabled across all environments, so
+    ``git_sync_enabled`` defaults to ``False`` and any truthy value passed
+    by callers is ignored. The service always operates in local-only mode:
+    no remote initialization, no startup sync, no periodic sync worker,
+    and no per-write commits to the Git workspace.
     """
-    
+
     def __init__(
         self,
         local_db_service: LocalDatabaseService,
         remote_db_service: GitDatabaseService,
-        git_sync_enabled: bool = True,
+        git_sync_enabled: bool = False,
     ):
         self.local_db = local_db_service
         self.remote_db = remote_db_service
-        self.git_sync_enabled = bool(git_sync_enabled)
+        self.git_sync_enabled = False
         
         # Configuration
         self.sync_interval = 300  # 5 minutes in seconds

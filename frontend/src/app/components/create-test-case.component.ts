@@ -123,6 +123,16 @@ export class CreateTestCaseComponent implements OnInit {
 
     this.testCaseService.createTestCase(createRequest).subscribe({
       next: (testCase) => {
+        // Defensive: only treat this as success if the backend actually
+        // returned a persisted row. Previously the service swallowed HTTP
+        // errors into `null` and this block flashed "created successfully"
+        // for rows that were never inserted.
+        if (!testCase) {
+          this.isSubmitting.set(false);
+          this.errorMessage.set('Failed to create test case. The server did not return the new record.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
         console.log('Test case created successfully:', testCase);
         this.isSubmitting.set(false);
         this.successMessage.set('Test case created successfully!');
@@ -133,11 +143,10 @@ export class CreateTestCaseComponent implements OnInit {
       error: (err) => {
         this.isSubmitting.set(false);
         console.error('Error creating test case:', err);
-        
+
         const errorMsg = err?.error?.message || err?.error?.error || err?.message || 'Failed to create test case. Please check the console for details.';
         this.errorMessage.set(errorMsg);
-        
-        // Scroll to top to show error
+
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
