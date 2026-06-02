@@ -126,15 +126,17 @@ HEADER_ALIASES = {
     "vehicle variants": "vehicle_variant",
     "variant": "vehicle_variant",
     "variants": "vehicle_variant",
+    # vehicle_mode is the canonical multi-value powertrain field
+    # (Common/EV/HEV/ICE/PHEV). vehicle_specification is a separate free-form
+    # legacy column kept for backwards compatibility — do NOT alias the same
+    # human header to both, or one mapping silently shadows the other.
     "vehicle mode": "vehicle_mode",
+    "vehicle modes": "vehicle_mode",
     "vehiclemode": "vehicle_mode",
     "powertrain": "vehicle_mode",
     "drive mode": "vehicle_mode",
     "vehicle specification": "vehicle_specification",
     "vehicle spec": "vehicle_specification",
-    "vehicle mode": "vehicle_specification",
-    "vehicle modes": "vehicle_specification",
-    "powertrain": "vehicle_specification",
     "env dependency": "env_dependency",
     "env dependencies": "env_dependency",
     "environment": "env_dependency",
