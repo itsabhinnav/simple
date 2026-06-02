@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
-import { TestCaseService, TestCase } from '../services/test-case.service';
+import { TestCaseService, TestCase, TestCaseDropdowns } from '../services/test-case.service';
 import { RequirementService } from '../services/requirement.service';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -27,6 +27,26 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
   isSaving = signal(false);
   saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
   editingField = signal<string | null>(null);
+  /** Dropdown options sourced from `config.yaml > test_case_dropdowns`. */
+  dropdowns = signal<TestCaseDropdowns | null>(null);
+
+  /** Adapter so the template can render a multi-value field as `chip`s. */
+  mvArray(value: any): string[] {
+    return TestCaseService.mvArray(value);
+  }
+
+  /** Toggle a value inside a multi-value field and persist the change. */
+  toggleMulti(field: string, value: string) {
+    const current = TestCaseService.mvArray((this.testCase() as any)?.[field]);
+    const next = current.includes(value)
+      ? current.filter(v => v !== value)
+      : [...current, value];
+    this.onFieldChange(field, next);
+  }
+
+  isMultiSelected(field: string, value: string): boolean {
+    return TestCaseService.mvArray((this.testCase() as any)?.[field]).includes(value);
+  }
   
   private saveSubject = new Subject<{ field: string; value: any }>();
   private saveSubscription?: Subscription;
@@ -45,6 +65,12 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
       distinctUntilChanged((a, b) => a.field === b.field && a.value === b.value)
     ).subscribe(({ field, value }) => {
       this.saveField(field, value);
+    });
+
+    // Load configurable dropdown options (cached in the service).
+    this.testCaseService.getDropdowns().subscribe({
+      next: data => this.dropdowns.set(data),
+      error: err => console.error('Failed to load dropdowns', err),
     });
   }
 

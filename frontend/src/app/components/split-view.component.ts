@@ -968,10 +968,11 @@ export class SplitViewComponent implements OnInit {
   
   filteredTestCases = computed(() => {
     const term = this.searchTerm().toLowerCase();
-    return this.testCases().filter(tc => 
+    return this.testCases().filter(tc =>
       (tc.test_case_id && tc.test_case_id.toLowerCase().includes(term)) ||
       (tc.test_objective && tc.test_objective.toLowerCase().includes(term)) ||
-      (tc.feature && tc.feature.toLowerCase().includes(term))
+      // feature is now a multi-value field (string | string[]); flatten via mvDisplay.
+      TestCaseService.mvDisplay(tc.feature).toLowerCase().includes(term)
     );
   });
 

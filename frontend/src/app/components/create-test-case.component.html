@@ -1,5 +1,4 @@
 <div class="detail-container">
-  <!-- Top Bar -->
   <header class="top-bar">
     <nav class="breadcrumb">
       <a routerLink="/" class="breadcrumb-link">
@@ -32,7 +31,6 @@
     </div>
   </header>
 
-  <!-- Error State -->
   <div *ngIf="errorMessage()" class="alert alert--error" role="alert">
     <span class="alert-icon">⚠️</span>
     <div class="alert-body">
@@ -41,7 +39,6 @@
     </div>
   </div>
 
-  <!-- Success State -->
   <div *ngIf="successMessage()" class="alert alert--success" role="status">
     <span class="alert-icon">✓</span>
     <div class="alert-body">
@@ -50,10 +47,9 @@
     </div>
   </div>
 
-  <!-- Create Form -->
   <form [formGroup]="testCaseForm" (ngSubmit)="onSubmit()" class="detail-content">
 
-    <!-- HERO SUMMARY CARD -->
+    <!-- HERO: TC ID + headline single-selects -->
     <section class="hero-card">
       <div class="hero-top">
         <div class="hero-id-block">
@@ -78,10 +74,7 @@
               formControlName="priority"
               [class]="getPriorityClass(testCaseForm.get('priority')?.value || '')">
               <option value="">—</option>
-              <option value="P1">P1 · High</option>
-              <option value="P2">P2 · Medium</option>
-              <option value="P3">P3 · Low</option>
-              <option value="P4">P4 · Trivial</option>
+              <option *ngFor="let p of dropdowns()?.priority || []" [value]="p">{{ p }}</option>
             </select>
           </div>
 
@@ -93,10 +86,18 @@
               formControlName="test_type"
               [class]="getTypeClass(testCaseForm.get('test_type')?.value || '')">
               <option value="">—</option>
-              <option value="Positive">✓ Positive</option>
-              <option value="Negative">✗ Negative</option>
-              <option value="Boundary">↔ Boundary</option>
-              <option value="Performance">⚡ Performance</option>
+              <option *ngFor="let t of dropdowns()?.test_type || []" [value]="t">{{ t }}</option>
+            </select>
+          </div>
+
+          <div class="hero-badge-group">
+            <label class="hero-badge-label" for="tc-regulation">Regulation</label>
+            <select
+              id="tc-regulation"
+              class="hero-badge editable-select"
+              formControlName="regulation">
+              <option value="">—</option>
+              <option *ngFor="let r of dropdowns()?.regulation || []" [value]="r">{{ r }}</option>
             </select>
           </div>
 
@@ -127,15 +128,14 @@
       </div>
 
       <p class="hero-helper">
-        Give this test case a clear, specific name. Fill in the sections below to describe how
-        it should be executed. You can leave non-essential fields blank for now.
+        Dropdown options below come from <code>config.yaml &gt; test_case_dropdowns</code> —
+        ask QA leads to extend the lists there rather than hard-coding values here.
       </p>
     </section>
 
     <!-- TWO-COLUMN CONTENT -->
     <div class="content-grid">
 
-      <!-- MAIN COLUMN -->
       <main class="content-main">
 
         <!-- Description -->
@@ -143,7 +143,7 @@
           <header class="section-card-header">
             <span class="section-icon">📝</span>
             <div>
-              <h3 class="section-title">Description</h3>
+              <h3 class="section-title">Test Description</h3>
               <p class="section-subtitle">Plain-language summary of what this test covers.</p>
             </div>
           </header>
@@ -215,107 +215,111 @@
 
       </main>
 
-      <!-- SIDEBAR -->
       <aside class="content-side">
 
-        <!-- Linked Requirement -->
+        <!-- Linked references (multi) -->
         <article class="side-card">
           <header class="side-card-header">
             <span class="side-icon">🔗</span>
-            <h4>Linked Requirement</h4>
+            <h4>References</h4>
           </header>
           <div class="side-card-body">
+
             <div class="side-field">
-              <label class="side-label" for="tc-req-id">Requirement ID</label>
-              <input
-                id="tc-req-id"
-                type="text"
-                class="side-input"
-                formControlName="associated_requirement_id"
-                placeholder="e.g. REQ_001">
+              <label class="side-label">Reference Spec Document(s)</label>
+              <ng-container
+                *ngTemplateOutlet="customMulti; context: { field: 'reference_document', placeholder: 'e.g. SPEC_001' }">
+              </ng-container>
             </div>
+
             <div class="side-field">
-              <label class="side-label" for="tc-req-type">Requirement Type</label>
-              <input
-                id="tc-req-type"
-                type="text"
-                class="side-input"
-                formControlName="requirement_type"
-                placeholder="e.g. Functional, UX, Safety">
+              <label class="side-label">Associated Requirement(s)</label>
+              <ng-container
+                *ngTemplateOutlet="customMulti; context: { field: 'associated_requirement_id', placeholder: 'e.g. REQ_001' }">
+              </ng-container>
             </div>
+
             <div class="side-field">
-              <label class="side-label" for="tc-ref-doc">Reference Document</label>
-              <input
-                id="tc-ref-doc"
-                type="text"
-                class="side-input"
-                formControlName="reference_document"
-                placeholder="Spec / doc reference">
+              <label class="side-label">Screen ID(s)</label>
+              <ng-container
+                *ngTemplateOutlet="customMulti; context: { field: 'screen_id', placeholder: 'e.g. HOME_SCREEN' }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">DR ID</label>
+              <input type="text" class="side-input" formControlName="dr_id" placeholder="e.g. DR_1234">
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">Requirement Type</label>
+              <input type="text" class="side-input" formControlName="requirement_type"
+                     placeholder="e.g. Functional, UX, Safety">
             </div>
           </div>
         </article>
 
-        <!-- Classification -->
+        <!-- Classification (multi-select dropdowns) -->
         <article class="side-card">
           <header class="side-card-header">
             <span class="side-icon">🗂️</span>
             <h4>Classification</h4>
           </header>
           <div class="side-card-body">
-            <div class="side-field">
-              <label class="side-label" for="tc-vehicle">🚗 Vehicle Model</label>
-              <input
-                id="tc-vehicle"
-                type="text"
-                class="side-input"
-                formControlName="vehicle_model"
-                placeholder="e.g. Volvo EX90, Polestar 3">
-            </div>
-            <div class="side-field">
-              <label class="side-label" for="tc-feature">🎯 Feature</label>
-              <input
-                id="tc-feature"
-                type="text"
-                class="side-input"
-                formControlName="feature"
-                placeholder="Feature area">
-            </div>
-            <div class="side-field">
-              <label class="side-label" for="tc-screen">📱 Screen ID</label>
-              <input
-                id="tc-screen"
-                type="text"
-                class="side-input"
-                formControlName="screen_id"
-                placeholder="Screen ID">
-            </div>
-          </div>
-        </article>
 
-        <!-- Scope -->
-        <article class="side-card">
-          <header class="side-card-header">
-            <span class="side-icon">🌐</span>
-            <h4>Scope</h4>
-          </header>
-          <div class="side-card-body">
             <div class="side-field">
-              <label class="side-label" for="tc-region">🌍 Region</label>
-              <input
-                id="tc-region"
-                type="text"
-                class="side-input"
-                formControlName="region"
-                placeholder="e.g. EU, NA, APAC">
+              <label class="side-label">🎯 Feature</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'feature', options: dropdowns()?.feature || [] }">
+              </ng-container>
             </div>
+
             <div class="side-field">
-              <label class="side-label" for="tc-brand">🏷️ Brand</label>
-              <input
-                id="tc-brand"
-                type="text"
-                class="side-input"
-                formControlName="brand"
-                placeholder="Brand">
+              <label class="side-label">🌍 Region</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'region', options: dropdowns()?.region || [] }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🏷️ Brand</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'brand', options: dropdowns()?.brand || [] }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🚗 Vehicle Variant</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'vehicle_variant', options: dropdowns()?.vehicle_variant || [] }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">⚡ Vehicle Mode</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'vehicle_mode', options: dropdowns()?.vehicle_mode || [] }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🔌 Env Dependency</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'env_dependency', options: dropdowns()?.env_dependency || [] }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">📚 Test Suite Type</label>
+              <ng-container
+                *ngTemplateOutlet="optionMulti; context: { field: 'testsuite_type', options: dropdowns()?.testsuite_type || [] }">
+              </ng-container>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">Vehicle Model</label>
+              <input type="text" class="side-input" formControlName="vehicle_model"
+                     placeholder="e.g. Volvo EX90">
             </div>
           </div>
         </article>
@@ -324,3 +328,44 @@
     </div>
   </form>
 </div>
+
+<!-- Reusable: dropdown-driven multi-select chip group -->
+<ng-template #optionMulti let-field="field" let-options="options">
+  <div class="multi-select">
+    <div class="multi-options">
+      <button type="button" class="chip"
+              *ngFor="let opt of options"
+              [class.chip--active]="isMultiSelected(field, opt)"
+              (click)="toggleMulti(field, opt)">
+        {{ opt }}
+      </button>
+    </div>
+    <div class="multi-selected" *ngIf="selectedValues(field).length">
+      <span class="chip chip--selected" *ngFor="let v of selectedValues(field)">
+        {{ v }}
+        <button type="button" class="chip-remove" (click)="removeMulti(field, v)" aria-label="Remove">×</button>
+      </span>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Reusable: free-text-tag multi-select (no curated dropdown) -->
+<ng-template #customMulti let-field="field" let-placeholder="placeholder">
+  <div class="multi-select">
+    <div class="multi-input-row">
+      <input type="text"
+             class="side-input"
+             [placeholder]="placeholder"
+             [(ngModel)]="multiInput[field]"
+             [ngModelOptions]="{ standalone: true }"
+             (keydown.enter)="addCustomTag(field, $event)">
+      <button type="button" class="btn btn-ghost btn-sm" (click)="addCustomTag(field)">＋ Add</button>
+    </div>
+    <div class="multi-selected" *ngIf="selectedValues(field).length">
+      <span class="chip chip--selected" *ngFor="let v of selectedValues(field)">
+        {{ v }}
+        <button type="button" class="chip-remove" (click)="removeMulti(field, v)" aria-label="Remove">×</button>
+      </span>
+    </div>
+  </div>
+</ng-template>

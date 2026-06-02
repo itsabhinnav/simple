@@ -141,10 +141,7 @@ class AuthController:
             
             # Generate JWT token
             token = self._generate_token(user['id'], user['username'])
-            
-            # After creating user, trigger initial sync if remote has data
-            self._sync_remote_if_needed(user['username'], git_token_encrypted)
-            
+
             return jsonify({
                 "success": True,
                 "message": "User created successfully",
@@ -209,10 +206,7 @@ class AuthController:
             
             # Generate JWT token
             token = self._generate_token(user['id'], user['username'])
-            
-            # Trigger remote database sync if user has a Git token
-            self._sync_remote_if_needed(user['username'], user.get('git_token_encrypted'))
-            
+
             return jsonify({
                 "success": True,
                 "message": "Login successful",
@@ -409,14 +403,6 @@ class AuthController:
                 "error": "Reset failed",
                 "message": str(e)
             }), 500
-    
-    def _sync_remote_if_needed(self, username: str, git_token_encrypted: str = None):
-        """No-op: remote/git DB sync is permanently disabled across all envs."""
-        logger.debug(
-            f"_sync_remote_if_needed skipped for user={username}: "
-            "remote/git DB sync is permanently disabled"
-        )
-        return
     
     def _sanitize_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """Remove sensitive information from user data"""

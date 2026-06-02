@@ -9,14 +9,9 @@ from typing import Dict, Any, Optional, Type, TypeVar, Callable
 from functools import lru_cache
 import asyncio
 
-from src.interfaces.git_file_storage import IGitFileStorage
-from src.interfaces.providers import IStorageProvider
-from src.implementations.git_file_storage import GitFileStorage
-from src.implementations.storage_providers import create_storage_provider
 from src.services.local_database_service import LocalDatabaseService
 from src.services.postgresql_database_service import PostgresDatabaseService
 from src.services.hybrid_database_service import HybridDatabaseService
-from src.services.git_database_service import GitDatabaseService
 from src.repositories.user_repository import IUserRepository, UserRepository
 from src.repositories.test_case_repository import ITestCaseRepository, TestCaseRepository
 from src.services.user_service import IUserService, UserService
@@ -124,79 +119,14 @@ class ApplicationContainer:
     
     def _setup_services(self):
         """Set up all application services based on configuration."""
-        logger.info("Setting up configuration-based application services")
-        
+        logger.info("Setting up configuration-based application services (local-only mode)")
+
         # Get configuration
-        storage_config = self._config_manager.get_storage_config()
         database_config = self._config_manager.get_database_config()
-        
-        # Register storage provider based on configuration
-        storage_provider_type = storage_config.get("provider", "git")
-        logger.info(f"Using storage provider: {storage_provider_type}")
-        
-        if storage_provider_type == "git":
-            # Register Git file storage (legacy interface for backward compatibility)
-            self.container.register_singleton(
-                IGitFileStorage,
-                GitFileStorage,
-                factory=lambda: GitFileStorage(
-                    repo_url=storage_config.get("base_url"),
-                    local_repo_path=storage_config.get("local_repo_path", "remote"),
-                    data_path=storage_config.get("data_path", "data")
-                )
-            )
-            
-            # Register new storage provider interface
-            self.container.register_singleton(
-                IStorageProvider,
-                create_storage_provider(storage_config)
-            )
-            
-        elif storage_provider_type == "artifactory":
-            # Register Artifactory storage provider
-            self.container.register_singleton(
-                IStorageProvider,
-                create_storage_provider(storage_config)
-            )
-            
-            # Create a Git file storage adapter for backward compatibility
-            self.container.register_singleton(
-                IGitFileStorage,
-                GitFileStorage,
-                factory=lambda: GitFileStorage(
-                    repo_url=storage_config.get("base_url"),
-                    local_repo_path=storage_config.get("local_repo_path", "remote"),
-                    data_path=storage_config.get("data_path", "data")
-                )
-            )
-            
-        elif storage_provider_type == "local":
-            # Register local storage provider
-            self.container.register_singleton(
-                IStorageProvider,
-                create_storage_provider(storage_config)
-            )
-            
-            # Create a Git file storage adapter for backward compatibility
-            self.container.register_singleton(
-                IGitFileStorage,
-                GitFileStorage,
-                factory=lambda: GitFileStorage(
-                    repo_url=storage_config.get("base_url", "file:///tmp/sakura"),
-                    local_repo_path=storage_config.get("local_repo_path", "remote"),
-                    data_path=storage_config.get("data_path", "data")
-                )
-            )
-        
-        # Register Git database service
-        self.container.register_singleton(
-            GitDatabaseService,
-            GitDatabaseService,
-            factory=lambda: GitDatabaseService(
-                git_storage=self.container.get(IGitFileStorage)
-            )
-        )
-        
+
+        # Remote/Git database sync has been removed: no storage provider, no
+        # GitFileStorage, no GitDatabaseService. Everything is local SQLite.
+
         # Register primary database service based on configuration
         db_provider = database_config.get("provider", "sqlite")
         
@@ -215,21 +145,13 @@ class ApplicationContainer:
                 factory=lambda: LocalDatabaseService()
             )
         
-        # Git/remote DB sync is permanently disabled across all environments.
-        # The Hybrid database service always runs in local-only mode and the
-        # config flag is intentionally ignored.
-        git_sync_enabled = False
-        logger.info(
-            "Hybrid database service configured with git_sync_enabled=False "
-            "(remote/git DB sync is permanently disabled)"
-        )
+        # Hybrid database service now runs purely against the local SQLite
+        # database. Remote/Git mirror was deleted; do not reintroduce it.
         self.container.register_singleton(
             HybridDatabaseService,
             HybridDatabaseService,
             factory=lambda: HybridDatabaseService(
                 local_db_service=self.container.get(LocalDatabaseService),
-                remote_db_service=self.container.get(GitDatabaseService),
-                git_sync_enabled=git_sync_enabled,
             )
         )
         
@@ -261,16 +183,14 @@ class ApplicationContainer:
             UserService,
             factory=lambda: UserService(
                 user_repository=self.container.get(IUserRepository),
-                git_database_service=self.container.get(HybridDatabaseService)
             )
         )
-        
+
         self.container.register_singleton(
             ITestCaseService,
             TestCaseService,
             factory=lambda: TestCaseService(
                 test_case_repository=self.container.get(ITestCaseRepository),
-                git_database_service=self.container.get(HybridDatabaseService)
             )
         )
         
@@ -309,64 +229,12 @@ class ApplicationContainer:
         logger.info("Configuration-based application services configured successfully")
     
     async def initialize(self):
-        """Initialize the application container."""
-        logger.info("Initializing configuration-based application container")
-        
-        try:
-            # Initialize storage provider
-            if self.container.is_registered(IStorageProvider):
-                storage_provider = self.container.get(IStorageProvider)
-                
-                # Authenticate with storage provider
-                storage_config = self._config_manager.get_storage_config()
-                if hasattr(storage_provider, 'authenticate'):
-                    auth_success = storage_provider.authenticate(
-                        storage_config.get("username", ""),
-                        storage_config.get("password", "")
-                    )
-                    if not auth_success:
-                        logger.warning("Storage provider authentication failed")
-                
-                # Perform health check
-                if hasattr(storage_provider, 'health_check'):
-                    is_healthy = storage_provider.health_check()
-                    if not is_healthy:
-                        logger.warning("Storage provider health check failed")
-                    else:
-                        logger.info("Storage provider health check passed")
-            
-            logger.info(
-                "Skipping git database service initialization "
-                "(remote/git DB sync is permanently disabled)"
-            )
-            
-            logger.info("Configuration-based application container initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize application container: {e}")
-            raise
-    
+        """Initialize the application container (local-only mode)."""
+        logger.info("Initializing application container (local-only mode)")
+
     async def cleanup(self):
-        """Cleanup application resources."""
-        logger.info("Cleaning up application resources")
-        
-        try:
-            # Close storage provider connections if needed
-            if self.container.is_registered(IStorageProvider):
-                storage_provider = self.container.get(IStorageProvider)
-                if hasattr(storage_provider, 'close'):
-                    await storage_provider.close()
-            
-            # Close Git database service connections if needed
-            if self.container.is_registered(GitDatabaseService):
-                git_db_service = self.container.get(GitDatabaseService)
-                if hasattr(git_db_service, 'close'):
-                    await git_db_service.close()
-            
-            logger.info("Application cleanup completed")
-            
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+        """Cleanup application resources (local-only mode)."""
+        logger.info("Application cleanup completed (local-only mode)")
     
     def reload_configuration(self):
         """Reload configuration and reinitialize services."""
@@ -401,29 +269,14 @@ def get_container() -> ApplicationContainer:
 
 # Convenience functions for common services
 
-def get_storage_provider() -> IStorageProvider:
-    """Get the storage provider service."""
-    return get_container().container.get(IStorageProvider)
-
-
-def get_git_file_storage() -> IGitFileStorage:
-    """Get the Git file storage service."""
-    return get_container().container.get(IGitFileStorage)
-
-
 def get_hybrid_database_service() -> HybridDatabaseService:
-    """Get the hybrid database service."""
+    """Get the hybrid database service (local-only)."""
     return get_container().container.get(HybridDatabaseService)
 
 
 def get_local_database_service() -> LocalDatabaseService:
     """Get the local database service."""
     return get_container().container.get(LocalDatabaseService)
-
-
-def get_git_database_service() -> GitDatabaseService:
-    """Get the Git database service."""
-    return get_container().container.get(GitDatabaseService)
 
 
 def get_user_service() -> IUserService:

@@ -101,6 +101,7 @@ class LocalDatabaseService:
                     brand TEXT,
                     vehicle_variant TEXT,
                     vehicle_specification TEXT,
+                    vehicle_mode TEXT,
                     env_dependency TEXT,
                     requirement_type TEXT,
                     regulation TEXT,
@@ -249,6 +250,9 @@ class LocalDatabaseService:
                     "description": "TEXT",
                     "vehicle_model": "TEXT",
                     "severity": "TEXT",
+                    # `vehicle_mode` joined the schema later (Common/EV/HEV/ICE/PHEV
+                    # multi-select). Existing DBs need an ALTER to gain the column.
+                    "vehicle_mode": "TEXT",
                 },
             )
             

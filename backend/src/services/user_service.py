@@ -39,9 +39,8 @@ class IUserService(ABC):
 class UserService(IUserService):
     """Concrete implementation of user service with business logic"""
     
-    def __init__(self, user_repository: IUserRepository, git_database_service=None):
+    def __init__(self, user_repository: IUserRepository):
         self.user_repository = user_repository
-        self.git_database_service = git_database_service
     
     def get_all_users(self) -> List[Dict[str, Any]]:
         """Get all users with business logic"""
@@ -98,14 +97,7 @@ class UserService(IUserService):
                 user['email_masked'] = self._mask_email(user['email'])
                 user['full_name'] = self._get_full_name(user)
                 user['is_active'] = user.get('role') != 'inactive'
-                
-                # Commit changes to git if service is available
-                if self.git_database_service:
-                    try:
-                        self.git_database_service.commit_changes(f"Create user: {user_data.username}")
-                    except Exception as e:
-                        logger.warning(f"Failed to commit user creation to git: {e}")
-            
+
             return user
         except ValueError as e:
             # Re-raise validation errors as-is
@@ -142,14 +134,7 @@ class UserService(IUserService):
                 user['email_masked'] = self._mask_email(user['email'])
                 user['full_name'] = self._get_full_name(user)
                 user['is_active'] = user.get('role') != 'inactive'
-                
-                # Commit changes to git if service is available
-                if self.git_database_service:
-                    try:
-                        self.git_database_service.commit_changes(f"Update user: {user.get('username', user_id)}")
-                    except Exception as e:
-                        logger.warning(f"Failed to commit user update to git: {e}")
-            
+
             return user
         except ValueError as e:
             # Re-raise validation errors as-is
@@ -173,16 +158,7 @@ class UserService(IUserService):
             if existing_user.get('role') == 'admin':
                 raise ValueError("Cannot delete admin users")
             
-            # Delete user
             success = self.user_repository.delete(user_id)
-            
-            # Commit changes to git if service is available and deletion was successful
-            if success and self.git_database_service:
-                try:
-                    self.git_database_service.commit_changes(f"Delete user: {existing_user.get('username', user_id)}")
-                except Exception as e:
-                    logger.warning(f"Failed to commit user deletion to git: {e}")
-            
             return success
         except ValueError as e:
             # Re-raise validation errors as-is

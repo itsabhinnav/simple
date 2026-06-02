@@ -462,6 +462,58 @@ class ConfigurationManager(IConfigurationProvider):
         """Get storage repository (empty by default - remote sync disabled)."""
         return self.get_config("storage.repository", "")
     
+    def get_test_case_dropdowns(self) -> Dict[str, Any]:
+        """Return the configurable test-case dropdown options block.
+
+        Shape::
+
+            {
+              "multi_value_fields": [<field>, ...],
+              "feature":           [<option>, ...],
+              "test_type":         [<option>, ...],
+              "region":            [<option>, ...],
+              "brand":             [<option>, ...],
+              "vehicle_variant":   [<option>, ...],
+              "vehicle_mode":      [<option>, ...],
+              "env_dependency":    [<option>, ...],
+              "regulation":        [<option>, ...],
+              "priority":          [<option>, ...],
+              "testsuite_type":    [<option>, ...],
+            }
+
+        Returns an empty dict (with empty lists) if config is missing so
+        callers can rely on `.get(field, [])` without KeyError handling.
+        """
+        defaults: Dict[str, Any] = {
+            "multi_value_fields": [
+                "reference_document", "associated_requirement_id", "screen_id",
+                "feature", "region", "brand", "vehicle_variant", "vehicle_mode",
+                "env_dependency", "testsuite_type",
+            ],
+            "feature": [],
+            "test_type": ["Positive", "Negative", "Abnormal", "Boundary"],
+            "region": [],
+            "brand": [],
+            "vehicle_variant": [],
+            "vehicle_mode": ["Common", "EV", "HEV", "ICE", "PHEV"],
+            "env_dependency": [],
+            "regulation": ["Yes", "No"],
+            "priority": ["P1", "P2", "P3", "P4"],
+            "testsuite_type": [],
+        }
+        loaded = self.get_config("test_case_dropdowns", {}) or {}
+        if not isinstance(loaded, dict):
+            return defaults
+        merged = {**defaults, **loaded}
+        # Coerce each value list to a list of strings to keep the API stable
+        # (YAML may decode "Yes"/"No" as booleans, etc.).
+        for key, value in list(merged.items()):
+            if key == "multi_value_fields":
+                merged[key] = [str(v) for v in (value or [])]
+            elif isinstance(value, list):
+                merged[key] = [str(v) for v in value]
+        return merged
+
     def get_storage_base_url(self) -> str:
         """Get storage base URL.
 

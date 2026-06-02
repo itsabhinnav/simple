@@ -347,10 +347,10 @@ config/secrets.json
 .env.production.local
 .env.development.local
 
-# Data directories
-data/cache/
-data/local/
-data/temp/
+# Data directories — local-only DB lives under backend/data/. Never commit it
+# (no remote/Git mirror exists anymore; the SQLite file is per-machine).
+data/
+backend/data/
 
 # Test artifacts
 test-results/

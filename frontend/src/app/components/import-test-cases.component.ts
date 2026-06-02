@@ -55,6 +55,7 @@ type WizardStep = 'upload' | 'map' | 'review' | 'result';
 
 const PRESETS_KEY = 'sakura.tc-import.presets.v1';
 const HISTORY_KEY = 'sakura.tc-import.history.v1';
+const MAPPING_KEY = 'sakura.tc-import.active-mapping.v1';
 const HISTORY_LIMIT = 8;
 
 @Component({
@@ -1034,6 +1035,16 @@ export class ImportTestCasesComponent implements OnInit {
         try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); } catch { /* quota — ignore */ }
       }
     });
+    // Auto-save the active raw-header → field mapping the moment any dropdown
+    // changes. Survives reloads & repeated imports of similar workbooks.
+    effect(() => {
+      const map = this.importMapping();
+      if (!isPlatformBrowser(this.platformId)) return;
+      try {
+        if (Object.keys(map).length === 0) localStorage.removeItem(MAPPING_KEY);
+        else localStorage.setItem(MAPPING_KEY, JSON.stringify(map));
+      } catch { /* quota — ignore */ }
+    });
   }
 
   ngOnInit(): void {
@@ -1063,6 +1074,13 @@ export class ImportTestCasesComponent implements OnInit {
       try {
         const raw = localStorage.getItem(HISTORY_KEY);
         if (raw) this.history.set(JSON.parse(raw));
+      } catch { /* corrupt JSON — reset silently */ }
+      try {
+        const raw = localStorage.getItem(MAPPING_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') this.importMapping.set(parsed);
+        }
       } catch { /* corrupt JSON — reset silently */ }
     }
   }

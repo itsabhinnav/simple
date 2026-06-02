@@ -1,9 +1,38 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { map, catchError, shareReplay, tap } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { API_URL } from '../app-settings';
+
+/**
+ * Field names that store multiple values (persisted as JSON arrays
+ * server-side). The dropdown configuration endpoint also returns this
+ * list under `multi_value_fields` — keep the two in sync if you add a
+ * new column.
+ */
+export const TEST_CASE_MULTI_VALUE_FIELDS = [
+  'reference_document',
+  'associated_requirement_id',
+  'screen_id',
+  'feature',
+  'region',
+  'brand',
+  'vehicle_variant',
+  'vehicle_mode',
+  'env_dependency',
+  'testsuite_type',
+] as const;
+
+export type TestCaseMultiValueField = typeof TEST_CASE_MULTI_VALUE_FIELDS[number];
+
+/**
+ * Multi-value fields are stored server-side as JSON arrays but legacy
+ * code paths (and the bulk import service) still emit plain strings. The
+ * union keeps both shapes valid; consumers should normalise via the
+ * `TestCaseService.mvArray` / `mvDisplay` helpers below.
+ */
+export type MultiValue = string | string[] | undefined;
 
 export interface TestCase {
   id?: number;
@@ -12,10 +41,18 @@ export interface TestCase {
   description?: string;
   vehicle_model?: string;
   severity?: string;
-  reference_document?: string;
-  associated_requirement_id?: string;
-  screen_id?: string;
-  feature?: string;
+
+  reference_document?: MultiValue;
+  associated_requirement_id?: MultiValue;
+  screen_id?: MultiValue;
+  feature?: MultiValue;
+  region?: MultiValue;
+  brand?: MultiValue;
+  vehicle_variant?: MultiValue;
+  vehicle_mode?: MultiValue;
+  env_dependency?: MultiValue;
+  testsuite_type?: MultiValue;
+
   dr_applicable_screens?: string;
   dr_id?: string;
   test_objective?: string;
@@ -23,15 +60,12 @@ export interface TestCase {
   procedure?: string;
   expected_behavior?: string;
   test_type?: string;
-  region?: string;
-  brand?: string;
-  vehicle_variant?: string;
   vehicle_specification?: string;
-  env_dependency?: string;
   requirement_type?: string;
+  /** "Yes" / "No" — single-select dropdown driven by config.yaml. */
   regulation?: string;
   priority?: string;
-  testsuite_type?: string;
+
   created_at?: string;
   updated_at?: string;
   is_high_priority?: boolean;
@@ -45,10 +79,18 @@ export interface TestCaseCreateRequest {
   description?: string;
   vehicle_model?: string;
   severity?: string;
-  reference_document?: string;
-  associated_requirement_id?: string;
-  screen_id?: string;
-  feature?: string;
+
+  reference_document?: MultiValue;
+  associated_requirement_id?: MultiValue;
+  screen_id?: MultiValue;
+  feature?: MultiValue;
+  region?: MultiValue;
+  brand?: MultiValue;
+  vehicle_variant?: MultiValue;
+  vehicle_mode?: MultiValue;
+  env_dependency?: MultiValue;
+  testsuite_type?: MultiValue;
+
   dr_applicable_screens?: string;
   dr_id?: string;
   test_objective?: string;
@@ -56,43 +98,32 @@ export interface TestCaseCreateRequest {
   procedure?: string;
   expected_behavior?: string;
   test_type?: string;
-  region?: string;
-  brand?: string;
-  vehicle_variant?: string;
   vehicle_specification?: string;
-  env_dependency?: string;
   requirement_type?: string;
   regulation?: string;
   priority?: string;
-  testsuite_type?: string;
 }
 
-export interface TestCaseUpdateRequest {
-  test_case_id?: string;
-  title?: string;
-  description?: string;
-  vehicle_model?: string;
-  severity?: string;
-  reference_document?: string;
-  associated_requirement_id?: string;
-  screen_id?: string;
-  feature?: string;
-  dr_applicable_screens?: string;
-  dr_id?: string;
-  test_objective?: string;
-  preconditions?: string;
-  procedure?: string;
-  expected_behavior?: string;
-  test_type?: string;
-  region?: string;
-  brand?: string;
-  vehicle_variant?: string;
-  vehicle_specification?: string;
-  env_dependency?: string;
-  requirement_type?: string;
-  regulation?: string;
-  priority?: string;
-  testsuite_type?: string;
+export type TestCaseUpdateRequest = Partial<TestCaseCreateRequest>;
+
+/**
+ * Shape of GET /api/test-cases/dropdowns. Each option list is configurable
+ * via `config.yaml > test_case_dropdowns`. `multi_value_fields` echoes
+ * which fields the backend persists as JSON arrays so the UI can render
+ * single vs. multi pickers from the same source.
+ */
+export interface TestCaseDropdowns {
+  multi_value_fields: string[];
+  feature: string[];
+  test_type: string[];
+  region: string[];
+  brand: string[];
+  vehicle_variant: string[];
+  vehicle_mode: string[];
+  env_dependency: string[];
+  regulation: string[];
+  priority: string[];
+  testsuite_type: string[];
 }
 
 export interface ApiResponse<T> {
@@ -164,14 +195,59 @@ export interface TestCaseImportFieldsResponse {
   providedIn: 'root'
 })
 export class TestCaseService {
+  /**
+   * Coerce a multi-value field (array, CSV string, or scalar) into a
+   * plain `string[]`. Empty / blank entries are dropped, so callers can
+   * rely on `mvArray(...).length === 0` for the "no values" check.
+   */
+  static mvArray(value: MultiValue): string[] {
+    if (value === null || value === undefined) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value
+        .map(v => (v ?? '').toString().trim())
+        .filter(v => v !== '');
+    }
+    const str = value.toString().trim();
+    if (str === '') {
+      return [];
+    }
+    if (str.startsWith('[') && str.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(str);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map(v => (v ?? '').toString().trim())
+            .filter(v => v !== '');
+        }
+      } catch {
+        /* fall through to CSV split */
+      }
+    }
+    return str.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  /** Join a multi-value field with `, ` for read-only display / search. */
+  static mvDisplay(value: MultiValue, separator = ', '): string {
+    return TestCaseService.mvArray(value).join(separator);
+  }
+
   private http = inject(HttpClient);
   private readonly baseUrl = API_URL;
   
   private testCasesSubject = new BehaviorSubject<TestCase[]>([]);
   public testCases$ = this.testCasesSubject.asObservable();
 
+  /** In-memory dropdown cache. Populated lazily by the first `getDropdowns()` call. */
+  private dropdownsCache$: Observable<TestCaseDropdowns> | null = null;
+  public readonly dropdowns = signal<TestCaseDropdowns | null>(null);
+
   constructor() {
     this.loadTestCases();
+    // Warm the dropdown cache once on app boot so create / detail screens
+    // never show empty selects.
+    this.getDropdowns().subscribe({ error: () => { /* fail silently */ } });
   }
 
   /**
@@ -338,6 +414,32 @@ export class TestCaseService {
       );
   }
 
+  /**
+   * Fetch dropdown / multi-select options sourced from `config.yaml`.
+   * Cached for the lifetime of the service so create + detail screens
+   * share a single network call.
+   */
+  getDropdowns(forceReload = false): Observable<TestCaseDropdowns> {
+    if (forceReload) {
+      this.dropdownsCache$ = null;
+    }
+    if (!this.dropdownsCache$) {
+      this.dropdownsCache$ = this.http
+        .get<ApiResponse<TestCaseDropdowns>>(`${this.baseUrl}/test-cases/dropdowns`)
+        .pipe(
+          map(response => {
+            if (!response.success || !response.data) {
+              throw new Error(response.message || response.error || 'Failed to load dropdowns');
+            }
+            return response.data;
+          }),
+          tap(data => this.dropdowns.set(data)),
+          shareReplay({ bufferSize: 1, refCount: false }),
+        );
+    }
+    return this.dropdownsCache$;
+  }
+
   /** Canonical fields for the test_cases target — used by the mapping UI dropdowns. */
   getImportFields(): Observable<TestCaseImportFieldsResponse> {
     return this.http
@@ -388,17 +490,17 @@ export class TestCaseService {
   }
 
   /**
-   * Validate priority
+   * Validate priority against the configured dropdown values, falling
+   * back to the historical hard-coded list if config has not loaded yet.
    */
   isValidPriority(priority: string): boolean {
-    return ['P1', 'P2', 'P3'].includes(priority);
+    const configured = this.dropdowns()?.priority;
+    return (configured && configured.length ? configured : ['P1', 'P2', 'P3', 'P4']).includes(priority);
   }
 
-  /**
-   * Validate test type
-   */
   isValidTestType(testType: string): boolean {
-    return ['Positive', 'Negative', 'Boundary', 'Performance'].includes(testType);
+    const configured = this.dropdowns()?.test_type;
+    return (configured && configured.length ? configured : ['Positive', 'Negative', 'Abnormal', 'Boundary']).includes(testType);
   }
 
   /**
@@ -416,26 +518,20 @@ export class TestCaseService {
    * Get unique features from current test cases
    */
   getUniqueFeatures(): string[] {
-    const currentTestCases = this.testCasesSubject.value;
-    const features = currentTestCases
-      .map(testCase => testCase.feature)
-      .filter((feature): feature is string => feature !== undefined && feature.trim() !== '')
-      .filter((feature, index, array) => array.indexOf(feature) === index);
-    
-    return features.sort();
+    // `feature` is multi-value (string | string[]); flatten via mvArray then dedupe.
+    const features = this.testCasesSubject.value
+      .flatMap(tc => TestCaseService.mvArray(tc.feature));
+    return [...new Set(features)].sort();
   }
 
   /**
    * Get unique priorities from current test cases
    */
   getUniquePriorities(): string[] {
-    return ['P1', 'P2', 'P3'];
+    return this.dropdowns()?.priority ?? ['P1', 'P2', 'P3', 'P4'];
   }
 
-  /**
-   * Get unique test types from current test cases
-   */
   getUniqueTestTypes(): string[] {
-    return ['Positive', 'Negative', 'Boundary', 'Performance'];
+    return this.dropdowns()?.test_type ?? ['Positive', 'Negative', 'Abnormal', 'Boundary'];
   }
 }

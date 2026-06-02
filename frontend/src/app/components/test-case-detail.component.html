@@ -66,9 +66,7 @@
               (change)="onFieldChange('priority', $any($event.target).value)"
               [class]="getPriorityClass(testCase()?.priority || '')">
               <option value="">—</option>
-              <option value="P1">P1 · High</option>
-              <option value="P2">P2 · Medium</option>
-              <option value="P3">P3 · Low</option>
+              <option *ngFor="let p of dropdowns()?.priority || []" [value]="p">{{ p }}</option>
             </select>
           </div>
 
@@ -80,10 +78,18 @@
               (change)="onFieldChange('test_type', $any($event.target).value)"
               [class]="getTypeClass(testCase()?.test_type || '')">
               <option value="">—</option>
-              <option value="Positive">✓ Positive</option>
-              <option value="Negative">✗ Negative</option>
-              <option value="Boundary">↔ Boundary</option>
-              <option value="Performance">⚡ Performance</option>
+              <option *ngFor="let t of dropdowns()?.test_type || []" [value]="t">{{ t }}</option>
+            </select>
+          </div>
+
+          <div class="hero-badge-group">
+            <label class="hero-badge-label">Regulation</label>
+            <select
+              class="hero-badge editable-select"
+              [value]="testCase()?.regulation || ''"
+              (change)="onFieldChange('regulation', $any($event.target).value)">
+              <option value="">—</option>
+              <option *ngFor="let r of dropdowns()?.regulation || []" [value]="r">{{ r }}</option>
             </select>
           </div>
 
@@ -143,25 +149,28 @@
           <span class="qf-label">Vehicle</span>
           <span class="qf-value">{{ testCase()?.vehicle_model }}</span>
         </div>
-        <div class="quick-fact" *ngIf="testCase()?.region">
+        <div class="quick-fact" *ngIf="mvArray(testCase()?.region).length">
           <span class="qf-icon">🌍</span>
           <span class="qf-label">Region</span>
-          <span class="qf-value">{{ testCase()?.region }}</span>
+          <span class="qf-value">{{ mvArray(testCase()?.region).join(', ') }}</span>
         </div>
-        <div class="quick-fact" *ngIf="testCase()?.brand">
+        <div class="quick-fact" *ngIf="mvArray(testCase()?.brand).length">
           <span class="qf-icon">🏷️</span>
           <span class="qf-label">Brand</span>
-          <span class="qf-value">{{ testCase()?.brand }}</span>
+          <span class="qf-value">{{ mvArray(testCase()?.brand).join(', ') }}</span>
         </div>
-        <div class="quick-fact quick-fact--link" *ngIf="testCase()?.associated_requirement_id">
-          <span class="qf-icon">📋</span>
-          <span class="qf-label">Requirement</span>
-          <a (click)="navigateToRequirement(testCase()!.associated_requirement_id!)"
-             class="qf-value qf-link"
-             title="View requirement details">
-            {{ testCase()?.associated_requirement_id }} →
-          </a>
-        </div>
+        <ng-container *ngIf="mvArray(testCase()?.associated_requirement_id) as reqIds">
+          <div class="quick-fact quick-fact--link"
+               *ngFor="let rid of reqIds">
+            <span class="qf-icon">📋</span>
+            <span class="qf-label">Requirement</span>
+            <a (click)="navigateToRequirement(rid)"
+               class="qf-value qf-link"
+               title="View requirement details">
+              {{ rid }} →
+            </a>
+          </div>
+        </ng-container>
       </div>
     </section>
 
@@ -331,21 +340,21 @@
       <!-- SIDEBAR -->
       <aside class="content-side">
 
-        <!-- Linked Requirement -->
-        <article class="side-card" *ngIf="testCase()?.associated_requirement_id || testCase()?.requirement_type">
+        <!-- Linked Requirement(s) -->
+        <article class="side-card" *ngIf="mvArray(testCase()?.associated_requirement_id).length || testCase()?.requirement_type">
           <header class="side-card-header">
             <span class="side-icon">🔗</span>
-            <h4>Linked Requirement</h4>
+            <h4>Linked Requirement(s)</h4>
           </header>
           <div class="side-card-body">
-            <a *ngIf="testCase()?.associated_requirement_id"
-               (click)="navigateToRequirement(testCase()!.associated_requirement_id!)"
+            <a *ngFor="let rid of mvArray(testCase()?.associated_requirement_id)"
+               (click)="navigateToRequirement(rid)"
                class="requirement-chip"
                title="View requirement details">
               <span class="req-chip-icon">📋</span>
               <div class="req-chip-text">
                 <span class="req-chip-label">Requirement ID</span>
-                <span class="req-chip-id">{{ testCase()?.associated_requirement_id }}</span>
+                <span class="req-chip-id">{{ rid }}</span>
               </div>
               <span class="req-chip-arrow">→</span>
             </a>
@@ -504,6 +513,54 @@
                   (keydown)="onEditKeydown($event, false)"
                   placeholder="Brand">
               </ng-template>
+            </div>
+          </div>
+        </article>
+
+        <!-- Configurable pickers (driven by config.yaml > test_case_dropdowns) -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">⚙️</span>
+            <h4>Pickers</h4>
+          </header>
+          <div class="side-card-body">
+
+            <ng-container *ngFor="let group of [
+              { field: 'feature',         label: '🎯 Feature',          options: dropdowns()?.feature || [] },
+              { field: 'region',          label: '🌍 Region',           options: dropdowns()?.region || [] },
+              { field: 'brand',           label: '🏷️ Brand',           options: dropdowns()?.brand || [] },
+              { field: 'vehicle_variant', label: '🚗 Vehicle Variant',  options: dropdowns()?.vehicle_variant || [] },
+              { field: 'vehicle_mode',    label: '⚡ Vehicle Mode',     options: dropdowns()?.vehicle_mode || [] },
+              { field: 'env_dependency',  label: '🔌 Env Dependency',   options: dropdowns()?.env_dependency || [] },
+              { field: 'testsuite_type',  label: '📚 Test Suite Type',  options: dropdowns()?.testsuite_type || [] }
+            ]">
+              <div class="side-field">
+                <label class="side-label">{{ group.label }}</label>
+                <div class="multi-options">
+                  <button
+                    type="button"
+                    class="chip"
+                    *ngFor="let opt of group.options"
+                    [class.chip--active]="isMultiSelected(group.field, opt)"
+                    (click)="toggleMulti(group.field, opt)">
+                    {{ opt }}
+                  </button>
+                </div>
+                <div class="multi-selected" *ngIf="mvArray($any(testCase())?.[group.field]).length">
+                  <span class="chip chip--selected" *ngFor="let v of mvArray($any(testCase())?.[group.field])">
+                    {{ v }}
+                    <button type="button" class="chip-remove" (click)="toggleMulti(group.field, v)" aria-label="Remove">×</button>
+                  </span>
+                </div>
+              </div>
+            </ng-container>
+
+            <div class="side-field">
+              <label class="side-label">DR ID</label>
+              <input type="text" class="side-input"
+                     [value]="testCase()?.dr_id || ''"
+                     (input)="onFieldChange('dr_id', $any($event.target).value)"
+                     placeholder="e.g. DR_1234">
             </div>
           </div>
         </article>

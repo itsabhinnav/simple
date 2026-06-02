@@ -96,7 +96,8 @@ export class App implements OnInit {
             const filteredTestCases = testCases.filter(tc =>
               tc.test_case_id?.toLowerCase().includes(query.toLowerCase()) ||
               tc.test_objective?.toLowerCase().includes(query.toLowerCase()) ||
-              tc.feature?.toLowerCase().includes(query.toLowerCase())
+              // feature is now multi-value; flatten via mvDisplay() before substring match.
+              TestCaseService.mvDisplay(tc.feature).toLowerCase().includes(query.toLowerCase())
             );
             
             this.designTicketService.getDesignTickets().subscribe({

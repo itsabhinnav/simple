@@ -43,7 +43,7 @@ else:
     print("[INFO] Network restrictions disabled (set ENABLE_NETWORK_RESTRICTIONS=true to enable)")
 
 from src.infrastructure.dependency_injection import (
-    get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service,
+    get_user_service, get_test_case_service, get_hybrid_database_service,
     get_requirement_service, get_design_ticket_service, get_spec_service, get_parsing_service
 )
 from src.controllers.user_controller import create_user_blueprint
@@ -264,162 +264,33 @@ def register_legacy_routes(app: Flask) -> None:
                 "error": str(e)
             }, 500
     
-    @app.route('/api/databases')
-    def list_databases():
-        """List available databases (legacy endpoint)."""
-        try:
-            database_service = get_hybrid_database_service()
-            databases = database_service.list_databases()
-            return {
-                "success": True,
-                "data": databases
-            }
-        except Exception as e:
-            logger.error(f"Failed to list databases: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
-    
-    @app.route('/api/databases/<database_name>/info')
-    def get_database_info(database_name):
-        """Get database information (legacy endpoint)."""
-        try:
-            database_service = get_git_database_service()
-            info = database_service.get_database_info()
-            return {
-                "success": True,
-                "data": info
-            }
-        except Exception as e:
-            logger.error(f"Failed to get database info: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
-    
+    # Remote/Git database sync was removed. The legacy endpoints below exist
+    # only to give old clients a clean 410 response instead of a hard 404 so
+    # they can detect the feature has been retired and stop polling.
+    _REMOTE_RETIRED_PAYLOAD = {
+        "success": False,
+        "error": "Remote/Git database sync has been removed; the app runs in local-only mode.",
+    }
+
+    @app.route('/api/databases', methods=['GET'])
+    @app.route('/api/databases/<database_name>/info', methods=['GET'])
     @app.route('/api/databases/<database_name>/sync', methods=['POST'])
-    def sync_database(database_name):
-        """Sync database (legacy endpoint)."""
-        try:
-            database_service = get_hybrid_database_service()
-            result = database_service.sync_database(database_name, "default")
-            return {
-                "success": True,
-                "message": "Database synced successfully",
-                "data": result
-            }
-        except Exception as e:
-            logger.error(f"Failed to sync database: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
-    
     @app.route('/api/databases/<database_name>/query', methods=['POST'])
-    def execute_query(database_name):
-        """Execute database query (legacy endpoint)."""
-        try:
-            query = request.json.get('query') if request.is_json else request.form.get('query')
-            if not query:
-                return {
-                    "success": False,
-                    "error": "Query parameter is required"
-                }, 400
-            
-            database_service = get_hybrid_database_service()
-            result = database_service.execute_query(query, "default")
-            
-            # Format response to match frontend expectations
-            if result.get("success") and result.get("data"):
-                # Extract columns from first row if data exists
-                columns = []
-                if result["data"]:
-                    columns = list(result["data"][0].keys())
-                
-                return {
-                    "success": True,
-                    "data": {
-                        "columns": columns,
-                        "data": result["data"],
-                        "row_count": result.get("row_count", len(result["data"]))
-                    }
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": result.get("error", "Query failed")
-                }
-        except Exception as e:
-            logger.error(f"Failed to execute query: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
-    
-    @app.route('/api/git/status')
-    def get_git_status():
-        """Get Git repository status."""
-        try:
-            database_service = get_hybrid_database_service()
-            status = database_service.get_repo_status()
-            return {
-                "success": True,
-                "data": status
-            }
-        except Exception as e:
-            logger.error(f"Failed to get git status: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
-    
+    @app.route('/api/git/status', methods=['GET'])
     @app.route('/api/git/pull', methods=['POST'])
-    def pull_latest_changes():
-        """Pull latest changes from Git repository."""
-        try:
-            database_service = get_hybrid_database_service()
-            success = database_service.pull_latest_changes()
-            return {
-                "success": success,
-                "message": "Latest changes pulled successfully" if success else "Failed to pull latest changes"
-            }
-        except Exception as e:
-            logger.error(f"Failed to pull latest changes: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
-    
+    @app.route('/api/sync/force', methods=['POST'])
+    def _retired_remote_endpoint(database_name: str | None = None):
+        return jsonify(_REMOTE_RETIRED_PAYLOAD), 410
+
     @app.route('/api/sync/status', methods=['GET'])
     def get_sync_status():
-        """Get synchronization status."""
+        """Local-only sync status."""
         try:
             hybrid_service = get_hybrid_database_service()
-            status = hybrid_service.get_sync_status()
-            return jsonify(status)
+            return jsonify(hybrid_service.get_sync_status())
         except Exception as e:
-            return jsonify({
-                "success": False,
-                "error": str(e)
-            }), 500
-    
-    @app.route('/api/sync/force', methods=['POST'])
-    def force_sync():
-        """Force immediate synchronization."""
-        try:
-            hybrid_service = get_hybrid_database_service()
-            success = hybrid_service.force_sync()
-            return jsonify({
-                "success": success,
-                "message": "Sync completed" if success else "Sync failed"
-            })
-        except Exception as e:
-            return jsonify({
-                "success": False,
-                "error": str(e)
-            }), 500
-    
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @app.route('/api/users/<int:user_id>/preferences', methods=['GET'])
     def get_user_preferences(user_id):
         """Get user preferences."""
@@ -508,9 +379,7 @@ def main():
     print(f"[INFO] Debug: {debug}")
     print(f"[INFO] API Base URL: http://{host}:{port}")
     print(f"[INFO] Health Check: http://{host}:{port}/health")
-    print(f"[INFO] Database List: http://{host}:{port}/api/databases")
     print(f"[INFO] API Documentation: http://{host}:{port}/api/docs")
-    print(f"[INFO] Git Status: http://{host}:{port}/api/git/status")
     
     # Start the application
     app.run(host=host, port=port, debug=debug)

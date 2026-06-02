@@ -468,7 +468,7 @@ import { SplitViewComponent } from './split-view.component';
                 </td>
                 <td><span class="type-badge">{{ tc.test_type || '-' }}</span></td>
                 <td><span class="priority-badge" [class]="getPriorityClass(tc.priority)">{{ tc.priority || 'P3' }}</span></td>
-                <td>{{ tc.feature || '-' }}</td>
+                <td>{{ mv(tc.feature) }}</td>
                 <td (click)="$event.stopPropagation()">
                   <div class="actions">
                     <button class="btn-edit" (click)="openEditModal(tc)" title="Edit" aria-label="Edit">
@@ -495,14 +495,14 @@ import { SplitViewComponent } from './split-view.component';
             </div>
             <h3 class="card-title">{{ tc.title || tc.test_objective || 'Test Case' }}</h3>
             <p class="card-description" *ngIf="tc.vehicle_model">🚗 {{ tc.vehicle_model }}<span *ngIf="tc.severity"> · {{ tc.severity }}</span></p>
-            <p class="card-description" *ngIf="tc.feature">Feature: {{ tc.feature }}</p>
+            <p class="card-description" *ngIf="mv(tc.feature, '') as f">Feature: {{ f }}</p>
             <p class="card-description" *ngIf="tc.description || tc.preconditions">{{ tc.description || tc.preconditions }}</p>
             
             <div class="card-footer">
               <span class="status-badge" [class]="getTypeClass(tc.test_type)">
                 {{ tc.test_type || 'N/A' }}
               </span>
-              <span class="assignee" *ngIf="tc.feature">👤 {{ tc.feature }}</span>
+              <span class="assignee" *ngIf="mv(tc.feature, '') as f">👤 {{ f }}</span>
             </div>
             <div class="card-actions" (click)="$event.stopPropagation()">
               <button class="btn-edit" (click)="openEditModal(tc)" title="Edit">
@@ -2032,6 +2032,16 @@ export class TestCaseManagementComponent implements OnInit {
   private router = inject(Router);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
+  /**
+   * Render a multi-value test-case field (e.g. feature, brand, region)
+   * as a human-readable string for the table / grid templates.
+   * Returns the supplied placeholder when the value is empty.
+   */
+  mv(value: any, placeholder: string = '-'): string {
+    const text = TestCaseService.mvDisplay(value);
+    return text === '' ? placeholder : text;
+  }
+
   // Signals for reactive state management
   testCases = signal<TestCase[]>([]);
   isLoading = signal(false);
@@ -2045,17 +2055,26 @@ export class TestCaseManagementComponent implements OnInit {
 
     if (this.searchTerm().trim()) {
       const term = this.searchTerm().toLowerCase();
+      // Multi-value fields (feature, brand, ...) may arrive as arrays;
+      // mvDisplay() flattens them to a comma-joined string for substring
+      // matching so the search box keeps working post-schema-change.
       filtered = filtered.filter(testCase =>
         testCase.test_case_id.toLowerCase().includes(term) ||
-        (testCase.feature && testCase.feature.toLowerCase().includes(term)) ||
+        TestCaseService.mvDisplay(testCase.feature).toLowerCase().includes(term) ||
         (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
         (testCase.procedure && testCase.procedure.toLowerCase().includes(term)) ||
         (testCase.title && testCase.title.toLowerCase().includes(term)) ||
         (testCase.description && testCase.description.toLowerCase().includes(term)) ||
         (testCase.vehicle_model && testCase.vehicle_model.toLowerCase().includes(term)) ||
-        (testCase.brand && testCase.brand.toLowerCase().includes(term))
+        TestCaseService.mvDisplay(testCase.brand).toLowerCase().includes(term)
       );
     }
+
+    // Multi-value matchers: keep a row when ANY of its values is in the
+    // selected set. Single-value columns (test_type, priority, severity,
+    // vehicle_model, requirement_type) keep their exact-match semantics.
+    const anyMatch = (sel: string[], v: any) =>
+      TestCaseService.mvArray(v).some(item => sel.includes(item));
 
     if (this.selectedTypes().length > 0) {
       filtered = filtered.filter(tc => this.selectedTypes().includes(tc.test_type || ''));
@@ -2064,13 +2083,13 @@ export class TestCaseManagementComponent implements OnInit {
       filtered = filtered.filter(tc => this.selectedPriorities().includes(tc.priority || ''));
     }
     if (this.selectedFeatures().length > 0) {
-      filtered = filtered.filter(tc => this.selectedFeatures().includes(tc.feature || ''));
+      filtered = filtered.filter(tc => anyMatch(this.selectedFeatures(), tc.feature));
     }
     if (this.selectedScreenIds().length > 0) {
-      filtered = filtered.filter(tc => this.selectedScreenIds().includes(tc.screen_id || ''));
+      filtered = filtered.filter(tc => anyMatch(this.selectedScreenIds(), tc.screen_id));
     }
     if (this.selectedTestSuiteTypes().length > 0) {
-      filtered = filtered.filter(tc => this.selectedTestSuiteTypes().includes(tc.testsuite_type || ''));
+      filtered = filtered.filter(tc => anyMatch(this.selectedTestSuiteTypes(), tc.testsuite_type));
     }
     if (this.selectedRequirementTypes().length > 0) {
       filtered = filtered.filter(tc => this.selectedRequirementTypes().includes(tc.requirement_type || ''));
@@ -2082,10 +2101,10 @@ export class TestCaseManagementComponent implements OnInit {
       filtered = filtered.filter(tc => this.selectedVehicleModels().includes(tc.vehicle_model || ''));
     }
     if (this.selectedRegions().length > 0) {
-      filtered = filtered.filter(tc => this.selectedRegions().includes(tc.region || ''));
+      filtered = filtered.filter(tc => anyMatch(this.selectedRegions(), tc.region));
     }
     if (this.selectedBrands().length > 0) {
-      filtered = filtered.filter(tc => this.selectedBrands().includes(tc.brand || ''));
+      filtered = filtered.filter(tc => anyMatch(this.selectedBrands(), tc.brand));
     }
 
     const from = this.dateFrom();
@@ -2256,6 +2275,7 @@ export class TestCaseManagementComponent implements OnInit {
       brand: [''],
       vehicle_variant: [''],
       vehicle_specification: [''],
+      vehicle_mode: [''],
       env_dependency: [''],
       requirement_type: [''],
       regulation: [''],
@@ -2575,7 +2595,7 @@ export class TestCaseManagementComponent implements OnInit {
   // Region filter
   showRegionFilter(): boolean { return this.activeFilter() === 'region'; }
   getUniqueRegions(): string[] {
-    const arr = this.testCases().map(tc => tc.region).filter((r): r is string => !!r && r.trim() !== '');
+    const arr = this.testCases().flatMap(tc => TestCaseService.mvArray(tc.region));
     return [...new Set(arr)].sort();
   }
   getFilteredRegions(): string[] {
@@ -2593,7 +2613,7 @@ export class TestCaseManagementComponent implements OnInit {
   // Brand filter
   showBrandFilter(): boolean { return this.activeFilter() === 'brand'; }
   getUniqueBrands(): string[] {
-    const arr = this.testCases().map(tc => tc.brand).filter((b): b is string => !!b && b.trim() !== '');
+    const arr = this.testCases().flatMap(tc => TestCaseService.mvArray(tc.brand));
     return [...new Set(arr)].sort();
   }
   getFilteredBrands(): string[] {
@@ -2616,7 +2636,7 @@ export class TestCaseManagementComponent implements OnInit {
   }
 
   getUniqueScreenIds(): string[] {
-    const screenIds = this.testCases().map(tc => tc.screen_id).filter((s): s is string => s !== undefined && s !== null && s !== '');
+    const screenIds = this.testCases().flatMap(tc => TestCaseService.mvArray(tc.screen_id));
     return [...new Set(screenIds)];
   }
 
@@ -2698,7 +2718,7 @@ export class TestCaseManagementComponent implements OnInit {
   }
 
   getUniqueFeatures(): string[] {
-    const features = this.testCases().map(tc => tc.feature).filter((f): f is string => f !== undefined && f !== null && f !== '');
+    const features = this.testCases().flatMap(tc => TestCaseService.mvArray(tc.feature));
     return [...new Set(features)];
   }
 
@@ -2902,32 +2922,36 @@ export class TestCaseManagementComponent implements OnInit {
   openEditModal(testCase: TestCase) {
     this.isEditMode.set(true);
     this.currentEditingTestCase.set(testCase);
+    // Multi-value fields are rendered as comma-separated strings in the
+    // legacy edit modal; the backend coerces them back into arrays on
+    // submit. The new create / detail screens render proper multi-selects.
     this.testCaseForm.patchValue({
       test_case_id: testCase.test_case_id,
       title: testCase.title || '',
       description: testCase.description || '',
       vehicle_model: testCase.vehicle_model || '',
       severity: testCase.severity || '',
-      feature: testCase.feature || '',
+      feature: TestCaseService.mvDisplay(testCase.feature),
       priority: testCase.priority || '',
       test_type: testCase.test_type || '',
-      region: testCase.region || '',
+      region: TestCaseService.mvDisplay(testCase.region),
       test_objective: testCase.test_objective || '',
       preconditions: testCase.preconditions || '',
       procedure: testCase.procedure || '',
       expected_behavior: testCase.expected_behavior || '',
-      associated_requirement_id: testCase.associated_requirement_id || '',
-      screen_id: testCase.screen_id || '',
-      reference_document: testCase.reference_document || '',
+      associated_requirement_id: TestCaseService.mvDisplay(testCase.associated_requirement_id),
+      screen_id: TestCaseService.mvDisplay(testCase.screen_id),
+      reference_document: TestCaseService.mvDisplay(testCase.reference_document),
       dr_applicable_screens: testCase.dr_applicable_screens || '',
       dr_id: testCase.dr_id || '',
-      brand: testCase.brand || '',
-      vehicle_variant: testCase.vehicle_variant || '',
+      brand: TestCaseService.mvDisplay(testCase.brand),
+      vehicle_variant: TestCaseService.mvDisplay(testCase.vehicle_variant),
       vehicle_specification: testCase.vehicle_specification || '',
-      env_dependency: testCase.env_dependency || '',
+      vehicle_mode: TestCaseService.mvDisplay((testCase as any).vehicle_mode),
+      env_dependency: TestCaseService.mvDisplay(testCase.env_dependency),
       requirement_type: testCase.requirement_type || '',
       regulation: testCase.regulation || '',
-      testsuite_type: testCase.testsuite_type || ''
+      testsuite_type: TestCaseService.mvDisplay(testCase.testsuite_type)
     });
     this.showModal.set(true);
   }
@@ -2973,6 +2997,7 @@ export class TestCaseManagementComponent implements OnInit {
           brand: formData.brand,
           vehicle_variant: formData.vehicle_variant,
           vehicle_specification: formData.vehicle_specification,
+          vehicle_mode: formData.vehicle_mode,
           env_dependency: formData.env_dependency,
           requirement_type: formData.requirement_type,
           regulation: formData.regulation,
@@ -3022,6 +3047,7 @@ export class TestCaseManagementComponent implements OnInit {
         brand: formData.brand,
         vehicle_variant: formData.vehicle_variant,
         vehicle_specification: formData.vehicle_specification,
+        vehicle_mode: formData.vehicle_mode,
         env_dependency: formData.env_dependency,
         requirement_type: formData.requirement_type,
         regulation: formData.regulation,

@@ -179,54 +179,7 @@ class TestDatabase:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, req)
 
-class MockGitFileStorage:
-    """Mock implementation of GitFileStorage for testing"""
-    
-    def __init__(self, repo_url: str = "https://test-repo.com/test-db", 
-                 local_repo_path: str = "test_remote", data_path: str = "test_data"):
-        self.repo_url = repo_url
-        self.local_repo_path = Path(local_repo_path)
-        self.data_path = Path(data_path)
-        self.git_path = self.local_repo_path / ".git"
-        self._files = {}
-    
-    def clone_or_fetch_repo(self) -> bool:
-        """Mock clone/fetch operation"""
-        return True
-    
-    def file_exists(self, file_path: str) -> bool:
-        """Mock file existence check"""
-        return file_path in self._files
-    
-    def copy_file_to_data(self, source_file: str, dest_file: str) -> bool:
-        """Mock file copy operation"""
-        if source_file in self._files:
-            self._files[dest_file] = self._files[source_file]
-            return True
-        return False
-    
-    def get_file(self, file_path: str) -> Path:
-        """Mock get file operation"""
-        if file_path in self._files:
-            return Path(self._files[file_path])
-        return None
-    
-    def list_files(self, pattern: str = "*") -> List[str]:
-        """Mock list files operation"""
-        return list(self._files.keys())
-    
-    def get_repo_status(self) -> Dict[str, Any]:
-        """Mock repo status"""
-        return {
-            "status": "clean",
-            "branch": "main",
-            "last_commit": "abc123",
-            "files_changed": 0
-        }
-    
-    def add_file(self, file_path: str, content: str):
-        """Add a file to the mock storage"""
-        self._files[file_path] = content
+# MockGitFileStorage removed: remote/Git storage layer has been deleted.
 
 @pytest.fixture
 def test_config():
@@ -246,11 +199,6 @@ def test_db():
     with TestDatabase() as db:
         db.create_test_tables()
         yield db
-
-@pytest.fixture
-def mock_git_storage():
-    """Provide a mock GitFileStorage instance"""
-    return MockGitFileStorage()
 
 @pytest.fixture
 def mock_config_manager():

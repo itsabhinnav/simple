@@ -5,6 +5,7 @@ from src.services.test_case_service import ITestCaseService
 from src.services.bulk_import_service import BulkImportService
 from src.schemas.test_case_schema import TestCaseCreateSchema
 from src.schemas.api_schema import ErrorResponseSchema, SuccessResponseSchema
+from src.infrastructure.configuration_manager import get_config_manager
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -172,6 +173,30 @@ class TestCaseController:
     # globally bypassed in workspace mode) — this is intentionally NOT
     # @require_admin so testers can drag-and-drop their AAOS spreadsheets.
     # ------------------------------------------------------------------
+    def get_dropdowns(self) -> Dict[str, Any]:
+        """GET /api/test-cases/dropdowns — return configurable picker options.
+
+        The frontend calls this once on page load to populate every
+        single-select / multi-select on the create + detail screens. All
+        option lists come from ``config.yaml > test_case_dropdowns``;
+        change values there to extend the pickers without redeploying the
+        client.
+        """
+        try:
+            data = get_config_manager().get_test_case_dropdowns()
+            return jsonify({
+                "success": True,
+                "message": "Dropdown configuration retrieved",
+                "data": data,
+            }), 200
+        except Exception as e:
+            logger.error(f"Failed to load test-case dropdowns: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to load dropdowns",
+                "message": str(e),
+            }), 500
+
     def get_import_fields(self) -> Dict[str, Any]:
         """GET /api/test-cases/import/fields - list canonical fields for mapping UI."""
         try:
@@ -327,6 +352,7 @@ def create_test_case_blueprint(test_case_service: ITestCaseService) -> Blueprint
     test_case_bp.route('/', methods=['GET'])(controller.get_all_test_cases)
     test_case_bp.route('/', methods=['POST'])(controller.create_test_case)
     test_case_bp.route('/feature', methods=['GET'])(controller.get_test_cases_by_feature)
+    test_case_bp.route('/dropdowns', methods=['GET'])(controller.get_dropdowns)
     test_case_bp.route('/import/fields', methods=['GET'])(controller.get_import_fields)
     test_case_bp.route('/import/preview', methods=['POST'])(controller.preview_import)
     test_case_bp.route('/import', methods=['POST'])(controller.import_test_cases)

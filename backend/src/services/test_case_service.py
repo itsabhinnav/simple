@@ -2,9 +2,28 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from src.schemas.test_case_schema import TestCaseSchema, TestCaseCreateSchema
 from src.repositories.test_case_repository import ITestCaseRepository
+from src.infrastructure.configuration_manager import get_config_manager
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+# Sensible defaults if config.yaml is missing the dropdown block. Validation
+# should never block writes when config is unavailable, just fall back to
+# the historical hard-coded list.
+_DEFAULT_PRIORITIES = ["P1", "P2", "P3", "P4"]
+_DEFAULT_TEST_TYPES = ["Positive", "Negative", "Abnormal", "Boundary"]
+_DEFAULT_REGULATIONS = ["Yes", "No"]
+
+
+def _allowed_values(key: str, fallback: List[str]) -> List[str]:
+    """Pull ``test_case_dropdowns.<key>`` out of config, falling back if absent."""
+    try:
+        dropdowns = get_config_manager().get_test_case_dropdowns()
+    except Exception:
+        return fallback
+    values = dropdowns.get(key) or []
+    return [str(v) for v in values] if values else fallback
 
 
 class ITestCaseService(ABC):
@@ -44,9 +63,8 @@ class ITestCaseService(ABC):
 class TestCaseService(ITestCaseService):
     """Concrete implementation of test case service with business logic"""
     
-    def __init__(self, test_case_repository: ITestCaseRepository, git_database_service=None):
+    def __init__(self, test_case_repository: ITestCaseRepository):
         self.test_case_repository = test_case_repository
-        self.git_database_service = git_database_service
     
     def get_all_test_cases(self) -> List[Dict[str, Any]]:
         """Get all test cases with business logic"""
@@ -119,15 +137,6 @@ class TestCaseService(ITestCaseService):
                 test_case['has_requirements'] = bool(test_case.get('associated_requirement_id'))
                 test_case['test_complexity'] = self._calculate_test_complexity(test_case)
 
-                # `git_database_service` is wired to HybridDatabaseService in the DI
-                # container, which doesn't expose `commit_changes` — guard with
-                # hasattr so we don't spam AttributeError warnings on every write.
-                if self.git_database_service and hasattr(self.git_database_service, "commit_changes"):
-                    try:
-                        self.git_database_service.commit_changes(f"Create test case: {test_case_data.test_case_id}")
-                    except Exception as e:
-                        logger.warning(f"Failed to commit test case creation to git: {e}")
-
             return test_case
         except ValueError:
             raise
@@ -156,14 +165,7 @@ class TestCaseService(ITestCaseService):
                 test_case['is_high_priority'] = test_case.get('priority') == 'P1'
                 test_case['has_requirements'] = bool(test_case.get('associated_requirement_id'))
                 test_case['test_complexity'] = self._calculate_test_complexity(test_case)
-                
-                # Commit changes to git if service is available
-                if self.git_database_service:
-                    try:
-                        self.git_database_service.commit_changes(f"Update test case: {test_case_id}")
-                    except Exception as e:
-                        logger.warning(f"Failed to commit test case update to git: {e}")
-            
+
             return test_case
         except Exception as e:
             raise Exception(f"Service error: Failed to update test case {test_case_id} - {str(e)}")
@@ -182,43 +184,51 @@ class TestCaseService(ITestCaseService):
             # Business logic: Check if test case is referenced by other entities
             # This could be expanded to check for dependencies
             
-            # Delete test case
             success = self.test_case_repository.delete(test_case_id)
-            
-            # Commit changes to git if service is available and deletion was successful
-            if success and self.git_database_service:
-                try:
-                    self.git_database_service.commit_changes(f"Delete test case: {test_case_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to commit test case deletion to git: {e}")
-            
             return success
         except Exception as e:
             raise Exception(f"Service error: Failed to delete test case {test_case_id} - {str(e)}")
     
     def _validate_test_case_creation(self, test_case_data: TestCaseCreateSchema) -> None:
-        """Validate test case creation business rules"""
+        """Validate test case creation business rules.
+
+        Allowed values for ``priority``, ``test_type`` and ``regulation``
+        are pulled from ``config.yaml > test_case_dropdowns`` so QA leads
+        can extend the option lists without code changes.
+        """
         if not self._is_valid_test_case_id_format(test_case_data.test_case_id):
             raise ValueError(
                 "Test case ID must start with uppercase letters and end with _<digits> "
                 "(e.g. TC_0001 or TC_FEATURE_001)"
             )
 
-        if test_case_data.priority and test_case_data.priority not in ['P1', 'P2', 'P3']:
-            raise ValueError("Priority must be P1, P2, or P3")
+        priorities = _allowed_values("priority", _DEFAULT_PRIORITIES)
+        test_types = _allowed_values("test_type", _DEFAULT_TEST_TYPES)
+        regulations = _allowed_values("regulation", _DEFAULT_REGULATIONS)
 
-        if test_case_data.test_type and test_case_data.test_type not in ['Positive', 'Negative', 'Boundary', 'Performance']:
-            raise ValueError("Test type must be Positive, Negative, Boundary, or Performance")
-    
+        if test_case_data.priority and test_case_data.priority not in priorities:
+            raise ValueError(f"Priority must be one of: {', '.join(priorities)}")
+
+        if test_case_data.test_type and test_case_data.test_type not in test_types:
+            raise ValueError(f"Test type must be one of: {', '.join(test_types)}")
+
+        if test_case_data.regulation and test_case_data.regulation not in regulations:
+            raise ValueError(f"Regulation must be one of: {', '.join(regulations)}")
+
     def _validate_test_case_update(self, test_case_data: dict) -> None:
-        """Validate test case update business rules"""
-        # Validate priority if provided
-        if 'priority' in test_case_data and test_case_data['priority'] not in ['P1', 'P2', 'P3']:
-            raise ValueError("Priority must be P1, P2, or P3")
-        
-        # Validate test type if provided
-        if 'test_type' in test_case_data and test_case_data['test_type'] not in ['Positive', 'Negative', 'Boundary', 'Performance']:
-            raise ValueError("Test type must be Positive, Negative, Boundary, or Performance")
+        """Validate test case update business rules — config-driven."""
+        priorities = _allowed_values("priority", _DEFAULT_PRIORITIES)
+        test_types = _allowed_values("test_type", _DEFAULT_TEST_TYPES)
+        regulations = _allowed_values("regulation", _DEFAULT_REGULATIONS)
+
+        if "priority" in test_case_data and test_case_data["priority"] and test_case_data["priority"] not in priorities:
+            raise ValueError(f"Priority must be one of: {', '.join(priorities)}")
+
+        if "test_type" in test_case_data and test_case_data["test_type"] and test_case_data["test_type"] not in test_types:
+            raise ValueError(f"Test type must be one of: {', '.join(test_types)}")
+
+        if "regulation" in test_case_data and test_case_data["regulation"] and test_case_data["regulation"] not in regulations:
+            raise ValueError(f"Regulation must be one of: {', '.join(regulations)}")
     
     def _is_valid_test_case_id_format(self, test_case_id: str) -> bool:
         """Validate test case ID format.

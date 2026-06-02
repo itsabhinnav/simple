@@ -127,3 +127,80 @@
     color: #065f46;
   }
 }
+
+// =============================================================
+// Multi-select chip groups for dropdowns sourced from config.yaml
+// =============================================================
+.multi-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.multi-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.multi-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+
+  .side-input { flex: 1 1 auto; }
+
+  .btn.btn-sm {
+    padding: 6px 10px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+}
+
+.multi-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &:hover { background: #e2e8f0; }
+
+  &--active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+  }
+
+  &--selected {
+    background: #ecfeff;
+    border-color: #22d3ee;
+    color: #155e75;
+    cursor: default;
+  }
+
+  .chip-remove {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+  }
+}
