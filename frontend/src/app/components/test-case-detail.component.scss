@@ -163,6 +163,72 @@ $accent-soft: #eff6ff;
         border-color: #fca5a5;
       }
     }
+
+    // Edit toggle: subdued in read-only mode, blue/active when on.
+    &.btn-edit {
+      color: $text;
+      border-color: $border;
+      background: white;
+
+      &:hover {
+        background: #f1f5f9;
+        border-color: $border-strong;
+      }
+
+      &.btn-edit--active {
+        background: #2563eb;
+        border-color: #1d4ed8;
+        color: white;
+        box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
+
+        &:hover { background: #1d4ed8; }
+      }
+    }
+
+    .btn-icon {
+      flex: 0 0 auto;
+      stroke: currentColor;
+    }
+  }
+}
+
+// -------------------------------------------------------------
+// Read-only mode: kill every inline-edit affordance so the page
+// reads as a clean view. Triggered by the [class.view-mode] flag
+// on .detail-container when editMode() is false.
+// -------------------------------------------------------------
+.detail-container.view-mode {
+  .inline-edit-view {
+    cursor: default;
+    border-color: transparent !important;
+
+    &:hover {
+      background: transparent;
+      border-color: transparent;
+
+      .inline-edit-pencil { opacity: 0; }
+    }
+  }
+
+  .inline-edit-pencil { display: none; }
+
+  .hero-title.hero-title--view:hover { background: transparent; }
+  .section-view:hover { border-color: transparent; background: #fcfcfd; }
+  .side-view:hover { border-color: transparent; background: transparent; }
+
+  // Native form controls become unmistakably inert (greyed cursor, no
+  // hover, no focus ring drift). The disabled/readonly attrs handle the
+  // semantics; this just makes the visuals read as "view-only".
+  select.editable-select[disabled],
+  input.side-input[readonly] {
+    cursor: default;
+    opacity: 0.95;
+    background-color: #fafbfc;
+  }
+
+  .chip[disabled] {
+    cursor: default;
+    opacity: 0.7;
   }
 }
 

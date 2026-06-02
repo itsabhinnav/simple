@@ -89,7 +89,7 @@ import { SplitViewComponent } from './split-view.component';
             (ngModelChange)="searchTerm.set($event)">
           <div class="filter-dropdown" (click)="$event.stopPropagation()">
             <button class="filter-btn-blue" [class.active]="showFeatureFilter()" (click)="toggleFilter('feature', $event)">
-              feature ▼
+              Feature ▼
               <span class="filter-count" *ngIf="selectedFeatures().length > 0">+{{ selectedFeatures().length }}</span>
             </button>
           </div>
@@ -471,11 +471,24 @@ import { SplitViewComponent } from './split-view.component';
                 <td>{{ mv(tc.feature) }}</td>
                 <td (click)="$event.stopPropagation()">
                   <div class="actions">
-                    <button class="btn-edit" (click)="openEditModal(tc)" title="Edit" aria-label="Edit">
-                      <i class="icon-edit"></i>
+                    <button class="btn-edit" (click)="navigateToDetailEdit(tc.test_case_id)" title="Edit" aria-label="Edit">
+                      <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16"
+                           fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/>
+                      </svg>
                     </button>
                     <button class="btn-delete" (click)="confirmDelete(tc)" title="Delete" aria-label="Delete">
-                      <i class="icon-delete"></i>
+                      <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16"
+                           fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6"/>
+                        <path d="M14 11v6"/>
+                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+                      </svg>
                     </button>
                   </div>
                 </td>
@@ -505,11 +518,24 @@ import { SplitViewComponent } from './split-view.component';
               <span class="assignee" *ngIf="mv(tc.feature, '') as f">👤 {{ f }}</span>
             </div>
             <div class="card-actions" (click)="$event.stopPropagation()">
-              <button class="btn-edit" (click)="openEditModal(tc)" title="Edit">
-                <i class="icon-edit"></i>
+              <button class="btn-edit" (click)="navigateToDetailEdit(tc.test_case_id)" title="Edit" aria-label="Edit">
+                <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 20h9"/>
+                  <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/>
+                </svg>
               </button>
-              <button class="btn-delete" (click)="confirmDelete(tc)" title="Delete">
-                <i class="icon-delete"></i>
+              <button class="btn-delete" (click)="confirmDelete(tc)" title="Delete" aria-label="Delete">
+                <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6"/>
+                  <path d="M14 11v6"/>
+                  <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+                </svg>
               </button>
             </div>
           </div>
@@ -3109,6 +3135,15 @@ export class TestCaseManagementComponent implements OnInit {
 
   navigateToDetail(id: string | number) {
     this.router.navigate(['/test-cases', id]);
+  }
+
+  /**
+   * Pencil click in the row/grid action column. Opens the detail page with
+   * `?edit=1` so the detail component can immediately flip into edit mode
+   * instead of forcing a second click on the in-page Edit toggle.
+   */
+  navigateToDetailEdit(id: string | number) {
+    this.router.navigate(['/test-cases', id], { queryParams: { edit: 1 } });
   }
 
   goToPage(page: number | '…') {

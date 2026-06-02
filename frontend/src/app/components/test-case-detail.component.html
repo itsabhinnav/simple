@@ -1,4 +1,4 @@
-<div class="detail-container">
+<div class="detail-container" [class.view-mode]="!editMode()">
   <!-- Top Bar -->
   <header class="top-bar">
     <nav class="breadcrumb">
@@ -20,10 +20,34 @@
         <span *ngIf="saveStatus() === 'error'">✗ Error saving</span>
       </div>
       <button class="btn btn-ghost" (click)="goBack()" title="Back">
-        <span>←</span> Back
+        <span aria-hidden="true">←</span> Back
       </button>
-      <button class="btn btn-danger" (click)="deleteTestCase()" title="Delete">
-        <span>🗑</span> Delete
+      <button
+        type="button"
+        class="btn btn-edit"
+        [class.btn-edit--active]="editMode()"
+        (click)="toggleEditMode()"
+        [attr.aria-pressed]="editMode()"
+        [title]="editMode() ? 'Stop editing' : 'Enable editing'">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+        <span>{{ editMode() ? 'Done' : 'Edit' }}</span>
+      </button>
+      <button class="btn btn-danger" (click)="deleteTestCase()" title="Delete test case" aria-label="Delete test case">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+        </svg>
+        <span>Delete</span>
       </button>
     </div>
   </header>
@@ -64,7 +88,8 @@
               class="hero-badge editable-select"
               [value]="testCase()?.priority || ''"
               (change)="onFieldChange('priority', $any($event.target).value)"
-              [class]="getPriorityClass(testCase()?.priority || '')">
+              [class]="getPriorityClass(testCase()?.priority || '')"
+              [disabled]="!editMode()">
               <option value="">—</option>
               <option *ngFor="let p of dropdowns()?.priority || []" [value]="p">{{ p }}</option>
             </select>
@@ -76,7 +101,8 @@
               class="hero-badge editable-select"
               [value]="testCase()?.test_type || ''"
               (change)="onFieldChange('test_type', $any($event.target).value)"
-              [class]="getTypeClass(testCase()?.test_type || '')">
+              [class]="getTypeClass(testCase()?.test_type || '')"
+              [disabled]="!editMode()">
               <option value="">—</option>
               <option *ngFor="let t of dropdowns()?.test_type || []" [value]="t">{{ t }}</option>
             </select>
@@ -87,7 +113,8 @@
             <select
               class="hero-badge editable-select"
               [value]="testCase()?.regulation || ''"
-              (change)="onFieldChange('regulation', $any($event.target).value)">
+              (change)="onFieldChange('regulation', $any($event.target).value)"
+              [disabled]="!editMode()">
               <option value="">—</option>
               <option *ngFor="let r of dropdowns()?.regulation || []" [value]="r">{{ r }}</option>
             </select>
@@ -99,7 +126,8 @@
               class="hero-badge editable-select severity-select"
               [value]="testCase()?.severity || ''"
               (change)="onFieldChange('severity', $any($event.target).value)"
-              [attr.data-severity]="testCase()?.severity || ''">
+              [attr.data-severity]="testCase()?.severity || ''"
+              [disabled]="!editMode()">
               <option value="">—</option>
               <option value="Blocker">🚫 Blocker</option>
               <option value="Critical">🔴 Critical</option>
@@ -542,14 +570,15 @@
                     class="chip"
                     *ngFor="let opt of group.options"
                     [class.chip--active]="isMultiSelected(group.field, opt)"
-                    (click)="toggleMulti(group.field, opt)">
+                    (click)="toggleMulti(group.field, opt)"
+                    [disabled]="!editMode()">
                     {{ opt }}
                   </button>
                 </div>
                 <div class="multi-selected" *ngIf="mvArray($any(testCase())?.[group.field]).length">
                   <span class="chip chip--selected" *ngFor="let v of mvArray($any(testCase())?.[group.field])">
                     {{ v }}
-                    <button type="button" class="chip-remove" (click)="toggleMulti(group.field, v)" aria-label="Remove">×</button>
+                    <button type="button" class="chip-remove" (click)="toggleMulti(group.field, v)" aria-label="Remove" [disabled]="!editMode()">×</button>
                   </span>
                 </div>
               </div>
@@ -560,7 +589,8 @@
               <input type="text" class="side-input"
                      [value]="testCase()?.dr_id || ''"
                      (input)="onFieldChange('dr_id', $any($event.target).value)"
-                     placeholder="e.g. DR_1234">
+                     placeholder="e.g. DR_1234"
+                     [readonly]="!editMode()">
             </div>
           </div>
         </article>

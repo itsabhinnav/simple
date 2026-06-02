@@ -27,6 +27,12 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
   isSaving = signal(false);
   saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
   editingField = signal<string | null>(null);
+  /**
+   * Read-only by default. Users must press the explicit Edit button before any
+   * field can be modified. Inline edit affordances (pencil glyph, hover, chip
+   * clicks, hero <select> dropdowns) all gate on this signal.
+   */
+  editMode = signal(false);
   /** Dropdown options sourced from `config.yaml > test_case_dropdowns`. */
   dropdowns = signal<TestCaseDropdowns | null>(null);
 
@@ -37,11 +43,24 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
 
   /** Toggle a value inside a multi-value field and persist the change. */
   toggleMulti(field: string, value: string) {
+    if (!this.editMode()) return;
     const current = TestCaseService.mvArray((this.testCase() as any)?.[field]);
     const next = current.includes(value)
       ? current.filter(v => v !== value)
       : [...current, value];
     this.onFieldChange(field, next);
+  }
+
+  /**
+   * Flip between read-only and edit mode. Closing edit mode also closes any
+   * currently-open inline editor so the page settles into a clean view state.
+   */
+  toggleEditMode() {
+    const next = !this.editMode();
+    this.editMode.set(next);
+    if (!next) {
+      this.stopEdit();
+    }
   }
 
   isMultiSelected(field: string, value: string): boolean {
@@ -57,6 +76,14 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
       // Backend expects test_case_id (string), not numeric id
       this.testCaseId.set(id);
       this.loadTestCase(id);
+    }
+
+    // Allow upstream pages (e.g. the Test Case list pencil button) to deep-link
+    // straight into edit mode by appending `?edit=1`. Anything truthy flips the
+    // toggle on; absent / "0" leaves the page in default read-only mode.
+    const editFlag = this.route.snapshot.queryParamMap.get('edit');
+    if (editFlag && editFlag !== '0' && editFlag.toLowerCase() !== 'false') {
+      this.editMode.set(true);
     }
 
     // Set up auto-save with debouncing
@@ -178,6 +205,9 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
   }
 
   startEdit(field: string) {
+    // Inline editing is gated by the explicit Edit toggle; in read-only mode
+    // every click on a field is a no-op.
+    if (!this.editMode()) return;
     this.editingField.set(field);
     setTimeout(() => {
       if (typeof document === 'undefined') return;
@@ -215,7 +245,10 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
 
   onFieldChange(field: string, value: any) {
     if (!this.testCase()) return;
-    
+    // Hard-stop in read-only mode so even the hero <select> dropdowns and
+    // multi-pickers can't sneak through a write when Edit isn't pressed.
+    if (!this.editMode()) return;
+
     // Update local signal immediately for responsive UI
     const current = this.testCase()!;
     this.testCase.set({ ...current, [field]: value });
