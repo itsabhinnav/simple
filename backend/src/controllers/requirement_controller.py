@@ -4,6 +4,7 @@ from src.services.requirement_service import IRequirementService
 from src.schemas.requirement_schema import RequirementCreateSchema, RequirementUpdateSchema
 from src.middleware.admin_middleware import require_admin
 from src.infrastructure.logging_config import get_logger
+from src.controllers._bulk_import_routes import attach_bulk_import_routes
 
 logger = get_logger(__name__)
 
@@ -177,9 +178,13 @@ def create_requirement_blueprint(requirement_service: IRequirementService) -> Bl
     req_bp = Blueprint('requirements', __name__, url_prefix='/api/requirements')
     controller = RequirementController(requirement_service)
     
-    # Register routes
+    # Register routes. Bulk-import routes (`/import`, `/import/preview`,
+    # `/import/fields`) MUST be attached before the `/<int:req_id>`
+    # catch-alls so Flask's router doesn't treat the literal string
+    # "import" as an integer ID.
     req_bp.route('/', methods=['GET'])(controller.get_all_requirements)
     req_bp.route('/', methods=['POST'])(controller.create_requirement)
+    attach_bulk_import_routes(req_bp, "requirements")
     req_bp.route('/<int:req_id>', methods=['GET'])(controller.get_requirement_by_id)
     req_bp.route('/<int:req_id>', methods=['PUT'])(controller.update_requirement)
     req_bp.route('/<int:req_id>', methods=['DELETE'])(controller.delete_requirement)

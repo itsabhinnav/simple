@@ -462,3 +462,96 @@ def get_user_repository() -> IUserRepository:
 def get_test_case_repository() -> ITestCaseRepository:
     """Get the test case repository."""
     return get_container().container.get(ITestCaseRepository)
+
+
+# --------------------- Hybrid document parsing engine ---------------------
+
+_PARSING_SINGLETONS: Dict[str, Any] = {}
+
+
+def _parsing_singleton(name: str, factory: Callable[[], Any]) -> Any:
+    if name not in _PARSING_SINGLETONS:
+        _PARSING_SINGLETONS[name] = factory()
+    return _PARSING_SINGLETONS[name]
+
+
+def get_excel_deterministic_parser():
+    """Lazily build the deterministic Excel parser."""
+    from src.services.parsing.deterministic.excel_parser import ExcelDeterministicParser
+
+    return _parsing_singleton("excel_parser", ExcelDeterministicParser)
+
+
+def get_docx_deterministic_parser():
+    """Lazily build the deterministic DOCX parser."""
+    from src.services.parsing.deterministic.docx_parser import DocxDeterministicParser
+
+    return _parsing_singleton("docx_parser", DocxDeterministicParser)
+
+
+def get_visual_preprocessor():
+    """Lazily build the visual preprocessor (LibreOffice snapshots)."""
+    from src.services.parsing.visual.preprocessor import VisualPreprocessor
+
+    return _parsing_singleton("visual_preprocessor", VisualPreprocessor)
+
+
+def get_context_assembler():
+    """Lazily build the hybrid context assembler."""
+    from src.services.parsing.context_assembly import HybridContextAssembler
+
+    return _parsing_singleton("context_assembler", HybridContextAssembler)
+
+
+def get_vlm_registry():
+    """Return the singleton VLM registry, configured from config_manager."""
+    import src.implementations.llm  # noqa: F401 - auto-registers providers
+    from src.interfaces.llm_provider import get_vlm_registry as _get_registry
+
+    registry = _get_registry()
+    registry.configure_from_config(get_config_manager())
+    return registry
+
+
+def get_strict_reconciler():
+    """Lazily build the strict reconciler."""
+    from src.services.parsing.reconciliation import StrictReconciler
+
+    return _parsing_singleton("strict_reconciler", StrictReconciler)
+
+
+def get_hybrid_document_parser():
+    """Lazily build the full hybrid document parser orchestrator."""
+
+    def _factory():
+        from src.services.parsing.hybrid_parser import HybridDocumentParser
+
+        return HybridDocumentParser(
+            excel_parser=get_excel_deterministic_parser(),
+            docx_parser=get_docx_deterministic_parser(),
+            visual_preprocessor=get_visual_preprocessor(),
+            assembler=get_context_assembler(),
+            vlm_registry=get_vlm_registry(),
+            reconciler=get_strict_reconciler(),
+            config=get_config_manager(),
+        )
+
+    return _parsing_singleton("hybrid_document_parser", _factory)
+
+
+def get_parsing_service():
+    """Lazily build the parsing service used by the Flask controller."""
+
+    def _factory():
+        from src.services.parsing_service import ParsingService
+
+        return ParsingService(get_hybrid_document_parser())
+
+    return _parsing_singleton("parsing_service", _factory)
+
+
+# Ensure VLM adapters auto-register on import of this module.
+try:  # noqa: SIM105 - best-effort registration on import
+    import src.implementations.llm  # noqa: F401
+except Exception as _exc:  # noqa: BLE001
+    logger.warning(f"VLM adapter auto-registration failed: {_exc}")

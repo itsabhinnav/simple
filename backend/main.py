@@ -44,7 +44,7 @@ else:
 
 from src.infrastructure.dependency_injection import (
     get_user_service, get_test_case_service, get_hybrid_database_service, get_git_database_service,
-    get_requirement_service, get_design_ticket_service, get_spec_service
+    get_requirement_service, get_design_ticket_service, get_spec_service, get_parsing_service
 )
 from src.controllers.user_controller import create_user_blueprint
 from src.controllers.test_case_controller import create_test_case_blueprint
@@ -53,6 +53,7 @@ from src.controllers.admin_controller import create_admin_blueprint
 from src.controllers.requirement_controller import create_requirement_blueprint
 from src.controllers.design_ticket_controller import create_design_ticket_blueprint
 from src.controllers.spec_controller import create_spec_blueprint
+from src.controllers.parsing_controller import create_parsing_blueprint
 from src.middleware.error_handlers import (
     setup_error_handlers, setup_request_logging, 
     setup_cors_headers, setup_request_validation, setup_api_documentation,
@@ -141,6 +142,7 @@ def register_api_routes(app: Flask) -> None:
     requirement_service = get_requirement_service()
     design_ticket_service = get_design_ticket_service()
     spec_service = get_spec_service()
+    parsing_service = get_parsing_service()
     
     # Create and register blueprints
     auth_bp = create_auth_blueprint(user_service)
@@ -150,6 +152,7 @@ def register_api_routes(app: Flask) -> None:
     requirement_bp = create_requirement_blueprint(requirement_service)
     design_ticket_bp = create_design_ticket_blueprint(design_ticket_service)
     spec_bp = create_spec_blueprint(spec_service)
+    parsing_bp = create_parsing_blueprint(parsing_service)
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
@@ -158,6 +161,7 @@ def register_api_routes(app: Flask) -> None:
     app.register_blueprint(requirement_bp)
     app.register_blueprint(design_ticket_bp)
     app.register_blueprint(spec_bp)
+    app.register_blueprint(parsing_bp)
     
     logger.info("API routes registered successfully")
 

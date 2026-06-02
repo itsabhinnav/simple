@@ -5,6 +5,7 @@ import os
 from src.services.spec_service import ISpecService
 from src.schemas.spec_schema import SpecCreateSchema, SpecUpdateSchema
 from src.infrastructure.logging_config import get_logger
+from src.controllers._bulk_import_routes import attach_bulk_import_routes
 
 logger = get_logger(__name__)
 
@@ -84,10 +85,18 @@ def create_spec_blueprint(spec_service: ISpecService) -> Blueprint:
     controller = SpecController(spec_service)
     bp.route('/', methods=['GET'])(controller.get_all_specs)
     bp.route('/', methods=['POST'])(controller.create_spec)
+    # New deterministic bulk-import endpoints (`/import`, `/import/preview`,
+    # `/import/fields`) — wired before the `/<int:spec_id>` catch-alls so
+    # Flask never tries to parse "import" as an integer ID. The legacy
+    # `/import` file-upload route below is replaced by these and exposes
+    # the same shape the test_cases controller already uses.
+    attach_bulk_import_routes(bp, "specifications")
     bp.route('/<int:spec_id>', methods=['GET'])(controller.get_spec_by_id)
     bp.route('/<int:spec_id>', methods=['PUT'])(controller.update_spec)
     bp.route('/<int:spec_id>', methods=['DELETE'])(controller.delete_spec)
-    bp.route('/import', methods=['POST'])(controller.import_specs)
+    # Legacy single-file upload kept for backward compatibility. Not
+    # invoked by the new Smart Import wizard.
+    bp.route('/import/legacy', methods=['POST'])(controller.import_specs)
     return bp
 
 

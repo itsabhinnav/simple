@@ -7,6 +7,7 @@ import { ForgotPasswordComponent } from './components/forgot-password.component'
 import { CreateRequirementComponent } from './components/create-requirement.component';
 import { CreateTestCaseComponent } from './components/create-test-case.component';
 import { ImportTestCasesComponent } from './components/import-test-cases.component';
+import { SmartImportComponent } from './components/smart-import.component';
 import { RequirementDetailComponent } from './components/requirement-detail.component';
 import { TestCaseDetailComponent } from './components/test-case-detail.component';
 import { SplitViewComponent } from './components/split-view.component';
@@ -35,16 +36,26 @@ export const routes: Routes = [
   forgotPasswordRoute,
   { path: 'requirements', component: RequirementsComponent, canActivate: [AuthGuard] },
   { path: 'requirements/create', component: CreateRequirementComponent, canActivate: [AuthGuard] },
+  // Smart Import wizard — generic, target driven via route data. Uses
+  // the new robust hybrid parsing API (/api/parsing/*) for AI-driven
+  // enrichment and the existing deterministic /import endpoints for
+  // the actual DB write. The legacy /test-cases/import route below
+  // continues to serve the original test-case-only component for
+  // backwards compatibility with bookmarks.
+  { path: 'requirements/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'requirements' } },
   { path: 'requirements/:id', component: RequirementDetailComponent, canActivate: [AuthGuard] },
   { path: 'users', component: UserManagementComponent, canActivate: [AuthGuard, AdminGuard] },
   { path: 'test-cases', component: TestCaseManagementComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/create', component: CreateTestCaseComponent, canActivate: [AuthGuard] },
-  { path: 'test-cases/import', component: ImportTestCasesComponent, canActivate: [AuthGuard] },
+  { path: 'test-cases/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'test_cases' } },
+  { path: 'test-cases/import/legacy', component: ImportTestCasesComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/:id', component: TestCaseDetailComponent, canActivate: [AuthGuard] },
   { path: 'design-tickets', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'design-tickets/create', component: CreateDesignTicket, canActivate: [AuthGuard] },
+  { path: 'design-tickets/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'design_tickets' } },
   { path: 'design-tickets/:id', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'specs', component: SpecManagementComponent, canActivate: [AuthGuard] },
+  { path: 'specs/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'specifications' } },
   { path: 'split-view', component: SplitViewComponent, canActivate: [AuthGuard] },
   { path: '**', redirectTo: '' }
 ];

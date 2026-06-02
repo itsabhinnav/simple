@@ -1,0 +1,463 @@
+<div class="import-page">
+  <header class="page-header">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a routerLink="/" class="crumb">Dashboard</a>
+      <span class="sep">/</span>
+      <a [routerLink]="viewListPath()" class="crumb">{{ targetLabel().plural | titlecase }}</a>
+      <span class="sep">/</span>
+      <span class="crumb current">Import</span>
+    </nav>
+    <div class="title-row">
+      <div>
+        <h1>Import {{ targetLabel().plural }}</h1>
+        <p class="lead">
+          Bulk-load from Excel, CSV or DOCX. Map columns once, save as a preset, and reuse it across files.
+          Optional AI parsing classifies the artifact and enriches column suggestions.
+        </p>
+      </div>
+      <button type="button" class="btn ghost subtle" (click)="goBack()">Cancel</button>
+    </div>
+  </header>
+
+  <ol class="stepper" role="tablist">
+    <li *ngFor="let s of steps; let i = index"
+        [class.active]="step() === s.id"
+        [class.done]="stepIndex(s.id) < stepIndex(step())"
+        (click)="jumpToStep(s.id)"
+        role="tab">
+      <span class="dot"></span>
+      <span class="label">{{ s.label }}</span>
+    </li>
+  </ol>
+
+  <!-- ============================================================== -->
+  <!-- STEP 1 · UPLOAD                                                 -->
+  <!-- ============================================================== -->
+  <section class="card" *ngIf="step() === 'upload'">
+    <div class="dropzone"
+         [class.dragging]="isDragging()"
+         [class.compact]="files().length > 0"
+         (dragover)="onDragOver($event)"
+         (dragleave)="onDragLeave($event)"
+         (drop)="onDrop($event)"
+         (click)="fileInput.click()">
+      <input type="file"
+             multiple
+             accept=".xlsx,.xlsm,.csv,.docx"
+             (change)="onFileInputChange($event)"
+             #fileInput
+             hidden>
+      <div class="dz-content">
+        <h3>{{ files().length > 0 ? 'Add more files' : 'Drop files here' }}</h3>
+        <p class="muted">
+          <ng-container *ngIf="files().length === 0">or click to browse — </ng-container>
+          .xlsx, .xlsm, .csv, .docx
+        </p>
+      </div>
+    </div>
+
+    <div class="file-list" *ngIf="files().length > 0">
+      <header>
+        <span>{{ files().length }} file<ng-container *ngIf="files().length !== 1">s</ng-container></span>
+        <button type="button" class="link subtle" (click)="clearFiles()">Clear all</button>
+      </header>
+      <ul>
+        <li *ngFor="let entry of files(); let i = index">
+          <span class="fname" [title]="entry.file.name">{{ entry.file.name }}</span>
+          <span class="fmeta">{{ formatBytes(entry.file.size) }}</span>
+          <span class="fstatus" [class]="'st-' + entry.status">
+            <ng-container [ngSwitch]="entry.status">
+              <ng-container *ngSwitchCase="'idle'">Queued</ng-container>
+              <ng-container *ngSwitchCase="'loading'"><span class="spinner-xs"></span>Reading</ng-container>
+              <ng-container *ngSwitchCase="'ready'">{{ sheetCountFor(entry) }} sheet<ng-container *ngIf="sheetCountFor(entry) !== 1">s</ng-container></ng-container>
+              <ng-container *ngSwitchCase="'error'">Failed</ng-container>
+            </ng-container>
+          </span>
+          <button type="button" class="icon-btn" (click)="removeFile(i); $event.stopPropagation()" aria-label="Remove">×</button>
+        </li>
+      </ul>
+    </div>
+
+    <!-- AI assist panel -->
+    <div class="ai-panel">
+      <header>
+        <label class="ai-toggle">
+          <input type="checkbox" [checked]="enableAi()" (change)="enableAi.set($any($event.target).checked)">
+          <span><strong>Smart parse with AI</strong> (artifact classification, semantic overlays, image-anchor extraction)</span>
+        </label>
+      </header>
+      <div class="ai-controls" *ngIf="enableAi()">
+        <label class="field">
+          <span>Provider</span>
+          <select [ngModel]="selectedProvider() || ''" (ngModelChange)="selectedProvider.set($event || null)">
+            <option [ngValue]="''">Default ({{ defaultProvider() || 'auto' }})</option>
+            <option *ngFor="let p of providers()" [ngValue]="p">{{ p }}</option>
+          </select>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" [checked]="enableVisual()" (change)="enableVisual.set($any($event.target).checked)">
+          <span>Render page snapshots (LibreOffice)</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" [checked]="enableVlm()" (change)="enableVlm.set($any($event.target).checked)">
+          <span>Run VLM extraction</span>
+        </label>
+        <p class="muted small">
+          AI runs locally via Ollama by default. Falls back gracefully if the provider is unavailable.
+        </p>
+      </div>
+    </div>
+
+    <details class="hints" *ngIf="files().length === 0">
+      <summary>What works best</summary>
+      <ul>
+        <li>One header row per sheet.</li>
+        <li>First sheet is auto-targeted (loose names like <code>{{ targetLabel().plural | titlecase }}</code> work).</li>
+        <li>~10,000 rows per workbook is comfortable; larger still works.</li>
+      </ul>
+    </details>
+
+    <div class="actions-bar">
+      <span class="muted" *ngIf="files().length > 0">
+        {{ readyCount() }} of {{ files().length }} previewed
+      </span>
+      <div class="grow"></div>
+      <button type="button" class="btn ghost"
+              [disabled]="files().length === 0 || isImporting()"
+              (click)="quickImport()"
+              title="Skip mapping and trust auto-detection.">
+        Quick import
+      </button>
+      <button type="button" class="btn primary"
+              [disabled]="files().length === 0 || isPreviewingAny()"
+              (click)="goToMap()">
+        <span *ngIf="isPreviewingAny() || aiBusy()" class="spinner-xs"></span>
+        {{ isPreviewingAny() || aiBusy() ? (enableAi() ? 'Analyzing…' : 'Reading…') : 'Continue' }}
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- STEP 2 · MAPPING                                                -->
+  <!-- ============================================================== -->
+  <section class="card" *ngIf="step() === 'map'">
+    <div class="file-tabs" *ngIf="files().length > 1">
+      <button *ngFor="let entry of files(); let i = index"
+              type="button"
+              class="file-tab"
+              [class.active]="activeFileIndex() === i"
+              [class.has-error]="entry.status === 'error'"
+              (click)="setActiveFile(i)">
+        <span class="tab-name">{{ entry.file.name }}</span>
+      </button>
+    </div>
+
+    <ng-container *ngIf="activeEntry() as entry">
+      <div class="loading-row" *ngIf="entry.status === 'loading'">
+        <span class="spinner"></span> Parsing <strong>{{ entry.file.name }}</strong>…
+      </div>
+      <div class="error-row" *ngIf="entry.status === 'error'">
+        <span>{{ entry.error }}</span>
+        <button type="button" class="btn small" (click)="previewFile(activeFileIndex())">Retry</button>
+      </div>
+
+      <!-- AI insight banner (if smart-parse ran) -->
+      <div class="ai-insight" *ngIf="entry.ai && !entry.ai.skipped">
+        <strong>AI insight:</strong>
+        <span *ngIf="entry.ai.artifact_kind">classified as <code>{{ entry.ai.artifact_kind }}</code></span>
+        <span *ngIf="entry.ai.deterministic_summary?.image_count != null">
+          · {{ entry.ai.deterministic_summary.image_count }} image{{ entry.ai.deterministic_summary.image_count === 1 ? '' : 's' }}
+        </span>
+        <span *ngIf="entry.ai.deterministic_summary?.merged_count != null">
+          · {{ entry.ai.deterministic_summary.merged_count }} merged range{{ entry.ai.deterministic_summary.merged_count === 1 ? '' : 's' }}
+        </span>
+        <span *ngIf="(entry.ai.warnings?.length || 0) > 0" class="muted small">
+          · {{ entry.ai.warnings?.length }} warning{{ (entry.ai.warnings?.length || 0) === 1 ? '' : 's' }}
+        </span>
+      </div>
+
+      <ng-container *ngIf="entry.status === 'ready' && entry.preview as preview">
+        <div class="sheet-picker" *ngIf="preview.sheets.length > 1">
+          <button *ngFor="let s of preview.sheets; let si = index"
+                  type="button"
+                  class="sheet-pill"
+                  [class.active]="activeSheetIndex() === si"
+                  (click)="activeSheetIndex.set(si)">
+            {{ s.sheet }} <span class="pill-meta">· {{ s.row_count_estimate }} rows</span>
+          </button>
+        </div>
+
+        <ng-container *ngIf="preview.sheets[activeSheetIndex()] as sheet">
+          <div class="map-toolbar">
+            <div class="summary-line">
+              <strong>{{ mappedColumnCount(sheet) }}</strong>
+              <span class="muted"> of {{ sheet.raw_headers.length }} columns mapped</span>
+              <span class="dot-sep" *ngIf="missingRequired(sheet).length > 0">·</span>
+              <span class="warn-inline" *ngIf="missingRequired(sheet).length > 0">
+                Missing: {{ missingRequired(sheet).join(', ') }}
+              </span>
+              <span class="dot-sep" *ngIf="missingRequired(sheet).length === 0 && mappedColumnCount(sheet) > 0">·</span>
+              <span class="ok-inline" *ngIf="missingRequired(sheet).length === 0 && mappedColumnCount(sheet) > 0">
+                All required fields covered
+              </span>
+            </div>
+            <input type="search" class="mapping-search" placeholder="Filter columns" [(ngModel)]="mappingFilter">
+            <button type="button" class="link subtle"
+                    (click)="showAdvancedMapping.set(!showAdvancedMapping())">
+              {{ showAdvancedMapping() ? 'Hide options' : 'Options' }}
+            </button>
+          </div>
+
+          <div class="advanced-bar" *ngIf="showAdvancedMapping()">
+            <div class="row">
+              <label class="field">
+                <span>Preset</span>
+                <select [ngModel]="activePresetId()" (ngModelChange)="applyPreset($event)">
+                  <option [ngValue]="''">None</option>
+                  <option *ngFor="let p of presets()" [ngValue]="p.id">{{ p.name }}</option>
+                </select>
+              </label>
+              <button type="button" class="btn small ghost" (click)="openSavePreset()">Save as preset</button>
+              <button type="button" class="btn small ghost"
+                      [disabled]="!activePresetId()"
+                      (click)="deleteActivePreset()">Delete preset</button>
+            </div>
+            <div class="row">
+              <span class="muted small">Bulk</span>
+              <button type="button" class="btn small ghost" (click)="setAllToIgnore(sheet)">Ignore all in sheet</button>
+              <button type="button" class="btn small ghost" (click)="applySuggestionForSheet(sheet)">Restore suggestions</button>
+              <button type="button" class="btn small ghost" (click)="resetMappingToSuggested()">Reset everything</button>
+              <button type="button" class="btn small ghost" (click)="clearMapping()">Clear all</button>
+            </div>
+          </div>
+
+          <div class="inline-form" *ngIf="showSavePresetForm()">
+            <input type="text" placeholder="Preset name" [(ngModel)]="newPresetName" (keyup.enter)="savePreset()">
+            <button type="button" class="btn small primary" (click)="savePreset()">Save</button>
+            <button type="button" class="btn small ghost" (click)="showSavePresetForm.set(false)">Cancel</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="mapping-table">
+              <thead>
+                <tr>
+                  <th>Spreadsheet column</th>
+                  <th>Sample</th>
+                  <th>Maps to</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let header of filteredHeaders(sheet); let i = index"
+                    [class.unmapped]="!getMappingValue(header)">
+                  <td>
+                    <code>{{ header }}</code>
+                    <span class="req-mark" *ngIf="isRequiredHeader(header)" title="Required field">*</span>
+                  </td>
+                  <td class="sample-cell">{{ sampleValueFor(sheet, headerIndex(sheet, header)) || '—' }}</td>
+                  <td>
+                    <select class="map-select"
+                            [value]="getMappingValue(header)"
+                            (change)="setMappingValue(header, $any($event.target).value)">
+                      <option value="">Ignore</option>
+                      <option *ngFor="let f of importFields()" [value]="f">
+                        {{ f }}{{ isRequired(f) ? ' *' : '' }}
+                      </option>
+                    </select>
+                  </td>
+                </tr>
+                <tr *ngIf="filteredHeaders(sheet).length === 0">
+                  <td colspan="3" class="muted center">No columns match.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="sample-preview">
+            <summary>Preview first {{ previewSampleCount(sheet) }} rows</summary>
+            <div class="sample-table-wrap">
+              <table class="sample-table">
+                <thead>
+                  <tr>
+                    <th *ngFor="let col of mappedColumns(sheet)">{{ col.field }}</th>
+                    <th *ngIf="mappedColumns(sheet).length === 0" class="muted">No fields mapped yet</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of sheet.sample_rows">
+                    <td *ngFor="let col of mappedColumns(sheet)">{{ row[col.index] ?? '' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </ng-container>
+      </ng-container>
+    </ng-container>
+
+    <div class="actions-bar sticky">
+      <button type="button" class="btn ghost" (click)="step.set('upload')">Back</button>
+      <div class="grow"></div>
+      <button type="button" class="btn primary" (click)="step.set('review')"
+              [disabled]="!hasAnyReadyPreview()">
+        Continue
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- STEP 3 · REVIEW                                                 -->
+  <!-- ============================================================== -->
+  <section class="card" *ngIf="step() === 'review'">
+    <div class="totals-row">
+      <div class="kpi"><span class="k-label">Files</span><strong>{{ files().length }}</strong></div>
+      <div class="kpi"><span class="k-label">Sheets</span><strong>{{ totalSheets() }}</strong></div>
+      <div class="kpi"><span class="k-label">Rows</span><strong>{{ totalRows() }}</strong></div>
+      <div class="kpi"><span class="k-label">Mapped columns</span><strong>{{ totalMappedColumns() }}</strong></div>
+    </div>
+
+    <div class="review-cols">
+      <section class="rev-block">
+        <h4>Files</h4>
+        <ul class="dense-list">
+          <li *ngFor="let entry of files()">
+            <span class="fname">{{ entry.file.name }}</span>
+            <span class="muted">
+              {{ formatBytes(entry.file.size) }}<ng-container *ngIf="entry.preview">
+              · {{ entry.preview.sheets.length }} sheet<ng-container *ngIf="entry.preview.sheets.length !== 1">s</ng-container>
+              · {{ totalRowsForFile(entry) }} rows
+              </ng-container>
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="rev-block">
+        <h4>Duplicate strategy</h4>
+        <label class="radio" [class.checked]="strategy() === 'skip'">
+          <input type="radio" name="dup" [checked]="strategy() === 'skip'" (change)="strategy.set('skip')">
+          <div>
+            <strong>Skip</strong>
+            <div class="muted">Leave existing rows untouched.</div>
+          </div>
+        </label>
+        <label class="radio" [class.checked]="strategy() === 'replace'">
+          <input type="radio" name="dup" [checked]="strategy() === 'replace'" (change)="strategy.set('replace')">
+          <div>
+            <strong>Replace</strong>
+            <div class="muted">Update existing rows in place.</div>
+          </div>
+        </label>
+      </section>
+    </div>
+
+    <section class="rev-block warn" *ngIf="mappingWarnings().length > 0">
+      <h4>Heads-up</h4>
+      <ul class="dense-list">
+        <li *ngFor="let w of mappingWarnings()">{{ w }}</li>
+      </ul>
+    </section>
+
+    <p class="import-error" *ngIf="importError()">{{ importError() }}</p>
+
+    <div class="actions-bar sticky">
+      <button type="button" class="btn ghost" (click)="step.set('map')">Back</button>
+      <div class="grow"></div>
+      <button type="button" class="btn primary"
+              [disabled]="isImporting() || files().length === 0"
+              (click)="runImportFromReview()">
+        <span *ngIf="isImporting()" class="spinner-xs"></span>
+        {{ isImporting() ? 'Importing…' : 'Import ' + files().length + ' file' + (files().length !== 1 ? 's' : '') }}
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- STEP 4 · RESULT                                                 -->
+  <!-- ============================================================== -->
+  <section class="card" *ngIf="step() === 'result' && importResult() as result">
+    <div class="result-pills">
+      <div class="pill"><span class="pill-num">{{ result.totals.created }}</span><span class="pill-label">Created</span></div>
+      <div class="pill"><span class="pill-num">{{ result.totals.updated || 0 }}</span><span class="pill-label">Updated</span></div>
+      <div class="pill"><span class="pill-num">{{ result.totals.skipped }}</span><span class="pill-label">Skipped</span></div>
+      <div class="pill" [class.has-fails]="result.totals.failed > 0">
+        <span class="pill-num">{{ result.totals.failed }}</span><span class="pill-label">Failed</span>
+      </div>
+    </div>
+
+    <div class="per-file-results">
+      <div *ngFor="let file of result.files" class="file-result">
+        <header>
+          <h4>{{ file.file }}</h4>
+          <span class="muted">
+            {{ file.created }} created · {{ file.updated || 0 }} updated · {{ file.skipped }} skipped · {{ file.failed }} failed
+          </span>
+        </header>
+        <table class="sheet-result-table" *ngIf="file.sheets.length > 0">
+          <thead>
+            <tr>
+              <th>Sheet</th><th>Target</th>
+              <th>Created</th><th>Updated</th><th>Skipped</th><th>Failed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of file.sheets">
+              <td>{{ s.sheet }}</td>
+              <td><code>{{ s.target }}</code></td>
+              <td>{{ s.created }}</td>
+              <td>{{ s.updated || 0 }}</td>
+              <td>{{ s.skipped }}</td>
+              <td [class.has-fails]="s.failed > 0">{{ s.failed }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <details *ngIf="file.errors.length > 0" class="errors-block">
+          <summary>
+            {{ file.errors.length }} error row<ng-container *ngIf="file.errors.length !== 1">s</ng-container>
+            <button type="button" class="link"
+                    (click)="downloadErrorsCsv(file); $event.preventDefault(); $event.stopPropagation()">
+              Download CSV
+            </button>
+          </summary>
+          <ul class="error-list">
+            <li *ngFor="let err of file.errors.slice(0, 50)">
+              <ng-container *ngIf="err.sheet">[{{ err.sheet }}] </ng-container>
+              <ng-container *ngIf="err.row">Row {{ err.row }}: </ng-container>
+              <ng-container *ngIf="err.id"><code>{{ err.id }}</code> — </ng-container>
+              {{ err.error }}
+            </li>
+            <li *ngIf="file.errors.length > 50" class="muted">
+              … and {{ file.errors.length - 50 }} more (see CSV).
+            </li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="actions-bar sticky">
+      <button type="button" class="btn ghost" (click)="startOver()">Import more</button>
+      <div class="grow"></div>
+      <a [routerLink]="viewListPath()" class="btn primary">View {{ targetLabel().plural }}</a>
+    </div>
+  </section>
+
+  <!-- Recent imports -->
+  <section class="history-strip" *ngIf="history().length > 0 && step() !== 'result'">
+    <header>
+      <h3>Recent</h3>
+      <button type="button" class="link subtle" (click)="clearHistory()">Clear</button>
+    </header>
+    <ul>
+      <li *ngFor="let h of history()">
+        <span class="h-time">{{ h.at }}</span>
+        <span class="h-files muted" [title]="h.files.join('\n')">
+          {{ h.files.length }} file<ng-container *ngIf="h.files.length !== 1">s</ng-container>
+        </span>
+        <span class="h-num">+{{ h.totals.created }}</span>
+        <span class="h-num muted">~{{ h.totals.updated }}</span>
+        <span class="h-num muted">·{{ h.totals.skipped }}</span>
+        <span class="h-num danger" *ngIf="h.totals.failed > 0">!{{ h.totals.failed }}</span>
+        <span class="h-strategy muted">{{ h.target }} · {{ h.strategy }}</span>
+      </li>
+    </ul>
+  </section>
+</div>

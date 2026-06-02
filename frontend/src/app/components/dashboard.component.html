@@ -204,9 +204,10 @@
       <div class="stats-grid">
 
         <!-- Specifications -->
-        <div class="stat-tile stat-tile--specs stat-tile--no-link">
+        <div class="stat-tile stat-tile--specs stat-tile--no-link"
+             role="group">
           <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon">📑</span>
+            <span class="stat-tile-icon" aria-hidden="true">📑</span>
           </div>
           <div class="stat-tile-main">
             <div class="stat-tile-top">
@@ -220,29 +221,24 @@
             <div class="stat-tile-chips stat-tile-chips--specs">
               <span class="chip chip--info">
                 <span class="chip-label">Formats</span>
-                <span class="chip-value">XLSX · CSV · PDF · DOCX</span>
+                <span class="chip-value">XLSX · XLSM · CSV · DOCX</span>
               </span>
             </div>
           </div>
           <div class="stat-tile-cta stat-tile-cta--split">
-            <a routerLink="/specs" class="cta-link">
+            <a class="cta-link" routerLink="/specs">
               <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
               <span class="cta-arrow">→</span>
             </a>
-            <label class="cta-import">
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv,.doc,.docx,.pdf"
-                (change)="importSpecFile($event)"
-                hidden>
-              <span class="import-icon">⬆</span>
+            <a class="cta-import" routerLink="/specs/import" title="Smart Import wizard">
+              <span class="import-icon" aria-hidden="true">⬆</span>
               {{ 'dashboard.import' | translate }}
-            </label>
+            </a>
           </div>
         </div>
 
         <!-- Requirements -->
-        <a routerLink="/requirements" class="stat-tile stat-tile--requirements">
+        <div class="stat-tile stat-tile--requirements stat-tile--no-link" role="group">
           <div class="stat-tile-icon-block">
             <span class="stat-tile-icon">📋</span>
           </div>
@@ -276,16 +272,22 @@
               <span class="empty-hint">No requirements yet.</span>
             </div>
           </div>
-          <div class="stat-tile-cta">
-            <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-            <span class="cta-arrow">→</span>
+          <div class="stat-tile-cta stat-tile-cta--split">
+            <a class="cta-link" routerLink="/requirements">
+              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+              <span class="cta-arrow">→</span>
+            </a>
+            <a class="cta-import" routerLink="/requirements/import" title="Smart Import wizard">
+              <span class="import-icon" aria-hidden="true">⬆</span>
+              {{ 'dashboard.import' | translate }}
+            </a>
           </div>
-        </a>
+        </div>
 
         <!-- Designs -->
-        <a routerLink="/design-tickets" class="stat-tile stat-tile--designs">
+        <div class="stat-tile stat-tile--designs stat-tile--no-link" role="group">
           <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon">🎨</span>
+            <span class="stat-tile-icon" aria-hidden="true">🎨</span>
           </div>
           <div class="stat-tile-main">
             <div class="stat-tile-top">
@@ -310,14 +312,20 @@
               <span class="empty-hint">No design tickets yet.</span>
             </div>
           </div>
-          <div class="stat-tile-cta">
-            <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-            <span class="cta-arrow">→</span>
+          <div class="stat-tile-cta stat-tile-cta--split">
+            <a class="cta-link" routerLink="/design-tickets">
+              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+              <span class="cta-arrow">→</span>
+            </a>
+            <a class="cta-import" routerLink="/design-tickets/import" title="Smart Import wizard">
+              <span class="import-icon" aria-hidden="true">⬆</span>
+              {{ 'dashboard.import' | translate }}
+            </a>
           </div>
-        </a>
+        </div>
 
         <!-- Test Cases -->
-        <a routerLink="/test-cases" class="stat-tile stat-tile--testcases">
+        <div class="stat-tile stat-tile--testcases stat-tile--no-link" role="group">
           <div class="stat-tile-icon-block">
             <span class="stat-tile-icon">🧪</span>
           </div>
@@ -351,11 +359,17 @@
               <span class="empty-hint">No test cases yet.</span>
             </div>
           </div>
-          <div class="stat-tile-cta">
-            <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-            <span class="cta-arrow">→</span>
+          <div class="stat-tile-cta stat-tile-cta--split">
+            <a class="cta-link" routerLink="/test-cases">
+              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
+              <span class="cta-arrow">→</span>
+            </a>
+            <a class="cta-import" routerLink="/test-cases/import" title="Smart Import wizard">
+              <span class="import-icon" aria-hidden="true">⬆</span>
+              {{ 'dashboard.import' | translate }}
+            </a>
           </div>
-        </a>
+        </div>
 
         <!-- Admin Only: User Management -->
         <a *ngIf="isAdmin()" routerLink="/users" class="stat-tile stat-tile--admin">

@@ -3,6 +3,7 @@ from typing import Dict, Any
 from src.services.design_ticket_service import IDesignTicketService
 from src.schemas.design_ticket_schema import DesignTicketCreateSchema, DesignTicketUpdateSchema
 from src.infrastructure.logging_config import get_logger
+from src.controllers._bulk_import_routes import attach_bulk_import_routes
 
 logger = get_logger(__name__)
 
@@ -176,9 +177,12 @@ def create_design_ticket_blueprint(design_ticket_service: IDesignTicketService) 
     dt_bp = Blueprint('design_tickets', __name__, url_prefix='/api/design-tickets')
     controller = DesignTicketController(design_ticket_service)
     
-    # Register routes
+    # Register routes. Bulk-import routes are mounted before the
+    # `/<int:ticket_id>` catch-alls so the literal string "import" never
+    # gets parsed as a ticket ID by Flask's router.
     dt_bp.route('/', methods=['GET'])(controller.get_all_design_tickets)
     dt_bp.route('/', methods=['POST'])(controller.create_design_ticket)
+    attach_bulk_import_routes(dt_bp, "design_tickets")
     dt_bp.route('/<int:ticket_id>', methods=['GET'])(controller.get_design_ticket_by_id)
     dt_bp.route('/<int:ticket_id>', methods=['PUT'])(controller.update_design_ticket)
     dt_bp.route('/<int:ticket_id>', methods=['DELETE'])(controller.delete_design_ticket)

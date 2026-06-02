@@ -1,4 +1,4 @@
-﻿# Sakura Unified Configuration
+# Sakura Unified Configuration
 # This is the single source of truth for all application configuration
 
 # Environment: development, production, or testing
@@ -142,6 +142,26 @@ features:
   git_integration: false
   artifactory_integration: false
   advanced_logging: false
+
+# Hybrid Document Parsing
+parsing:
+  tmp_dir: data/tmp/parsing
+  spatial_radius: 4
+  vlm:
+    default_provider: ollama
+    providers:
+      ollama:
+        base_url: http://localhost:11434
+        model: llava:7b
+      openai:
+        base_url: https://api.openai.com/v1
+        model: gpt-4o-mini
+      anthropic:
+        base_url: https://api.anthropic.com
+        model: claude-3-5-sonnet-latest
+  celery:
+    broker_url: redis://localhost:6379/0
+    result_backend: redis://localhost:6379/1
 
 # Network Restrictions
 # gitlab.com is intentionally NOT in the allow-list because remote/git DB

@@ -1349,3 +1349,62 @@ $dash-shadow-md:   0 4px 16px rgba(15, 23, 42, 0.06);
   }
 }
 
+
+/* Disabled card treatment (gray hatch overlay) - reusable */
+.card--disabled-hatch {
+  position: relative;
+  opacity: 0.55;
+  cursor: not-allowed;
+
+  /* Block all interaction with descendants while keeping cursor on parent */
+  > * {
+    pointer-events: none;
+  }
+
+  /* Neutralize parent hover/transform effects */
+  &:hover {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-color: #dadce0;
+    transform: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(120, 120, 120, 0.18) 0 6px,
+      rgba(120, 120, 120, 0) 6px 12px
+    );
+  }
+}
+
+.card-disabled-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background-color: #e8eaed;
+  color: #5f6368;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
