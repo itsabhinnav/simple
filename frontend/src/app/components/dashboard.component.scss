@@ -431,24 +431,11 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   overflow: hidden;
   box-shadow: $db-shadow-sm;
 
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 3px;
-    background: linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%);
-  }
-
   &:hover {
     transform: translateY(-2px);
     border-color: #c7d2fe;
     box-shadow: $db-shadow-md;
   }
-
-  &--specs::before   { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
-  &--reqs::before    { background: linear-gradient(90deg, #2563eb, #93c5fd); }
-  &--designs::before { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
-  &--tests::before   { background: linear-gradient(90deg, #10b981, #6ee7b7); }
 }
 
 .db-kpi-head {

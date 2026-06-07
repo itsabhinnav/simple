@@ -1,16 +1,42 @@
-import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
+import { Component, OnInit, inject, signal, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { TestCaseService, TestCase, TestCaseDropdowns } from '../services/test-case.service';
 import { RequirementService } from '../services/requirement.service';
 import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { debounceTime } from 'rxjs/operators';
+import { ActivityHistoryComponent } from './activity-history.component';
+
+// Pending un-flushed edits keyed by test_case_id. Survives reloads and
+// network blips so the user never loses what they typed.
+const TC_PENDING_KEY = (id: string) => `sakura.tc.pending.${id}`;
+
+interface TcPendingEdits { fields: Record<string, any>; updatedAt: number; }
+
+function readTcPending(id: string): TcPendingEdits | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(TC_PENDING_KEY(id));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.fields && typeof parsed.fields === 'object') return parsed as TcPendingEdits;
+  } catch { /* ignored */ }
+  return null;
+}
+
+function writeTcPending(id: string, fields: Record<string, any>) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (Object.keys(fields).length === 0) localStorage.removeItem(TC_PENDING_KEY(id));
+    else localStorage.setItem(TC_PENDING_KEY(id), JSON.stringify({ fields, updatedAt: Date.now() }));
+  } catch { /* quota / private mode */ }
+}
 
 @Component({
   selector: 'app-test-case-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, ActivityHistoryComponent],
   templateUrl: './test-case-detail.component.html',
   styleUrl: './test-case-detail.component.scss'
 })
@@ -27,6 +53,9 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
   isSaving = signal(false);
   saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
   editingField = signal<string | null>(null);
+  pendingFields = signal<Record<string, any>>({});
+  private retryCounts: Record<string, number> = {};
+  private readonly MAX_RETRIES = 5;
   /**
    * Read-only by default. Users must press the explicit Edit button before any
    * field can be modified. Inline edit affordances (pencil glyph, hover, chip
@@ -88,8 +117,7 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
 
     // Set up auto-save with debouncing
     this.saveSubscription = this.saveSubject.pipe(
-      debounceTime(1000), // Wait 1 second after user stops typing
-      distinctUntilChanged((a, b) => a.field === b.field && a.value === b.value)
+      debounceTime(800)
     ).subscribe(({ field, value }) => {
       this.saveField(field, value);
     });
@@ -99,10 +127,55 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
       next: data => this.dropdowns.set(data),
       error: err => console.error('Failed to load dropdowns', err),
     });
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('sakura:activity-reverted', this.onReverted as EventListener);
+    }
   }
 
   ngOnDestroy() {
     this.saveSubscription?.unsubscribe();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('sakura:activity-reverted', this.onReverted as EventListener);
+    }
+  }
+
+  private onReverted = (evt: Event) => {
+    const detail = (evt as CustomEvent).detail || {};
+    if (detail.entityType === 'test_case' && this.testCaseId()) {
+      this.loadTestCase(this.testCaseId()!);
+    }
+  };
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(e: BeforeUnloadEvent) {
+    if (Object.keys(this.pendingFields()).length > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  }
+
+  hasPendingEdits(): boolean { return Object.keys(this.pendingFields()).length > 0; }
+  pendingFieldNames(): string[] { return Object.keys(this.pendingFields()); }
+
+  retryPending() {
+    const pending = this.pendingFields();
+    for (const [field, value] of Object.entries(pending)) {
+      this.retryCounts[field] = 0;
+      this.saveSubject.next({ field, value });
+    }
+  }
+
+  discardPending() {
+    if (!this.hasPendingEdits()) return;
+    if (!confirm('Discard unsaved edits and reload from server?')) return;
+    this.pendingFields.set({});
+    this.retryCounts = {};
+    if (this.testCaseId()) {
+      writeTcPending(this.testCaseId()!, {});
+      this.loadTestCase(this.testCaseId()!);
+    }
+    this.saveStatus.set('idle');
   }
 
   loadTestCase(id: string) {
@@ -112,7 +185,20 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
     this.testCaseService.getTestCaseById(id).subscribe({
       next: (testCase) => {
         if (testCase) {
-          this.testCase.set(testCase);
+          // Layer pending un-flushed edits on top of the server state so
+          // a reload (or a save retry triggered by a network blip) never
+          // wipes what the user typed.
+          const pending = readTcPending(id);
+          if (pending && pending.fields && Object.keys(pending.fields).length > 0) {
+            this.pendingFields.set({ ...pending.fields });
+            this.testCase.set({ ...testCase, ...pending.fields });
+            for (const [f, v] of Object.entries(pending.fields)) {
+              this.saveSubject.next({ field: f, value: v });
+            }
+          } else {
+            this.pendingFields.set({});
+            this.testCase.set(testCase);
+          }
         } else {
           this.error.set('Test case not found');
         }
@@ -169,6 +255,7 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
 
     this.testCaseService.deleteTestCase(String(this.testCaseId()!)).subscribe({
       next: () => {
+        writeTcPending(this.testCaseId()!, {});
         if (typeof window !== 'undefined') {
           window.history.back();
         }
@@ -249,14 +336,17 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
     // multi-pickers can't sneak through a write when Edit isn't pressed.
     if (!this.editMode()) return;
 
-    // Update local signal immediately for responsive UI
     const current = this.testCase()!;
     this.testCase.set({ ...current, [field]: value });
-    
-    // Queue save operation
+
+    // Buffer the edit and persist to localStorage so reloads / errors
+    // can't lose the value the user just typed.
+    const nextPending = { ...this.pendingFields(), [field]: value };
+    this.pendingFields.set(nextPending);
+    if (this.testCaseId()) writeTcPending(this.testCaseId()!, nextPending);
+    this.retryCounts[field] = 0;
+
     this.saveSubject.next({ field, value });
-    
-    // Show saving status
     this.saveStatus.set('saving');
   }
 
@@ -272,34 +362,52 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
     this.testCaseService.updateTestCase(this.testCaseId()!, updateData).subscribe({
       next: (updatedTestCase) => {
         if (updatedTestCase) {
-          // Update the test case signal with fresh data from server
-          this.testCase.set({ ...this.testCase()!, ...updatedTestCase });
-          this.saveStatus.set('saved');
-          
-          // Clear saved status after 2 seconds
-          setTimeout(() => {
-            if (this.saveStatus() === 'saved') {
-              this.saveStatus.set('idle');
-            }
-          }, 2000);
+          // Keep any newer pending edits (typed while the request was in
+          // flight) so they aren't clobbered by the server response.
+          const stillPending = { ...this.pendingFields() };
+          delete stillPending[field];
+          const merged: TestCase = { ...this.testCase()!, ...updatedTestCase };
+          for (const f of Object.keys(stillPending)) {
+            (merged as any)[f] = stillPending[f];
+          }
+          this.testCase.set(merged);
+          this.pendingFields.set(stillPending);
+          if (this.testCaseId()) writeTcPending(this.testCaseId()!, stillPending);
+          this.retryCounts[field] = 0;
+
+          if (Object.keys(stillPending).length === 0) {
+            this.saveStatus.set('saved');
+            setTimeout(() => {
+              if (this.saveStatus() === 'saved') this.saveStatus.set('idle');
+            }, 2000);
+          } else {
+            this.saveStatus.set('saving');
+          }
         }
         this.isSaving.set(false);
       },
       error: (err) => {
         console.error('Error saving field:', err);
         this.saveStatus.set('error');
-        this.error.set(`Failed to save ${field}`);
+        this.error.set(`Failed to save ${field}: ${err?.message || err}`);
         this.isSaving.set(false);
-        
-        // Reload test case to get server state
-        this.loadTestCase(this.testCaseId()!);
-        
-        // Clear error status after 3 seconds
-        setTimeout(() => {
-          if (this.saveStatus() === 'error') {
-            this.saveStatus.set('idle');
-          }
-        }, 3000);
+
+        // DO NOT reload the test case on error — that would overwrite the
+        // value the user just typed. Keep it local + retry instead.
+        const attempt = (this.retryCounts[field] || 0) + 1;
+        this.retryCounts[field] = attempt;
+        if (attempt < this.MAX_RETRIES) {
+          const delayMs = Math.pow(2, attempt - 1) * 1000;
+          setTimeout(() => {
+            const latest = this.pendingFields()[field];
+            if (latest === undefined) return;
+            this.saveSubject.next({ field, value: latest });
+          }, delayMs);
+        } else {
+          setTimeout(() => {
+            if (this.saveStatus() === 'error') this.error.set(null);
+          }, 6000);
+        }
       }
     });
   }

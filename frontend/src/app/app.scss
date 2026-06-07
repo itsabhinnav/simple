@@ -145,6 +145,8 @@
   text-align: left;
   cursor: pointer;
   transition: background-color 0.1s;
+  text-decoration: none;
+  color: inherit;
 }
 
 .menu-item:hover {

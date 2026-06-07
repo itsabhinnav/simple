@@ -1,0 +1,211 @@
+/* =============================================================
+   Admin Settings — Schema tab, reload banner, and modal styles
+   Kept separate from admin-settings.component.scss so each file
+   stays inside Angular's per-component CSS budget.
+   ============================================================= */
+
+.reload-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius);
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+
+  .reload-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: reload-pulse 1.2s infinite;
+  }
+}
+
+@keyframes reload-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+  70%  { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.schema-toolbar {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.field-list li.protected .field-name { color: var(--color-primary-lighter); }
+
+.lock-tag {
+  display: inline-block;
+  margin-left: var(--spacing-xs);
+  font-size: var(--fs-xs);
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  background: var(--color-gray-300);
+  color: var(--color-primary-lighter);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: var(--fw-semibold);
+}
+
+.schema-table tr.edit-row {
+  background: var(--color-accent-light);
+
+  input[type="text"],
+  select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius-sm);
+    background: var(--color-gray-100);
+    font-size: var(--fs-sm);
+    font-family: var(--font-mono);
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.15);
+    }
+  }
+}
+
+.schema-table .actions-col {
+  display: flex;
+  gap: var(--spacing-xs);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.add-column-form {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr auto 1fr auto;
+  gap: var(--spacing-sm);
+  align-items: center;
+
+  input[type="text"],
+  select {
+    padding: 8px 12px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius-sm);
+    background: var(--color-gray-100);
+    font-size: var(--fs-base);
+    font-family: var(--font-mono);
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.15);
+    }
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--color-primary-light);
+  cursor: pointer;
+  user-select: none;
+}
+
+.migration-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-md);
+}
+
+.modal {
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+  width: 100%;
+  max-width: 880px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-gray-300);
+
+  h3 {
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+  }
+}
+
+.modal-body {
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+
+  select {
+    padding: 6px 10px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius-sm);
+    background: var(--color-gray-100);
+    font-size: var(--fs-sm);
+    font-family: var(--font-mono);
+  }
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--border-radius-sm);
+    background: var(--color-gray-100);
+    font-size: var(--fs-base);
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.15);
+    }
+  }
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-gray-300);
+  background: var(--color-gray-200);
+}

@@ -121,6 +121,7 @@ class LocalDatabaseService:
                 CREATE TABLE IF NOT EXISTS {requirements_table} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     requirement_id TEXT UNIQUE NOT NULL,
+                    srs_id TEXT,
                     title TEXT NOT NULL,
                     description TEXT,
                     given TEXT,
@@ -131,6 +132,16 @@ class LocalDatabaseService:
                     status TEXT CHECK(status IN ('Draft', 'Approved', 'Implemented', 'Tested', 'Closed')) DEFAULT 'Draft',
                     assignee TEXT,
                     tags TEXT,
+                    feature TEXT,
+                    region TEXT,
+                    brand TEXT,
+                    reference_spec_id TEXT,
+                    reference_spec_version TEXT,
+                    requirement_version TEXT,
+                    verification_method TEXT,
+                    linked_epic_jira_id TEXT,
+                    linked_test_case_ids TEXT,
+                    linked_design_ids TEXT,
                     created_by TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -223,6 +234,62 @@ class LocalDatabaseService:
                 )
             """
 
+            # Schema migrations audit table — populated by SchemaService
+            # whenever an admin applies a runtime DDL change. Created here
+            # so the table is available even before SchemaService is first
+            # touched by a request.
+            create_schema_migrations_table = """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    applied_by TEXT,
+                    operation TEXT NOT NULL,
+                    table_name TEXT,
+                    column_name TEXT,
+                    details TEXT,
+                    succeeded INTEGER NOT NULL DEFAULT 1,
+                    error TEXT,
+                    backup_path TEXT
+                )
+            """
+
+            # Git-style activity log for data changes. Every create / update /
+            # delete on a tracked entity (requirements, test cases, design
+            # tickets, ...) writes one row here with a stable commit hash,
+            # the author, and a JSON diff. The frontend renders this as a
+            # history panel on the entity detail pages and the global
+            # /activity feed.
+            #
+            # parent_hash chains commits on the same entity, mirroring git's
+            # parent pointer so a future "revert to revision X" endpoint can
+            # walk backwards through the history.
+            create_activity_log_table = """
+                CREATE TABLE IF NOT EXISTS activity_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    commit_hash TEXT UNIQUE NOT NULL,
+                    parent_hash TEXT,
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    entity_pk INTEGER,
+                    action TEXT NOT NULL,
+                    field_changes TEXT,
+                    snapshot_before TEXT,
+                    snapshot_after TEXT,
+                    summary TEXT,
+                    author_username TEXT,
+                    author_id INTEGER,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            create_activity_log_entity_idx = (
+                "CREATE INDEX IF NOT EXISTS idx_activity_log_entity "
+                "ON activity_log(entity_type, entity_id, created_at DESC)"
+            )
+            create_activity_log_recent_idx = (
+                "CREATE INDEX IF NOT EXISTS idx_activity_log_recent "
+                "ON activity_log(created_at DESC)"
+            )
+
             # Execute table creation queries
             self.execute_query(create_users_table, "default")
             self.execute_query(create_test_cases_table, "default")
@@ -233,13 +300,30 @@ class LocalDatabaseService:
             self.execute_query(create_sync_status_table, "default")
             self.execute_query(create_database_metadata_table, "default")
             self.execute_query(create_design_tickets_table, "default")
+            self.execute_query(create_schema_migrations_table, "default")
+            self.execute_query(create_activity_log_table, "default")
+            self.execute_query(create_activity_log_entity_idx, "default")
+            self.execute_query(create_activity_log_recent_idx, "default")
 
             # Pair the design_tickets table with the requirements.design_ticket_id
             # column the migration script also adds, so the link from a requirement
             # to its design ticket survives a clean rebuild.
             self._add_missing_columns(
                 requirements_table,
-                {"design_ticket_id": "TEXT"},
+                {
+                    "design_ticket_id": "TEXT",
+                    "srs_id": "TEXT",
+                    "feature": "TEXT",
+                    "region": "TEXT",
+                    "brand": "TEXT",
+                    "reference_spec_id": "TEXT",
+                    "reference_spec_version": "TEXT",
+                    "requirement_version": "TEXT",
+                    "verification_method": "TEXT",
+                    "linked_epic_jira_id": "TEXT",
+                    "linked_test_case_ids": "TEXT",
+                    "linked_design_ids": "TEXT",
+                },
             )
             
             # Idempotent column additions for existing databases that pre-date

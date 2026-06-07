@@ -53,11 +53,84 @@ export interface LlmTestResponse {
   error?: string;
 }
 
+export interface SchemaColumn {
+  cid?: number;
+  name: string;
+  type: string;
+  nullable: boolean;
+  default: any;
+  primary_key: boolean;
+}
+
+export interface SchemaIndex {
+  name: string;
+  unique: boolean;
+  origin: string;
+  columns: string[];
+}
+
+export interface SchemaTable {
+  name: string;
+  protected: boolean;
+  row_count: number;
+  columns: SchemaColumn[];
+  indexes: SchemaIndex[];
+  foreign_keys: any[];
+}
+
+export interface SchemaTableSummary {
+  name: string;
+  column_count: number;
+  row_count: number;
+  protected: boolean;
+}
+
+export interface SchemaMigrationRow {
+  id: number;
+  applied_at: string;
+  applied_by: string | null;
+  operation: string;
+  table_name: string | null;
+  column_name: string | null;
+  details: string | null;
+  succeeded: number;
+  error: string | null;
+  backup_path: string | null;
+}
+
+export interface SchemaBackupRow {
+  path: string;
+  name: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface SchemaMigrationsResponse {
+  migrations: SchemaMigrationRow[];
+  backups: SchemaBackupRow[];
+}
+
+export interface CreateTableColumn {
+  name: string;
+  type: string;
+  nullable?: boolean;
+  default?: any;
+  primary_key?: boolean;
+}
+
+export interface ColumnChangePayload {
+  new_name?: string;
+  new_type?: string;
+  nullable?: boolean;
+  default?: any;
+}
+
 interface ApiEnvelope<T> {
   success: boolean;
   message?: string;
   error?: string;
   data?: T;
+  requires_reload?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -122,6 +195,117 @@ export class AdminService {
       .post<LlmTestResponse>(`${this.baseUrl}/llm/test/${encodeURIComponent(name)}`, {})
       .pipe(
         catchError(err => throwError(() => new Error(this.extractError(err, 'Connectivity test failed'))))
+      );
+  }
+
+  // -----------------------------------------------------------------
+  // Schema management — runtime DDL on the local SQLite database
+  // -----------------------------------------------------------------
+  listSchemaTables(): Observable<SchemaTableSummary[]> {
+    return this.http
+      .get<ApiEnvelope<{ tables: SchemaTableSummary[] }>>(`${this.baseUrl}/schema/tables`)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to list tables');
+          return r.data.tables;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to list tables'))))
+      );
+  }
+
+  getSchemaTable(name: string): Observable<SchemaTable> {
+    return this.http
+      .get<ApiEnvelope<SchemaTable>>(`${this.baseUrl}/schema/tables/${encodeURIComponent(name)}`)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to fetch table');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to fetch table'))))
+      );
+  }
+
+  createSchemaTable(name: string, columns: CreateTableColumn[]): Observable<SchemaTable> {
+    return this.http
+      .post<ApiEnvelope<SchemaTable>>(`${this.baseUrl}/schema/tables`, { name, columns })
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to create table');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to create table'))))
+      );
+  }
+
+  dropSchemaTable(name: string): Observable<{ dropped: boolean; table: string }> {
+    return this.http
+      .delete<ApiEnvelope<{ dropped: boolean; table: string }>>(`${this.baseUrl}/schema/tables/${encodeURIComponent(name)}`)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to drop table');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to drop table'))))
+      );
+  }
+
+  addSchemaColumn(table: string, column: CreateTableColumn): Observable<SchemaTable> {
+    return this.http
+      .post<ApiEnvelope<SchemaTable>>(`${this.baseUrl}/schema/tables/${encodeURIComponent(table)}/columns`, column)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to add column');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to add column'))))
+      );
+  }
+
+  updateSchemaColumn(table: string, column: string, payload: ColumnChangePayload): Observable<SchemaTable> {
+    return this.http
+      .put<ApiEnvelope<SchemaTable>>(`${this.baseUrl}/schema/tables/${encodeURIComponent(table)}/columns/${encodeURIComponent(column)}`, payload)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to update column');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to update column'))))
+      );
+  }
+
+  dropSchemaColumn(table: string, column: string): Observable<SchemaTable> {
+    return this.http
+      .delete<ApiEnvelope<SchemaTable>>(`${this.baseUrl}/schema/tables/${encodeURIComponent(table)}/columns/${encodeURIComponent(column)}`)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to drop column');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to drop column'))))
+      );
+  }
+
+  listSchemaMigrations(): Observable<SchemaMigrationsResponse> {
+    return this.http
+      .get<ApiEnvelope<SchemaMigrationsResponse>>(`${this.baseUrl}/schema/migrations`)
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to load migrations');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to load migrations'))))
+      );
+  }
+
+  createSchemaBackup(): Observable<{ path: string; size_bytes: number }> {
+    return this.http
+      .post<ApiEnvelope<{ path: string; size_bytes: number }>>(`${this.baseUrl}/schema/backup`, {})
+      .pipe(
+        map(r => {
+          if (!r.success || !r.data) throw new Error(r.message || r.error || 'Backup failed');
+          return r.data;
+        }),
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Backup failed'))))
       );
   }
 

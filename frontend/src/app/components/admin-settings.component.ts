@@ -9,23 +9,54 @@ import {
   ImportTargetSchema,
   LlmConfigResponse,
   LlmTestResponse,
+  SchemaTable,
+  SchemaTableSummary,
+  SchemaColumn,
+  SchemaMigrationRow,
+  SchemaBackupRow,
+  CreateTableColumn,
 } from '../services/admin.service';
 import { TestCaseService } from '../services/test-case.service';
+import { SettingsReloadService } from '../services/settings-reload.service';
 
-type TabId = 'dropdowns' | 'multiValue' | 'features' | 'aliases' | 'targets' | 'llm' | 'sections' | 'readonly';
+type TabId = 'dropdowns' | 'multiValue' | 'features' | 'aliases' | 'targets' | 'llm' | 'schema' | 'sections' | 'readonly';
 
 interface AliasRow { raw: string; target: string | null; }
+
+interface NewColumnDraft {
+  name: string;
+  type: string;
+  nullable: boolean;
+  default: string;
+  primary_key: boolean;
+}
+
+interface ColumnEditDraft {
+  new_name: string;
+  new_type: string;
+  nullable: boolean;
+  default: string;
+}
 
 @Component({
   selector: 'app-admin-settings',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './admin-settings.component.html',
-  styleUrl: './admin-settings.component.scss'
+  styleUrls: [
+    './admin-settings.component.scss',
+    './admin-settings-schema.component.scss'
+  ]
 })
 export class AdminSettingsComponent implements OnInit {
   private admin = inject(AdminService);
   private testCaseService = inject(TestCaseService);
+  protected reloadBus = inject(SettingsReloadService);
+
+  /** SQLite affinity types the admin UI exposes in selects. */
+  readonly columnTypes: ReadonlyArray<string> = [
+    'TEXT', 'INTEGER', 'REAL', 'NUMERIC', 'BOOLEAN', 'DATETIME', 'DATE', 'BLOB'
+  ];
 
   loading = signal(true);
   saving = signal(false);
@@ -93,6 +124,24 @@ export class AdminSettingsComponent implements OnInit {
   sectionDraft = signal<string>('');
   sectionDraftError = signal<string | null>(null);
 
+  // --- Schema tab state ---
+  schemaTables = signal<SchemaTableSummary[]>([]);
+  selectedSchemaTable = signal<string>('');
+  currentSchemaTable = signal<SchemaTable | null>(null);
+  schemaLoading = signal(false);
+  schemaError = signal<string | null>(null);
+  newColumnDraft = signal<NewColumnDraft>(this.emptyColumnDraft());
+  editingColumn = signal<string | null>(null);
+  columnEditDraft = signal<ColumnEditDraft>({ new_name: '', new_type: 'TEXT', nullable: true, default: '' });
+
+  showNewTableModal = signal(false);
+  newTableName = signal('');
+  newTableColumns = signal<NewColumnDraft[]>([this.emptyColumnDraft({ primary_key: true, type: 'INTEGER', name: 'id', nullable: false })]);
+
+  migrations = signal<SchemaMigrationRow[]>([]);
+  backups = signal<SchemaBackupRow[]>([]);
+  showMigrations = signal(false);
+
   ngOnInit(): void { this.reload(); }
 
   reload(): void {
@@ -131,6 +180,7 @@ export class AdminSettingsComponent implements OnInit {
       error: () => { /* leave schema null; tab will show message */ }
     });
     this.loadLlm();
+    this.loadSchema();
   }
 
   // ----------------------------------------------------------------
@@ -466,6 +516,282 @@ export class AdminSettingsComponent implements OnInit {
   // ----------------------------------------------------------------
   readOnlyJson(name: string): string {
     return JSON.stringify(this.settings()?.sections?.[name] ?? {}, null, 2);
+  }
+
+  // ----------------------------------------------------------------
+  // Schema tab — table & column DDL
+  // ----------------------------------------------------------------
+  private emptyColumnDraft(overrides: Partial<NewColumnDraft> = {}): NewColumnDraft {
+    return { name: '', type: 'TEXT', nullable: true, default: '', primary_key: false, ...overrides };
+  }
+
+  loadSchema(): void {
+    this.schemaLoading.set(true);
+    this.schemaError.set(null);
+    this.admin.listSchemaTables().subscribe({
+      next: tables => {
+        this.schemaTables.set(tables);
+        if (!this.selectedSchemaTable() && tables.length > 0) {
+          const firstEditable = tables.find(t => !t.protected) || tables[0];
+          this.selectedSchemaTable.set(firstEditable.name);
+          this.loadSchemaTable(firstEditable.name);
+        } else if (this.selectedSchemaTable()) {
+          this.loadSchemaTable(this.selectedSchemaTable());
+        }
+      },
+      error: err => this.schemaError.set(err?.message || 'Failed to load tables'),
+      complete: () => this.schemaLoading.set(false),
+    });
+    this.loadMigrations();
+  }
+
+  selectSchemaTable(name: string): void {
+    this.selectedSchemaTable.set(name);
+    this.editingColumn.set(null);
+    this.loadSchemaTable(name);
+  }
+
+  loadSchemaTable(name: string): void {
+    if (!name) return;
+    this.admin.getSchemaTable(name).subscribe({
+      next: t => this.currentSchemaTable.set(t),
+      error: err => this.flash('err', err?.message || 'Failed to load table'),
+    });
+  }
+
+  loadMigrations(): void {
+    this.admin.listSchemaMigrations().subscribe({
+      next: r => {
+        this.migrations.set(r.migrations || []);
+        this.backups.set(r.backups || []);
+      },
+      error: () => { /* non-fatal */ },
+    });
+  }
+
+  // --- Add column on current table ---
+  updateNewColumn<K extends keyof NewColumnDraft>(key: K, value: NewColumnDraft[K]): void {
+    this.newColumnDraft.set({ ...this.newColumnDraft(), [key]: value });
+  }
+
+  resetNewColumn(): void {
+    this.newColumnDraft.set(this.emptyColumnDraft());
+  }
+
+  addColumnToCurrentTable(): void {
+    const table = this.selectedSchemaTable();
+    const draft = this.newColumnDraft();
+    if (!table || !draft.name.trim()) return;
+    const payload: CreateTableColumn = {
+      name: draft.name.trim(),
+      type: draft.type,
+      nullable: draft.nullable,
+      default: draft.default !== '' ? draft.default : undefined,
+      primary_key: false,
+    };
+    this.saving.set(true);
+    this.admin.addSchemaColumn(table, payload).subscribe({
+      next: t => {
+        this.currentSchemaTable.set(t);
+        this.resetNewColumn();
+        this.flash('ok', `Column '${payload.name}' added to ${table}`);
+        this.afterSchemaChange(`Added column ${payload.name} to ${table}`);
+      },
+      error: err => this.flash('err', err?.message || 'Failed to add column'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  // --- Edit column (rename + retype + nullability + default) ---
+  startEditColumn(col: SchemaColumn): void {
+    this.editingColumn.set(col.name);
+    this.columnEditDraft.set({
+      new_name: col.name,
+      new_type: (col.type || 'TEXT').toString().toUpperCase(),
+      nullable: col.nullable,
+      default: col.default == null ? '' : String(col.default),
+    });
+  }
+
+  cancelEditColumn(): void {
+    this.editingColumn.set(null);
+  }
+
+  updateColumnEdit<K extends keyof ColumnEditDraft>(key: K, value: ColumnEditDraft[K]): void {
+    this.columnEditDraft.set({ ...this.columnEditDraft(), [key]: value });
+  }
+
+  saveColumnEdit(): void {
+    const table = this.selectedSchemaTable();
+    const original = this.editingColumn();
+    if (!table || !original) return;
+    const draft = this.columnEditDraft();
+    const payload = {
+      new_name: draft.new_name && draft.new_name !== original ? draft.new_name : undefined,
+      new_type: draft.new_type || undefined,
+      nullable: draft.nullable,
+      default: draft.default !== '' ? draft.default : null,
+    };
+    this.saving.set(true);
+    this.admin.updateSchemaColumn(table, original, payload).subscribe({
+      next: t => {
+        this.currentSchemaTable.set(t);
+        this.editingColumn.set(null);
+        this.flash('ok', `Column '${original}' updated`);
+        this.afterSchemaChange(`Updated column ${original} on ${table}`);
+      },
+      error: err => this.flash('err', err?.message || 'Failed to update column'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  deleteColumn(col: SchemaColumn): void {
+    const table = this.selectedSchemaTable();
+    if (!table) return;
+    if (col.primary_key) {
+      this.flash('err', 'Cannot drop a primary key column');
+      return;
+    }
+    const ok = window.confirm(`Drop column "${col.name}" from "${table}"? This is irreversible.`);
+    if (!ok) return;
+    this.saving.set(true);
+    this.admin.dropSchemaColumn(table, col.name).subscribe({
+      next: t => {
+        this.currentSchemaTable.set(t);
+        this.flash('ok', `Column '${col.name}' dropped`);
+        this.afterSchemaChange(`Dropped column ${col.name} from ${table}`);
+      },
+      error: err => this.flash('err', err?.message || 'Failed to drop column'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  // --- Create new table ---
+  openNewTableModal(): void {
+    this.newTableName.set('');
+    this.newTableColumns.set([
+      this.emptyColumnDraft({ name: 'id', type: 'INTEGER', primary_key: true, nullable: false }),
+    ]);
+    this.showNewTableModal.set(true);
+  }
+
+  closeNewTableModal(): void {
+    this.showNewTableModal.set(false);
+  }
+
+  addNewTableColumn(): void {
+    this.newTableColumns.set([...this.newTableColumns(), this.emptyColumnDraft()]);
+  }
+
+  removeNewTableColumn(index: number): void {
+    const next = this.newTableColumns().filter((_, i) => i !== index);
+    this.newTableColumns.set(next.length > 0 ? next : [this.emptyColumnDraft()]);
+  }
+
+  updateNewTableColumn<K extends keyof NewColumnDraft>(index: number, key: K, value: NewColumnDraft[K]): void {
+    const list = [...this.newTableColumns()];
+    list[index] = { ...list[index], [key]: value };
+    this.newTableColumns.set(list);
+  }
+
+  submitNewTable(): void {
+    const name = this.newTableName().trim();
+    if (!name) {
+      this.flash('err', 'Table name is required');
+      return;
+    }
+    const payload: CreateTableColumn[] = this.newTableColumns()
+      .filter(c => c.name.trim())
+      .map(c => ({
+        name: c.name.trim(),
+        type: c.type,
+        nullable: c.nullable,
+        default: c.default !== '' ? c.default : undefined,
+        primary_key: c.primary_key,
+      }));
+    if (payload.length === 0) {
+      this.flash('err', 'At least one column is required');
+      return;
+    }
+    this.saving.set(true);
+    this.admin.createSchemaTable(name, payload).subscribe({
+      next: t => {
+        this.closeNewTableModal();
+        this.selectedSchemaTable.set(t.name);
+        this.currentSchemaTable.set(t);
+        this.loadSchema();
+        this.flash('ok', `Table '${name}' created`);
+        this.afterSchemaChange(`Created table ${name}`);
+      },
+      error: err => this.flash('err', err?.message || 'Failed to create table'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  // --- Drop table ---
+  dropCurrentTable(): void {
+    const name = this.selectedSchemaTable();
+    if (!name) return;
+    const typed = window.prompt(
+      `Type the table name "${name}" to confirm permanent deletion:`,
+      '',
+    );
+    if (typed !== name) {
+      if (typed !== null) this.flash('err', 'Confirmation did not match — not dropped');
+      return;
+    }
+    this.saving.set(true);
+    this.admin.dropSchemaTable(name).subscribe({
+      next: () => {
+        this.selectedSchemaTable.set('');
+        this.currentSchemaTable.set(null);
+        this.loadSchema();
+        this.flash('ok', `Table '${name}' dropped`);
+        this.afterSchemaChange(`Dropped table ${name}`);
+      },
+      error: err => this.flash('err', err?.message || 'Failed to drop table'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  createBackup(): void {
+    this.saving.set(true);
+    this.admin.createSchemaBackup().subscribe({
+      next: r => {
+        this.flash('ok', `Backup created (${this.formatBytes(r.size_bytes)})`);
+        this.loadMigrations();
+      },
+      error: err => this.flash('err', err?.message || 'Backup failed'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  toggleMigrations(): void {
+    this.showMigrations.set(!this.showMigrations());
+    if (this.showMigrations()) this.loadMigrations();
+  }
+
+  formatBytes(bytes: number): string {
+    if (!bytes && bytes !== 0) return '—';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let v = bytes;
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  /**
+   * Trigger a delayed full reload of the SPA after a schema change. The
+   * delay lets the success toast flash briefly. We also broadcast the
+   * intent so other open tabs reload together.
+   */
+  private afterSchemaChange(reason: string): void {
+    this.reloadBus.scheduleReload(reason, 1500);
+  }
+
+  /** Explicit "Restart app" button used by the header. */
+  restartApp(): void {
+    this.reloadBus.reloadNow('Manual restart');
   }
 
   // ----------------------------------------------------------------

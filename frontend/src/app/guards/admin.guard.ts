@@ -10,14 +10,18 @@ export class AdminGuard implements CanActivate {
   private router = inject(Router);
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    // Admin privileges are temporarily disabled — every authenticated
-    // session can reach admin-only routes. Restore the role check below
-    // to re-enable gating.
     if (!this.authService.isAuthenticated()) {
       this.router.navigate(['/login']);
       return false;
     }
-    return true;
+
+    const user = this.authService.getCurrentUser();
+    if (user?.role === 'admin') {
+      return true;
+    }
+
+    this.router.navigate(['/']);
+    return false;
   }
 }
 

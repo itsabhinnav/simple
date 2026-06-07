@@ -67,7 +67,7 @@
                   <small>{{ 'nav.design_desc' | translate }}</small>
                 </span>
               </button>
-              <a class="menu-item" routerLink="/specs">
+              <a class="menu-item" routerLink="/specs" (click)="closeCreateMenu()">
                 <span class="menu-icon">📑</span>
                 <span class="menu-text">
                   <strong>{{ 'nav.specification' | translate }}</strong>
@@ -80,16 +80,14 @@
             <span class="admin-icon">💬</span>
             <span>Sakura AI</span>
           </a>
-          <a *ngIf="currentUser()" routerLink="/users" class="admin-link-header" title="User Management">
+          <a *ngIf="isAdmin()" routerLink="/users" class="admin-link-header" title="User Management">
             <span class="admin-icon">👥</span>
             <span>{{ 'nav.users' | translate }}</span>
           </a>
-          <a *ngIf="currentUser()" routerLink="/admin/settings" class="admin-link-header" title="Admin Settings">
+          <a *ngIf="isAdmin()" routerLink="/admin/settings" class="admin-link-header" title="Admin Settings">
             <span class="admin-icon">⚙️</span>
             <span>Settings</span>
           </a>
-          <!-- Debug: Show current user role -->
-          <span *ngIf="currentUser()" style="font-size: 10px; color: #999;">(Role: {{ currentUser()!.role || 'none' }})</span>
           <span class="user-name">{{ currentUser()?.username }}</span>
 
           <!-- Language Picker -->

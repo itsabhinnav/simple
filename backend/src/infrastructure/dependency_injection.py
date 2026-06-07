@@ -168,12 +168,16 @@ class ApplicationContainer:
             )
         )
         
+        # Activity log singleton must be available before the test case
+        # repository so we can pass it in at construction time. It's
+        # registered above (see _setup_services tail) — but pylint-style
+        # ordering is fine since DI resolution is lazy.
         self.container.register_singleton(
             ITestCaseRepository,
             TestCaseRepository,
             factory=lambda: TestCaseRepository(
                 database_service=self.container.get(HybridDatabaseService),
-                table_name=test_cases_table
+                table_name=test_cases_table,
             )
         )
         
@@ -194,14 +198,28 @@ class ApplicationContainer:
             )
         )
         
+        # Activity log service is a thin wrapper over the hybrid DB; one
+        # singleton is shared across every entity service so the parent_hash
+        # chain stays continuous.
+        from src.services.activity_log_service import ActivityLogService
+
+        self.container.register_singleton(
+            ActivityLogService,
+            ActivityLogService,
+            factory=lambda: ActivityLogService(
+                database_service=self.container.get(HybridDatabaseService),
+            ),
+        )
+
         # Register requirement service
         from src.services.requirement_service import IRequirementService, RequirementService
-        
+
         self.container.register_singleton(
             IRequirementService,
             RequirementService,
             factory=lambda: RequirementService(
-                database_service=self.container.get(HybridDatabaseService)
+                database_service=self.container.get(HybridDatabaseService),
+                activity_log_service=self.container.get(ActivityLogService),
             )
         )
         
@@ -317,6 +335,12 @@ def get_test_case_repository() -> ITestCaseRepository:
     return get_container().container.get(ITestCaseRepository)
 
 
+def get_activity_log_service():
+    """Get the singleton activity / change-log service."""
+    from src.services.activity_log_service import ActivityLogService
+    return get_container().container.get(ActivityLogService)
+
+
 # --------------------- Hybrid document parsing engine ---------------------
 
 _PARSING_SINGLETONS: Dict[str, Any] = {}
@@ -326,6 +350,17 @@ def _parsing_singleton(name: str, factory: Callable[[], Any]) -> Any:
     if name not in _PARSING_SINGLETONS:
         _PARSING_SINGLETONS[name] = factory()
     return _PARSING_SINGLETONS[name]
+
+
+def get_schema_service():
+    """Return a lazily-built SchemaService bound to the local SQLite DB."""
+
+    def _factory():
+        from src.services.schema_service import SchemaService
+
+        return SchemaService(get_local_database_service())
+
+    return _parsing_singleton("schema_service", _factory)
 
 
 def get_excel_deterministic_parser():

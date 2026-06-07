@@ -1,4 +1,4 @@
-import { Component, signal, inject, OnInit, effect } from '@angular/core';
+import { Component, signal, inject, OnInit, effect, HostListener } from '@angular/core';
 import { RouterOutlet, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
@@ -165,6 +165,24 @@ export class App implements OnInit {
     this.showSearchResults.set(false);
   }
 
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (this.showCreateMenu() && !target.closest('.create-container-header')) {
+      this.showCreateMenu.set(false);
+    }
+    if (this.showLangMenu() && !target.closest('.lang-container')) {
+      this.showLangMenu.set(false);
+    }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey() {
+    this.showCreateMenu.set(false);
+    this.showLangMenu.set(false);
+  }
+
   toggleCreateMenu() {
     this.showCreateMenu.set(!this.showCreateMenu());
     this.showLangMenu.set(false);
@@ -197,6 +215,10 @@ export class App implements OnInit {
   createDesignTicket() {
     this.router.navigate(['/design-tickets/create']);
     this.closeCreateMenu();
+  }
+
+  isAdmin(): boolean {
+    return this.currentUser()?.role === 'admin';
   }
 
   isDashboardPage(): boolean {

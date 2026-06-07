@@ -4,10 +4,66 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 import jwt
 from datetime import datetime, timedelta
+from pydantic import ValidationError
 from src.services.user_service import IUserService
 from src.schemas.user_schema import LoginSchema, UserCreateSchema
 from src.infrastructure.logging_config import get_logger
 from src.middleware.error_handlers import limiter
+
+
+_FIELD_LABELS = {
+    "username": "Username",
+    "email": "Email",
+    "password": "Password",
+    "secret_key": "Secret key",
+    "git_token": "Git token",
+    "first_name": "First name",
+    "last_name": "Last name",
+    "role": "Role",
+}
+
+
+def _humanize_validation_error(exc: ValidationError) -> Dict[str, Any]:
+    """Turn a Pydantic ValidationError into a friendly per-field payload.
+
+    The raw `str(exc)` dump leaks the pydantic.dev help URL and internal
+    error codes ('type=string_too_short', 'input_value=...'), which is
+    confusing for end-users and also echoes back submitted values. We
+    convert each issue into a short human sentence keyed by field name.
+    """
+    fields: Dict[str, str] = {}
+    sentences = []
+    for err in exc.errors():
+        loc = err.get("loc") or ()
+        field = str(loc[0]) if loc else "field"
+        label = _FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
+        etype = err.get("type", "")
+        ctx = err.get("ctx") or {}
+
+        if etype == "string_too_short":
+            limit = ctx.get("min_length", "?")
+            msg = f"{label} must be at least {limit} characters."
+        elif etype == "string_too_long":
+            limit = ctx.get("max_length", "?")
+            msg = f"{label} must be at most {limit} characters."
+        elif etype == "string_pattern_mismatch" or etype == "value_error.email":
+            msg = f"{label} format is invalid."
+        elif etype == "missing":
+            msg = f"{label} is required."
+        elif etype.startswith("string_type") or etype == "string_type":
+            msg = f"{label} must be text."
+        else:
+            msg = f"{label} is invalid."
+
+        fields.setdefault(field, msg)
+        sentences.append(msg)
+
+    return {
+        "success": False,
+        "error": "Validation error",
+        "message": " ".join(sentences) if sentences else "Invalid input.",
+        "fields": fields,
+    }
 
 logger = get_logger(__name__)
 
@@ -151,6 +207,8 @@ class AuthController:
                 }
             }), 201
             
+        except ValidationError as e:
+            return jsonify(_humanize_validation_error(e)), 400
         except ValueError as e:
             return jsonify({
                 "success": False,
@@ -216,6 +274,8 @@ class AuthController:
                 }
             }), 200
             
+        except ValidationError as e:
+            return jsonify(_humanize_validation_error(e)), 400
         except ValueError as e:
             return jsonify({
                 "success": False,

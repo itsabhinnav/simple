@@ -33,6 +33,7 @@ export class CreateRequirementComponent implements OnInit {
   constructor() {
     this.requirementForm = this.formBuilder.group({
       requirement_id: ['', [Validators.required]],
+      srs_id: [''],
       title: ['', [Validators.required]],
       description: [''],
       given: [''],
@@ -42,7 +43,17 @@ export class CreateRequirementComponent implements OnInit {
       status: ['Draft', [Validators.required]],
       requirement_type: [''],
       assignee: [''],
-      tags: ['']
+      tags: [''],
+      feature: [''],
+      region: [''],
+      brand: [''],
+      reference_spec_id: [''],
+      reference_spec_version: [''],
+      requirement_version: [''],
+      verification_method: [''],
+      linked_epic_jira_id: [''],
+      linked_test_case_ids: [''],
+      linked_design_ids: ['']
     });
   }
 
@@ -97,6 +108,7 @@ export class CreateRequirementComponent implements OnInit {
     const formValue = this.requirementForm.value;
     const createRequest: RequirementCreateRequest = {
       requirement_id: formValue.requirement_id,
+      srs_id: formValue.srs_id,
       title: formValue.title,
       description: formValue.description,
       given: formValue.given,
@@ -105,7 +117,17 @@ export class CreateRequirementComponent implements OnInit {
       priority: formValue.priority,
       status: formValue.status,
       assignee: formValue.assignee,
-      tags: formValue.tags
+      tags: formValue.tags,
+      feature: formValue.feature,
+      region: formValue.region,
+      brand: formValue.brand,
+      reference_spec_id: formValue.reference_spec_id,
+      reference_spec_version: formValue.reference_spec_version,
+      requirement_version: formValue.requirement_version,
+      verification_method: formValue.verification_method,
+      linked_epic_jira_id: formValue.linked_epic_jira_id,
+      linked_test_case_ids: formValue.linked_test_case_ids,
+      linked_design_ids: formValue.linked_design_ids
     };
 
     console.log('Creating requirement with data:', createRequest);

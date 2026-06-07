@@ -8,6 +8,7 @@ import { API_URL } from '../app-settings';
 export interface Requirement {
   id?: number;
   requirement_id: string;
+  srs_id?: string;
   title: string;
   description?: string;
   requirement_type?: string;
@@ -18,6 +19,16 @@ export interface Requirement {
   status: string;
   assignee?: string;
   tags?: string;
+  feature?: string;
+  region?: string;
+  brand?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
+  requirement_version?: string;
+  verification_method?: string;
+  linked_epic_jira_id?: string;
+  linked_test_case_ids?: string;
+  linked_design_ids?: string;
   linked_spec_id?: string;
   created_by?: string;
   created_at?: string;
@@ -26,6 +37,7 @@ export interface Requirement {
 
 export interface RequirementCreateRequest {
   requirement_id: string;
+  srs_id?: string;
   title: string;
   description?: string;
   given?: string;
@@ -35,11 +47,22 @@ export interface RequirementCreateRequest {
   status: string;
   assignee?: string;
   tags?: string;
+  feature?: string;
+  region?: string;
+  brand?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
+  requirement_version?: string;
+  verification_method?: string;
+  linked_epic_jira_id?: string;
+  linked_test_case_ids?: string;
+  linked_design_ids?: string;
   linked_spec_id?: string;
 }
 
 export interface RequirementUpdateRequest {
   title?: string;
+  srs_id?: string;
   description?: string;
   given?: string;
   when?: string;
@@ -48,6 +71,16 @@ export interface RequirementUpdateRequest {
   status?: string;
   assignee?: string;
   tags?: string;
+  feature?: string;
+  region?: string;
+  brand?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
+  requirement_version?: string;
+  verification_method?: string;
+  linked_epic_jira_id?: string;
+  linked_test_case_ids?: string;
+  linked_design_ids?: string;
   linked_spec_id?: string;
 }
 

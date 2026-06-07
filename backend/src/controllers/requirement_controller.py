@@ -76,9 +76,13 @@ class RequirementController:
             
             logger.info(f"Creating requirement with data: {data}")
             
-            # Convert when_action to when if present
+            # Accept legacy column names (`when_action`/`then_result`) so the
+            # requirements modal and any older clients keep working without a
+            # synchronised release. Detail page already renames client-side.
             if 'when_action' in data and 'when' not in data:
                 data['when'] = data.pop('when_action')
+            if 'then_result' in data and 'then' not in data:
+                data['then'] = data.pop('then_result')
             
             requirement_data = RequirementCreateSchema(**data)
             requirement = self.requirement_service.create_requirement(requirement_data)
@@ -113,7 +117,17 @@ class RequirementController:
                     "error": "Invalid request",
                     "message": "Request body is required"
                 }), 400
-            
+
+            # Accept the legacy column names used by the requirements list
+            # modal (`when_action`, `then_result`) and remap them to the
+            # logical schema fields (`when`, `then`). The detail page already
+            # renames client-side but the modal `onSubmit` did not, which
+            # caused the keys to be silently dropped by Pydantic.
+            if 'when_action' in data and 'when' not in data:
+                data['when'] = data.pop('when_action')
+            if 'then_result' in data and 'then' not in data:
+                data['then'] = data.pop('then_result')
+
             requirement_data = RequirementUpdateSchema(**data)
             requirement = self.requirement_service.update_requirement(req_id, requirement_data)
             

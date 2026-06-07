@@ -144,9 +144,34 @@ class ITestCaseRepository(ABC):
 class TestCaseRepository(ITestCaseRepository):
     """Concrete implementation of test case repository"""
 
-    def __init__(self, database_service, table_name: str = "test_cases"):
+    def __init__(self, database_service, table_name: str = "test_cases", activity_log_service=None):
         self.database_service = database_service
         self.table_name = table_name
+        # Late-bound: resolved lazily on first write to avoid a circular
+        # DI dependency between this repository and the activity log
+        # service (which itself depends on the database service).
+        self._activity_log_service = activity_log_service
+
+    def _get_activity_log(self):
+        if self._activity_log_service is not None:
+            return self._activity_log_service
+        try:
+            from src.infrastructure.dependency_injection import get_activity_log_service
+            self._activity_log_service = get_activity_log_service()
+        except Exception:
+            self._activity_log_service = None
+        return self._activity_log_service
+
+    def _current_user(self) -> Dict[str, Any]:
+        try:
+            from flask import g
+            user = getattr(g, "current_user", None) or {}
+            return {
+                "username": user.get("username") or g.get("current_username") or "system",
+                "id": user.get("id"),
+            }
+        except Exception:
+            return {"username": "system", "id": None}
 
     def find_all(self) -> List[Dict[str, Any]]:
         try:
@@ -221,7 +246,25 @@ class TestCaseRepository(ITestCaseRepository):
                 hydrated["id"] = result.get("lastrowid")
                 hydrated["created_at"] = result.get("created_at")
                 hydrated["updated_at"] = result.get("updated_at")
-                return hydrated
+                created = hydrated
+
+            try:
+                act = self._get_activity_log()
+                if act:
+                    user = self._current_user()
+                    act.record_change(
+                        entity_type="test_case",
+                        entity_id=created.get("test_case_id") or test_case_data.test_case_id,
+                        entity_pk=created.get("id"),
+                        action="create",
+                        before=None,
+                        after=created,
+                        author_username=user["username"],
+                        author_id=user.get("id"),
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+
             return created
         except Exception as e:
             raise Exception(f"Failed to create test case: {str(e)}")
@@ -230,6 +273,10 @@ class TestCaseRepository(ITestCaseRepository):
         try:
             if not test_case_data:
                 return self.find_by_id(test_case_id)
+
+            before = self.find_by_id(test_case_id)
+            if not before:
+                return None
 
             payload: Dict[str, Any] = {}
             for key, value in test_case_data.items():
@@ -250,14 +297,54 @@ class TestCaseRepository(ITestCaseRepository):
             if not result.get("success"):
                 raise Exception(f"Update failed: {result.get('error', 'Unknown error')}")
 
-            return self.find_by_id(test_case_id)
+            after = self.find_by_id(test_case_id)
+
+            try:
+                act = self._get_activity_log()
+                if act and after:
+                    user = self._current_user()
+                    act.record_change(
+                        entity_type="test_case",
+                        entity_id=test_case_id,
+                        entity_pk=after.get("id"),
+                        action="update",
+                        before=before,
+                        after=after,
+                        author_username=user["username"],
+                        author_id=user.get("id"),
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+
+            return after
         except Exception as e:
             raise Exception(f"Failed to update test case {test_case_id}: {str(e)}")
 
     def delete(self, test_case_id: str) -> bool:
         try:
+            before = self.find_by_id(test_case_id)
             query = f"DELETE FROM {self.table_name} WHERE test_case_id = ?"
             result = self.database_service.execute_query(query, "default", params=(test_case_id,))
-            return result.get("success", False)
+            success = result.get("success", False)
+
+            if success and before:
+                try:
+                    act = self._get_activity_log()
+                    if act:
+                        user = self._current_user()
+                        act.record_change(
+                            entity_type="test_case",
+                            entity_id=test_case_id,
+                            entity_pk=before.get("id"),
+                            action="delete",
+                            before=before,
+                            after=None,
+                            author_username=user["username"],
+                            author_id=user.get("id"),
+                        )
+                except Exception:  # noqa: BLE001
+                    pass
+
+            return success
         except Exception as e:
             raise Exception(f"Failed to delete test case {test_case_id}: {str(e)}")

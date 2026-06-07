@@ -12,7 +12,9 @@ from src.services.bulk_import_service import (
     HEADER_ALIASES,
     get_effective_target_config,
 )
+from src.services.schema_service import SchemaError
 from src.infrastructure.configuration_manager import get_config_manager
+from src.infrastructure.dependency_injection import get_schema_service
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -442,6 +444,167 @@ class AdminController:
                 "message": "An internal error occurred",
             }), 500
 
+    # ------------------------------------------------------------------
+    # Schema management — runtime DDL on the local SQLite database.
+    # ------------------------------------------------------------------
+    def _current_admin_username(self) -> str:
+        try:
+            from flask import g
+            return g.get('current_username') or 'admin'
+        except Exception:
+            return 'admin'
+
+    @require_admin
+    def list_schema_tables(self) -> Dict[str, Any]:
+        try:
+            tables = get_schema_service().list_tables()
+            return jsonify({"success": True, "data": {"tables": tables}}), 200
+        except Exception as e:
+            logger.exception("Failed to list tables")
+            return jsonify({"success": False, "error": "Failed to list tables", "message": str(e)}), 500
+
+    @require_admin
+    def get_schema_table(self, name: str) -> Dict[str, Any]:
+        try:
+            info = get_schema_service().get_table(name)
+            return jsonify({"success": True, "data": info}), 200
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Invalid table", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("Failed to inspect table %s", name)
+            return jsonify({"success": False, "error": "Failed to inspect table", "message": str(e)}), 500
+
+    @require_admin
+    def create_schema_table(self) -> Dict[str, Any]:
+        try:
+            payload = request.get_json(silent=True) or {}
+            name = payload.get("name")
+            columns = payload.get("columns") or []
+            if not name:
+                raise SchemaError("Body must include a 'name' field")
+            info = get_schema_service().create_table(
+                name, columns, applied_by=self._current_admin_username(),
+            )
+            return jsonify({
+                "success": True,
+                "message": f"Table '{name}' created",
+                "data": info,
+                "requires_reload": True,
+            }), 201
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("create_table failed")
+            return jsonify({"success": False, "error": "Failed to create table", "message": str(e)}), 500
+
+    @require_admin
+    def drop_schema_table(self, name: str) -> Dict[str, Any]:
+        try:
+            result = get_schema_service().drop_table(
+                name, applied_by=self._current_admin_username(),
+            )
+            return jsonify({
+                "success": True,
+                "message": f"Table '{name}' dropped",
+                "data": result,
+                "requires_reload": True,
+            }), 200
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("drop_table failed")
+            return jsonify({"success": False, "error": "Failed to drop table", "message": str(e)}), 500
+
+    @require_admin
+    def add_schema_column(self, table: str) -> Dict[str, Any]:
+        try:
+            payload = request.get_json(silent=True) or {}
+            info = get_schema_service().add_column(
+                table, payload, applied_by=self._current_admin_username(),
+            )
+            return jsonify({
+                "success": True,
+                "message": f"Column '{payload.get('name')}' added to '{table}'",
+                "data": info,
+                "requires_reload": True,
+            }), 201
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("add_column failed")
+            return jsonify({"success": False, "error": "Failed to add column", "message": str(e)}), 500
+
+    @require_admin
+    def update_schema_column(self, table: str, column: str) -> Dict[str, Any]:
+        try:
+            payload = request.get_json(silent=True) or {}
+            info = get_schema_service().change_column(
+                table=table,
+                column=column,
+                new_name=payload.get("new_name"),
+                new_type=payload.get("new_type"),
+                nullable=payload.get("nullable"),
+                default=payload.get("default"),
+                applied_by=self._current_admin_username(),
+            )
+            return jsonify({
+                "success": True,
+                "message": f"Column '{column}' on '{table}' updated",
+                "data": info,
+                "requires_reload": True,
+            }), 200
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("change_column failed")
+            return jsonify({"success": False, "error": "Failed to update column", "message": str(e)}), 500
+
+    @require_admin
+    def drop_schema_column(self, table: str, column: str) -> Dict[str, Any]:
+        try:
+            info = get_schema_service().drop_column(
+                table, column, applied_by=self._current_admin_username(),
+            )
+            return jsonify({
+                "success": True,
+                "message": f"Column '{column}' dropped from '{table}'",
+                "data": info,
+                "requires_reload": True,
+            }), 200
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("drop_column failed")
+            return jsonify({"success": False, "error": "Failed to drop column", "message": str(e)}), 500
+
+    @require_admin
+    def list_schema_migrations(self) -> Dict[str, Any]:
+        try:
+            migrations = get_schema_service().list_migrations()
+            backups = get_schema_service().list_backups()
+            return jsonify({"success": True, "data": {
+                "migrations": migrations,
+                "backups": backups,
+            }}), 200
+        except Exception as e:
+            logger.exception("Failed to list migrations")
+            return jsonify({"success": False, "error": "Failed to list migrations", "message": str(e)}), 500
+
+    @require_admin
+    def create_schema_backup(self) -> Dict[str, Any]:
+        try:
+            result = get_schema_service().create_backup()
+            return jsonify({
+                "success": True,
+                "message": "Backup created",
+                "data": result,
+            }), 201
+        except SchemaError as e:
+            return jsonify({"success": False, "error": "Backup failed", "message": str(e)}), 400
+        except Exception as e:
+            logger.exception("create_backup failed")
+            return jsonify({"success": False, "error": "Backup failed", "message": str(e)}), 500
+
     @require_admin
     def get_import_schema(self) -> Dict[str, Any]:
         """GET /api/admin/import-schema — expose the bulk import contract
@@ -490,7 +653,18 @@ def create_admin_blueprint() -> Blueprint:
     admin_bp.route('/llm', methods=['GET'])(controller.get_llm_config)
     admin_bp.route('/llm', methods=['PUT'])(controller.update_llm_config)
     admin_bp.route('/llm/test/<name>', methods=['POST'])(controller.test_llm_provider)
-    
+
+    # Database schema management (DDL on the local SQLite DB)
+    admin_bp.route('/schema/tables', methods=['GET'])(controller.list_schema_tables)
+    admin_bp.route('/schema/tables', methods=['POST'])(controller.create_schema_table)
+    admin_bp.route('/schema/tables/<name>', methods=['GET'])(controller.get_schema_table)
+    admin_bp.route('/schema/tables/<name>', methods=['DELETE'])(controller.drop_schema_table)
+    admin_bp.route('/schema/tables/<table>/columns', methods=['POST'])(controller.add_schema_column)
+    admin_bp.route('/schema/tables/<table>/columns/<column>', methods=['PUT'])(controller.update_schema_column)
+    admin_bp.route('/schema/tables/<table>/columns/<column>', methods=['DELETE'])(controller.drop_schema_column)
+    admin_bp.route('/schema/migrations', methods=['GET'])(controller.list_schema_migrations)
+    admin_bp.route('/schema/backup', methods=['POST'])(controller.create_schema_backup)
+
     return admin_bp
 
 

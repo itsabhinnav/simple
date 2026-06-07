@@ -28,7 +28,7 @@ export const API_URL = `${API_BASE}/api`;
 
 export const APP_SETTINGS = {
   auth: {
-    enabled: false
+    enabled: true
   },
   features: {
     specificationImportEnabled: false

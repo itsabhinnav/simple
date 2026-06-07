@@ -8,6 +8,7 @@ import { SplitViewComponent } from './split-view.component';
 export interface Requirement {
   id?: number;
   requirement_id: string;
+  srs_id?: string;
   title: string;
   description?: string;
   requirement_type?: string;
@@ -18,6 +19,16 @@ export interface Requirement {
   status: string;
   assignee?: string;
   tags?: string;
+  feature?: string;
+  region?: string;
+  brand?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
+  requirement_version?: string;
+  verification_method?: string;
+  linked_epic_jira_id?: string;
+  linked_test_case_ids?: string;
+  linked_design_ids?: string;
   linked_spec_id?: string;
   created_by?: string;
   created_at?: string;
@@ -26,6 +37,7 @@ export interface Requirement {
 
 export interface RequirementCreateRequest {
   requirement_id: string;
+  srs_id?: string;
   title: string;
   description?: string;
   given?: string;
@@ -35,11 +47,22 @@ export interface RequirementCreateRequest {
   status: string;
   assignee?: string;
   tags?: string;
+  feature?: string;
+  region?: string;
+  brand?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
+  requirement_version?: string;
+  verification_method?: string;
+  linked_epic_jira_id?: string;
+  linked_test_case_ids?: string;
+  linked_design_ids?: string;
   linked_spec_id?: string;
 }
 
 export interface RequirementUpdateRequest {
   title?: string;
+  srs_id?: string;
   description?: string;
   given?: string;
   when?: string;
@@ -48,6 +71,16 @@ export interface RequirementUpdateRequest {
   status?: string;
   assignee?: string;
   tags?: string;
+  feature?: string;
+  region?: string;
+  brand?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
+  requirement_version?: string;
+  verification_method?: string;
+  linked_epic_jira_id?: string;
+  linked_test_case_ids?: string;
+  linked_design_ids?: string;
   linked_spec_id?: string;
 }
 
@@ -333,7 +366,15 @@ export class RequirementsComponent implements OnInit {
         return;
       }
 
-      const updateData: RequirementUpdateRequest = this.requirementForm.value;
+      const raw = this.requirementForm.value;
+      const updateData: RequirementUpdateRequest = {
+        ...raw,
+        when: raw.when_action,
+        then: raw.then_result
+      };
+      delete (updateData as any).when_action;
+      delete (updateData as any).then_result;
+
       this.requirementService.updateRequirement(reqId, updateData).subscribe({
         next: () => {
           this.closeModal();
@@ -346,10 +387,14 @@ export class RequirementsComponent implements OnInit {
         }
       });
     } else {
+      const rawCreate = this.requirementForm.value;
       const createData: RequirementCreateRequest = {
-        ...this.requirementForm.value,
-        when: this.requirementForm.value.when_action
+        ...rawCreate,
+        when: rawCreate.when_action,
+        then: rawCreate.then_result
       };
+      delete (createData as any).when_action;
+      delete (createData as any).then_result;
       this.requirementService.createRequirement(createData).subscribe({
         next: () => {
           this.closeModal();

@@ -183,6 +183,62 @@
       <!-- SIDEBAR -->
       <aside class="content-side">
 
+        <!-- Identification -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🆔</span>
+            <h4>Identification</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label" for="req-srs-id">SRS ID</label>
+              <input
+                id="req-srs-id"
+                type="text"
+                class="side-input"
+                formControlName="srs_id"
+                placeholder="e.g. SRS-AUDIO-0042">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-version">Requirement Version</label>
+              <input
+                id="req-version"
+                type="text"
+                class="side-input"
+                formControlName="requirement_version"
+                placeholder="e.g. 1.0.0">
+            </div>
+          </div>
+        </article>
+
+        <!-- Reference Specification -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">📄</span>
+            <h4>Reference Specification</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label" for="req-spec-id">Spec ID</label>
+              <input
+                id="req-spec-id"
+                type="text"
+                class="side-input"
+                formControlName="reference_spec_id"
+                placeholder="e.g. SPEC_HVAC_01.1.1">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-spec-version">Spec Version</label>
+              <input
+                id="req-spec-version"
+                type="text"
+                class="side-input"
+                formControlName="reference_spec_version"
+                placeholder="e.g. 2.4">
+            </div>
+          </div>
+        </article>
+
         <!-- Classification -->
         <article class="side-card">
           <header class="side-card-header">
@@ -200,6 +256,43 @@
                 placeholder="e.g. Functional, UX, Safety">
             </div>
             <div class="side-field">
+              <label class="side-label" for="req-feature">Feature</label>
+              <input
+                id="req-feature"
+                type="text"
+                class="side-input"
+                formControlName="feature"
+                placeholder="e.g. BT, HVAC, Audio">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-region">Region</label>
+              <input
+                id="req-region"
+                type="text"
+                class="side-input"
+                formControlName="region"
+                placeholder="e.g. NA, EU, JP">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-brand">Brand</label>
+              <input
+                id="req-brand"
+                type="text"
+                class="side-input"
+                formControlName="brand"
+                placeholder="e.g. Toyota, Lexus">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-verification">Verification Method</label>
+              <select id="req-verification" class="side-input" formControlName="verification_method">
+                <option value="">—</option>
+                <option value="Test">Test</option>
+                <option value="Inspection">Inspection</option>
+                <option value="Analysis">Analysis</option>
+                <option value="Demonstration">Demonstration</option>
+              </select>
+            </div>
+            <div class="side-field">
               <label class="side-label" for="req-tags">Tags</label>
               <input
                 id="req-tags"
@@ -207,6 +300,43 @@
                 class="side-input"
                 formControlName="tags"
                 placeholder="Comma-separated tags">
+            </div>
+          </div>
+        </article>
+
+        <!-- Linked Items -->
+        <article class="side-card">
+          <header class="side-card-header">
+            <span class="side-icon">🔗</span>
+            <h4>Linked Items</h4>
+          </header>
+          <div class="side-card-body">
+            <div class="side-field">
+              <label class="side-label" for="req-epic">Epic JIRA ID</label>
+              <input
+                id="req-epic"
+                type="text"
+                class="side-input"
+                formControlName="linked_epic_jira_id"
+                placeholder="e.g. AUTO-1234">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-tcs">Test Cases</label>
+              <input
+                id="req-tcs"
+                type="text"
+                class="side-input"
+                formControlName="linked_test_case_ids"
+                placeholder="Comma-separated TC IDs">
+            </div>
+            <div class="side-field">
+              <label class="side-label" for="req-designs">Designs</label>
+              <input
+                id="req-designs"
+                type="text"
+                class="side-input"
+                formControlName="linked_design_ids"
+                placeholder="Comma-separated design IDs">
             </div>
           </div>
         </article>

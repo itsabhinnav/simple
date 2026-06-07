@@ -15,9 +15,13 @@
     <div class="top-bar-actions">
       <div class="save-status-pill" *ngIf="saveStatus() !== 'idle'" [attr.data-state]="saveStatus()">
         <span *ngIf="saveStatus() === 'saving'" class="status-dot"></span>
-        <span *ngIf="saveStatus() === 'saving'">Saving…</span>
+        <span *ngIf="saveStatus() === 'saving'">Saving{{ hasPendingEdits() ? ' ' + pendingFieldNames().length + ' field(s)…' : '…' }}</span>
         <span *ngIf="saveStatus() === 'saved'">✓ All changes saved</span>
-        <span *ngIf="saveStatus() === 'error'">✗ Error saving</span>
+        <span *ngIf="saveStatus() === 'error'">
+          ✗ Save failed
+          <button class="pill-btn" (click)="retryPending()" type="button" title="Retry pending edits">Retry</button>
+          <button class="pill-btn pill-btn--ghost" (click)="discardPending()" type="button" title="Discard local edits">Discard</button>
+        </span>
       </div>
       <button class="btn btn-ghost" (click)="goBack()" title="Back">
         <span>←</span> Back
@@ -27,6 +31,17 @@
       </button>
     </div>
   </header>
+
+  <div *ngIf="hasPendingEdits() && saveStatus() !== 'saving'" class="pending-banner" role="status">
+    <span class="pending-banner-icon">⏳</span>
+    <span class="pending-banner-text">
+      You have unsaved local edits in <strong>{{ pendingFieldNames().length }}</strong> field(s):
+      <code *ngFor="let f of pendingFieldNames(); let last = last">{{ f }}<span *ngIf="!last">, </span></code>.
+      They will be retried automatically.
+    </span>
+    <button class="pill-btn" type="button" (click)="retryPending()">Retry now</button>
+    <button class="pill-btn pill-btn--ghost" type="button" (click)="discardPending()">Discard</button>
+  </div>
 
   <!-- Loading State (skeleton) -->
   <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading requirement">
@@ -137,20 +152,57 @@
       </div>
 
       <div class="hero-quick-facts">
+        <div class="quick-fact" *ngIf="requirement()?.srs_id">
+          <span class="qf-icon">🆔</span>
+          <span class="qf-label">SRS ID</span>
+          <span class="qf-value">{{ requirement()?.srs_id }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.requirement_version">
+          <span class="qf-icon">🔢</span>
+          <span class="qf-label">Version</span>
+          <span class="qf-value">{{ requirement()?.requirement_version }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.feature">
+          <span class="qf-icon">⚙️</span>
+          <span class="qf-label">Feature</span>
+          <span class="qf-value">{{ requirement()?.feature }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.region">
+          <span class="qf-icon">🌐</span>
+          <span class="qf-label">Region</span>
+          <span class="qf-value">{{ requirement()?.region }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.brand">
+          <span class="qf-icon">🏷</span>
+          <span class="qf-label">Brand</span>
+          <span class="qf-value">{{ requirement()?.brand }}</span>
+        </div>
         <div class="quick-fact" *ngIf="requirement()?.requirement_type">
           <span class="qf-icon">📐</span>
           <span class="qf-label">Type</span>
           <span class="qf-value">{{ requirement()?.requirement_type }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.verification_method">
+          <span class="qf-icon">🔬</span>
+          <span class="qf-label">Verification</span>
+          <span class="qf-value">{{ requirement()?.verification_method }}</span>
         </div>
         <div class="quick-fact" *ngIf="requirement()?.assignee">
           <span class="qf-icon">👤</span>
           <span class="qf-label">Assignee</span>
           <span class="qf-value">{{ requirement()?.assignee }}</span>
         </div>
-        <div class="quick-fact" *ngIf="requirement()?.linked_spec_id">
+        <div class="quick-fact" *ngIf="requirement()?.reference_spec_id">
           <span class="qf-icon">📄</span>
           <span class="qf-label">Spec</span>
-          <span class="qf-value">{{ requirement()?.linked_spec_id }}</span>
+          <span class="qf-value">
+            {{ requirement()?.reference_spec_id }}<span *ngIf="requirement()?.reference_spec_version"> · v{{ requirement()?.reference_spec_version }}</span>
+          </span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.linked_epic_jira_id">
+          <span class="qf-icon">🪪</span>
+          <span class="qf-label">Epic</span>
+          <span class="qf-value">{{ requirement()?.linked_epic_jira_id }}</span>
         </div>
         <div class="quick-fact" *ngIf="requirement()?.tags">
           <span class="qf-icon">🏷️</span>
@@ -167,6 +219,16 @@
           <span class="qf-label">Designs</span>
           <span class="qf-value">{{ linkedDesigns().length }}</span>
         </div>
+        <div class="quick-fact" *ngIf="requirement()?.created_by">
+          <span class="qf-icon">✍️</span>
+          <span class="qf-label">By</span>
+          <span class="qf-value">{{ requirement()?.created_by }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="requirement()?.updated_at">
+          <span class="qf-icon">🕒</span>
+          <span class="qf-label">Updated</span>
+          <span class="qf-value">{{ requirement()?.updated_at }}</span>
+        </div>
       </div>
     </section>
 
@@ -175,6 +237,276 @@
 
       <!-- MAIN COLUMN -->
       <main class="content-main">
+
+        <!-- JIRA-style Details panel: all metadata up front -->
+        <article class="section-card details-card">
+          <header class="section-card-header">
+            <span class="section-icon">📋</span>
+            <div>
+              <h3 class="section-title">Details</h3>
+              <p class="section-subtitle">Classification · Identification · References · Links</p>
+            </div>
+          </header>
+          <div class="details-grid">
+
+            <!-- Classification -->
+            <div class="side-field">
+              <label class="side-label">📐 Type</label>
+              <div *ngIf="!isEditing('requirement_type'); else editTypeDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('requirement_type')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.requirement_type; else emptyTypeDg">{{ requirement()?.requirement_type }}</span>
+                <ng-template #emptyTypeDg><span class="inline-edit-placeholder">Add type…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editTypeDg>
+                <input type="text" data-edit-field="requirement_type" class="side-input"
+                  [value]="requirement()?.requirement_type || ''"
+                  (input)="onFieldChange('requirement_type', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Type">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🏷️ Tags</label>
+              <div *ngIf="!isEditing('tags'); else editTagsDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('tags')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.tags; else emptyTagsDg">{{ requirement()?.tags }}</span>
+                <ng-template #emptyTagsDg><span class="inline-edit-placeholder">Add tags…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editTagsDg>
+                <input type="text" data-edit-field="tags" class="side-input"
+                  [value]="requirement()?.tags || ''"
+                  (input)="onFieldChange('tags', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="comma, separated, tags">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">⚙️ Feature</label>
+              <div *ngIf="!isEditing('feature'); else editFeatureDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('feature')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.feature; else emptyFeatureDg">{{ requirement()?.feature }}</span>
+                <ng-template #emptyFeatureDg><span class="inline-edit-placeholder">e.g. BT, HVAC…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editFeatureDg>
+                <input type="text" data-edit-field="feature" class="side-input"
+                  [value]="requirement()?.feature || ''"
+                  (input)="onFieldChange('feature', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="e.g. BT, HVAC, Audio">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🌐 Region</label>
+              <div *ngIf="!isEditing('region'); else editRegionDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('region')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.region; else emptyRegionDg">{{ requirement()?.region }}</span>
+                <ng-template #emptyRegionDg><span class="inline-edit-placeholder">e.g. NA, EU, JP…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editRegionDg>
+                <input type="text" data-edit-field="region" class="side-input"
+                  [value]="requirement()?.region || ''"
+                  (input)="onFieldChange('region', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Region">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🏷 Brand</label>
+              <div *ngIf="!isEditing('brand'); else editBrandDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('brand')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.brand; else emptyBrandDg">{{ requirement()?.brand }}</span>
+                <ng-template #emptyBrandDg><span class="inline-edit-placeholder">Add brand…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editBrandDg>
+                <input type="text" data-edit-field="brand" class="side-input"
+                  [value]="requirement()?.brand || ''"
+                  (input)="onFieldChange('brand', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Brand">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🔬 Verification</label>
+              <div *ngIf="!isEditing('verification_method'); else editVerificationDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('verification_method')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.verification_method; else emptyVerificationDg">{{ requirement()?.verification_method }}</span>
+                <ng-template #emptyVerificationDg><span class="inline-edit-placeholder">Test / Inspection / Analysis…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editVerificationDg>
+                <select data-edit-field="verification_method" class="side-input"
+                  [value]="requirement()?.verification_method || ''"
+                  (change)="onFieldChange('verification_method', $any($event.target).value)"
+                  (blur)="stopEdit()">
+                  <option value="">—</option>
+                  <option value="Test">Test</option>
+                  <option value="Inspection">Inspection</option>
+                  <option value="Analysis">Analysis</option>
+                  <option value="Demonstration">Demonstration</option>
+                </select>
+              </ng-template>
+            </div>
+
+            <!-- Identification -->
+            <div class="side-field">
+              <label class="side-label">🆔 SRS ID</label>
+              <div *ngIf="!isEditing('srs_id'); else editSrsDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('srs_id')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.srs_id; else emptySrsDg">{{ requirement()?.srs_id }}</span>
+                <ng-template #emptySrsDg><span class="inline-edit-placeholder">Add SRS ID…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editSrsDg>
+                <input type="text" data-edit-field="srs_id" class="side-input"
+                  [value]="requirement()?.srs_id || ''"
+                  (input)="onFieldChange('srs_id', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="e.g. SRS-AUDIO-0042">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🔢 Version</label>
+              <div *ngIf="!isEditing('requirement_version'); else editReqVerDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('requirement_version')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.requirement_version; else emptyReqVerDg">{{ requirement()?.requirement_version }}</span>
+                <ng-template #emptyReqVerDg><span class="inline-edit-placeholder">e.g. 1.0.0</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editReqVerDg>
+                <input type="text" data-edit-field="requirement_version" class="side-input"
+                  [value]="requirement()?.requirement_version || ''"
+                  (input)="onFieldChange('requirement_version', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="1.0.0">
+              </ng-template>
+            </div>
+
+            <!-- Reference Specification -->
+            <div class="side-field">
+              <label class="side-label">📄 Spec ID</label>
+              <div *ngIf="!isEditing('reference_spec_id'); else editSpecIdDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('reference_spec_id')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.reference_spec_id; else emptySpecIdDg">{{ requirement()?.reference_spec_id }}</span>
+                <ng-template #emptySpecIdDg><span class="inline-edit-placeholder">e.g. SPEC_HVAC_01.1.1</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editSpecIdDg>
+                <input type="text" data-edit-field="reference_spec_id" class="side-input"
+                  [value]="requirement()?.reference_spec_id || ''"
+                  (input)="onFieldChange('reference_spec_id', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="SPEC_HVAC_01.1.1">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">📄 Spec Version</label>
+              <div *ngIf="!isEditing('reference_spec_version'); else editSpecVerDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('reference_spec_version')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.reference_spec_version; else emptySpecVerDg">{{ requirement()?.reference_spec_version }}</span>
+                <ng-template #emptySpecVerDg><span class="inline-edit-placeholder">e.g. 2.4</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editSpecVerDg>
+                <input type="text" data-edit-field="reference_spec_version" class="side-input"
+                  [value]="requirement()?.reference_spec_version || ''"
+                  (input)="onFieldChange('reference_spec_version', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="2.4">
+              </ng-template>
+            </div>
+
+            <!-- Linked Items -->
+            <div class="side-field">
+              <label class="side-label">🪪 Epic JIRA</label>
+              <div *ngIf="!isEditing('linked_epic_jira_id'); else editEpicDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('linked_epic_jira_id')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.linked_epic_jira_id; else emptyEpicDg">{{ requirement()?.linked_epic_jira_id }}</span>
+                <ng-template #emptyEpicDg><span class="inline-edit-placeholder">e.g. AUTO-1234</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editEpicDg>
+                <input type="text" data-edit-field="linked_epic_jira_id" class="side-input"
+                  [value]="requirement()?.linked_epic_jira_id || ''"
+                  (input)="onFieldChange('linked_epic_jira_id', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="AUTO-1234">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🧪 TC IDs</label>
+              <div *ngIf="!isEditing('linked_test_case_ids'); else editLinkedTcsDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('linked_test_case_ids')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.linked_test_case_ids; else emptyLinkedTcsDg">{{ requirement()?.linked_test_case_ids }}</span>
+                <ng-template #emptyLinkedTcsDg><span class="inline-edit-placeholder">Comma-separated TC IDs…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editLinkedTcsDg>
+                <input type="text" data-edit-field="linked_test_case_ids" class="side-input"
+                  [value]="requirement()?.linked_test_case_ids || ''"
+                  (input)="onFieldChange('linked_test_case_ids', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="TC_0001, TC_0002">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🎨 Design IDs</label>
+              <div *ngIf="!isEditing('linked_design_ids'); else editLinkedDesignsDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('linked_design_ids')"
+                   title="Click to edit">
+                <span *ngIf="requirement()?.linked_design_ids; else emptyLinkedDesignsDg">{{ requirement()?.linked_design_ids }}</span>
+                <ng-template #emptyLinkedDesignsDg><span class="inline-edit-placeholder">Comma-separated design IDs…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editLinkedDesignsDg>
+                <input type="text" data-edit-field="linked_design_ids" class="side-input"
+                  [value]="requirement()?.linked_design_ids || ''"
+                  (input)="onFieldChange('linked_design_ids', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="DESIGN_0001, DESIGN_0002">
+              </ng-template>
+            </div>
+
+          </div>
+        </article>
 
         <!-- Description -->
         <article class="section-card">
@@ -390,82 +722,6 @@
           </div>
         </article>
 
-        <!-- Classification -->
-        <article class="side-card">
-          <header class="side-card-header">
-            <span class="side-icon">🗂️</span>
-            <h4>Classification</h4>
-          </header>
-          <div class="side-card-body">
-            <div class="side-field">
-              <label class="side-label">📐 Type</label>
-              <div *ngIf="!isEditing('requirement_type'); else editType"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('requirement_type')"
-                   title="Click to edit">
-                <span *ngIf="requirement()?.requirement_type; else emptyType">{{ requirement()?.requirement_type }}</span>
-                <ng-template #emptyType><span class="inline-edit-placeholder">Add type…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editType>
-                <input
-                  type="text"
-                  data-edit-field="requirement_type"
-                  class="side-input"
-                  [value]="requirement()?.requirement_type || ''"
-                  (input)="onFieldChange('requirement_type', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="Type">
-              </ng-template>
-            </div>
-            <div class="side-field">
-              <label class="side-label">🏷️ Tags</label>
-              <div *ngIf="!isEditing('tags'); else editTags"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('tags')"
-                   title="Click to edit">
-                <span *ngIf="requirement()?.tags; else emptyTags">{{ requirement()?.tags }}</span>
-                <ng-template #emptyTags><span class="inline-edit-placeholder">Add tags…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editTags>
-                <input
-                  type="text"
-                  data-edit-field="tags"
-                  class="side-input"
-                  [value]="requirement()?.tags || ''"
-                  (input)="onFieldChange('tags', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="comma, separated, tags">
-              </ng-template>
-            </div>
-            <div class="side-field">
-              <label class="side-label">📄 Specification ID</label>
-              <div *ngIf="!isEditing('linked_spec_id'); else editSpec"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('linked_spec_id')"
-                   title="Click to edit">
-                <span *ngIf="requirement()?.linked_spec_id; else emptySpec">{{ requirement()?.linked_spec_id }}</span>
-                <ng-template #emptySpec><span class="inline-edit-placeholder">Add spec ID…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editSpec>
-                <input
-                  type="text"
-                  data-edit-field="linked_spec_id"
-                  class="side-input"
-                  [value]="requirement()?.linked_spec_id || ''"
-                  (input)="onFieldChange('linked_spec_id', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="SPEC_0001">
-              </ng-template>
-            </div>
-          </div>
-        </article>
-
         <!-- Timeline -->
         <article class="side-card" *ngIf="requirement()?.created_at || requirement()?.updated_at">
           <header class="side-card-header">
@@ -489,6 +745,13 @@
             </div>
           </div>
         </article>
+
+        <!-- Git-style change history -->
+        <app-activity-history
+          *ngIf="requirement()?.requirement_id as rid"
+          [entityType]="'requirement'"
+          [entityId]="rid">
+        </app-activity-history>
 
       </aside>
     </div>

@@ -324,9 +324,9 @@ export class SignupComponent {
       email: ['', [Validators.required, Validators.email]],
       first_name: [''],
       last_name: [''],
-      password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
+      password: ['', [Validators.required, Validators.minLength(12), Validators.maxLength(128)]],
       confirmPassword: ['', [Validators.required]],
-      secret_key: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
+      secret_key: ['', [Validators.required, Validators.minLength(12), Validators.maxLength(128)]],
       role: ['user']
     }, { validators: this.passwordMatchValidator });
   }

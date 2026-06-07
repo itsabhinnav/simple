@@ -15,9 +15,13 @@
     <div class="top-bar-actions">
       <div class="save-status-pill" *ngIf="saveStatus() !== 'idle'" [attr.data-state]="saveStatus()">
         <span *ngIf="saveStatus() === 'saving'" class="status-dot"></span>
-        <span *ngIf="saveStatus() === 'saving'">Saving…</span>
+        <span *ngIf="saveStatus() === 'saving'">Saving{{ hasPendingEdits() ? ' ' + pendingFieldNames().length + ' field(s)…' : '…' }}</span>
         <span *ngIf="saveStatus() === 'saved'">✓ All changes saved</span>
-        <span *ngIf="saveStatus() === 'error'">✗ Error saving</span>
+        <span *ngIf="saveStatus() === 'error'">
+          ✗ Save failed
+          <button class="pill-btn" type="button" (click)="retryPending()">Retry</button>
+          <button class="pill-btn pill-btn--ghost" type="button" (click)="discardPending()">Discard</button>
+        </span>
       </div>
       <button class="btn btn-ghost" (click)="goBack()" title="Back">
         <span aria-hidden="true">←</span> Back
@@ -51,6 +55,17 @@
       </button>
     </div>
   </header>
+
+  <div *ngIf="hasPendingEdits() && saveStatus() !== 'saving'" class="pending-banner" role="status">
+    <span class="pending-banner-icon">⏳</span>
+    <span class="pending-banner-text">
+      You have unsaved local edits in <strong>{{ pendingFieldNames().length }}</strong> field(s):
+      <code *ngFor="let f of pendingFieldNames(); let last = last">{{ f }}<span *ngIf="!last">, </span></code>.
+      They will be retried automatically.
+    </span>
+    <button class="pill-btn" type="button" (click)="retryPending()">Retry now</button>
+    <button class="pill-btn pill-btn--ghost" type="button" (click)="discardPending()">Discard</button>
+  </div>
 
   <!-- Loading State (skeleton) -->
   <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading test case">
@@ -219,6 +234,21 @@
             </a>
           </div>
         </ng-container>
+        <div class="quick-fact" *ngIf="testCase()?.screen_id">
+          <span class="qf-icon">📱</span>
+          <span class="qf-label">Screen</span>
+          <span class="qf-value">{{ testCase()?.screen_id }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="testCase()?.dr_id">
+          <span class="qf-icon">🔖</span>
+          <span class="qf-label">DR</span>
+          <span class="qf-value">{{ testCase()?.dr_id }}</span>
+        </div>
+        <div class="quick-fact" *ngIf="testCase()?.updated_at">
+          <span class="qf-icon">🕒</span>
+          <span class="qf-label">Updated</span>
+          <span class="qf-value">{{ testCase()?.updated_at }}</span>
+        </div>
       </div>
     </section>
 
@@ -227,6 +257,205 @@
 
       <!-- MAIN COLUMN -->
       <main class="content-main">
+
+        <!-- JIRA-style Details panel: all metadata up front -->
+        <article class="section-card details-card">
+          <header class="section-card-header">
+            <span class="section-icon">📋</span>
+            <div>
+              <h3 class="section-title">Details</h3>
+              <p class="section-subtitle">Pickers · Linked Requirement · Classification · Scope</p>
+            </div>
+          </header>
+
+          <!-- Configurable pickers (driven by config.yaml > test_case_dropdowns).
+               View-mode: render selected chips only and hide empty rows.
+               Edit-mode: render all available options + selected. -->
+          <div class="details-pickers"
+               *ngIf="editMode() ||
+                      mvArray(testCase()?.feature).length ||
+                      mvArray(testCase()?.region).length ||
+                      mvArray(testCase()?.brand).length ||
+                      mvArray($any(testCase())?.vehicle_variant).length ||
+                      mvArray($any(testCase())?.vehicle_specification).length ||
+                      mvArray($any(testCase())?.env_dependency).length ||
+                      mvArray($any(testCase())?.testsuite_type).length">
+            <ng-container *ngFor="let group of [
+              { field: 'feature',               label: '🎯 Feature',               options: dropdowns()?.feature || [] },
+              { field: 'region',                label: '🌍 Region',                options: dropdowns()?.region || [] },
+              { field: 'brand',                 label: '🏷️ Brand',                 options: dropdowns()?.brand || [] },
+              { field: 'vehicle_variant',       label: '🚗 Vehicle Variant',       options: dropdowns()?.vehicle_variant || [] },
+              { field: 'vehicle_specification', label: '⚙️ Vehicle Spec',          options: dropdowns()?.vehicle_specification || [] },
+              { field: 'env_dependency',        label: '🔌 Env Dependency',        options: dropdowns()?.env_dependency || [] },
+              { field: 'testsuite_type',        label: '📚 Test Suite Type',       options: dropdowns()?.testsuite_type || [] }
+            ]">
+              <div class="side-field side-field--picker"
+                   *ngIf="editMode() || mvArray($any(testCase())?.[group.field]).length">
+                <label class="side-label">{{ group.label }}</label>
+                <div class="picker-value">
+                  <!-- Edit mode: all options as toggleable chips -->
+                  <ng-container *ngIf="editMode()">
+                    <button
+                      type="button"
+                      class="chip"
+                      *ngFor="let opt of group.options"
+                      [class.chip--active]="isMultiSelected(group.field, opt)"
+                      (click)="toggleMulti(group.field, opt)">
+                      {{ opt }}
+                    </button>
+                  </ng-container>
+                  <!-- View mode: only currently-selected values -->
+                  <ng-container *ngIf="!editMode()">
+                    <span class="chip chip--active"
+                          *ngFor="let v of mvArray($any(testCase())?.[group.field])">
+                      {{ v }}
+                    </span>
+                  </ng-container>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+
+          <!-- Linked requirement chip(s): full-width strip -->
+          <div class="details-link-strip" *ngIf="mvArray(testCase()?.associated_requirement_id).length">
+            <a *ngFor="let rid of mvArray(testCase()?.associated_requirement_id)"
+               (click)="navigateToRequirement(rid)"
+               class="requirement-chip"
+               title="View requirement details">
+              <span class="req-chip-icon">📋</span>
+              <div class="req-chip-text">
+                <span class="req-chip-label">Linked Requirement</span>
+                <span class="req-chip-id">{{ rid }}</span>
+              </div>
+              <span class="req-chip-arrow">→</span>
+            </a>
+          </div>
+
+          <div class="details-grid">
+            <div class="side-field" *ngIf="testCase()?.requirement_type !== undefined">
+              <label class="side-label">📐 Req. Type</label>
+              <div *ngIf="!isEditing('requirement_type'); else editReqTypeDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('requirement_type')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.requirement_type; else emptyReqTypeDg">{{ testCase()?.requirement_type }}</span>
+                <ng-template #emptyReqTypeDg><span class="inline-edit-placeholder">Add requirement type…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editReqTypeDg>
+                <input type="text" data-edit-field="requirement_type" class="side-input"
+                  [value]="testCase()?.requirement_type || ''"
+                  (input)="onFieldChange('requirement_type', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Requirement type">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🚗 Vehicle</label>
+              <div *ngIf="!isEditing('vehicle_model'); else editVehicleDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('vehicle_model')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.vehicle_model; else emptyVehicleDg">{{ testCase()?.vehicle_model }}</span>
+                <ng-template #emptyVehicleDg><span class="inline-edit-placeholder">Add vehicle model…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editVehicleDg>
+                <input type="text" data-edit-field="vehicle_model" class="side-input"
+                  [value]="testCase()?.vehicle_model || ''"
+                  (input)="onFieldChange('vehicle_model', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="e.g., Volvo EX90">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🎯 Feature</label>
+              <div *ngIf="!isEditing('feature'); else editFeatureDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('feature')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.feature; else emptyFeatureDg">{{ testCase()?.feature }}</span>
+                <ng-template #emptyFeatureDg><span class="inline-edit-placeholder">Add feature…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editFeatureDg>
+                <input type="text" data-edit-field="feature" class="side-input"
+                  [value]="testCase()?.feature || ''"
+                  (input)="onFieldChange('feature', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Feature">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">📱 Screen ID</label>
+              <div *ngIf="!isEditing('screen_id'); else editScreenDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('screen_id')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.screen_id; else emptyScreenDg">{{ testCase()?.screen_id }}</span>
+                <ng-template #emptyScreenDg><span class="inline-edit-placeholder">Add screen ID…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editScreenDg>
+                <input type="text" data-edit-field="screen_id" class="side-input"
+                  [value]="testCase()?.screen_id || ''"
+                  (input)="onFieldChange('screen_id', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Screen ID">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🌍 Region</label>
+              <div *ngIf="!isEditing('region'); else editRegionDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('region')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.region; else emptyRegionDg">{{ testCase()?.region }}</span>
+                <ng-template #emptyRegionDg><span class="inline-edit-placeholder">Add region…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editRegionDg>
+                <input type="text" data-edit-field="region" class="side-input"
+                  [value]="testCase()?.region || ''"
+                  (input)="onFieldChange('region', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Region">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🏷️ Brand</label>
+              <div *ngIf="!isEditing('brand'); else editBrandDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('brand')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.brand; else emptyBrandDg">{{ testCase()?.brand }}</span>
+                <ng-template #emptyBrandDg><span class="inline-edit-placeholder">Add brand…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editBrandDg>
+                <input type="text" data-edit-field="brand" class="side-input"
+                  [value]="testCase()?.brand || ''"
+                  (input)="onFieldChange('brand', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="Brand">
+              </ng-template>
+            </div>
+
+            <div class="side-field">
+              <label class="side-label">🔖 DR ID</label>
+              <input type="text" class="side-input"
+                     [value]="testCase()?.dr_id || ''"
+                     (input)="onFieldChange('dr_id', $any($event.target).value)"
+                     placeholder="e.g. DR_1234"
+                     [readonly]="!editMode()">
+            </div>
+          </div>
+        </article>
 
         <!-- Test Objective (replaces the retired Description block — June 2026) -->
         <article class="section-card section-card--objective">
@@ -357,233 +586,6 @@
       <!-- SIDEBAR -->
       <aside class="content-side">
 
-        <!-- Linked Requirement(s) -->
-        <article class="side-card" *ngIf="mvArray(testCase()?.associated_requirement_id).length || testCase()?.requirement_type">
-          <header class="side-card-header">
-            <span class="side-icon">🔗</span>
-            <h4>Linked Requirement(s)</h4>
-          </header>
-          <div class="side-card-body">
-            <a *ngFor="let rid of mvArray(testCase()?.associated_requirement_id)"
-               (click)="navigateToRequirement(rid)"
-               class="requirement-chip"
-               title="View requirement details">
-              <span class="req-chip-icon">📋</span>
-              <div class="req-chip-text">
-                <span class="req-chip-label">Requirement ID</span>
-                <span class="req-chip-id">{{ rid }}</span>
-              </div>
-              <span class="req-chip-arrow">→</span>
-            </a>
-            <div class="side-row" *ngIf="testCase()?.requirement_type">
-              <span class="side-label">Type</span>
-              <span class="side-value">{{ testCase()?.requirement_type }}</span>
-            </div>
-          </div>
-        </article>
-
-        <!-- Classification -->
-        <article class="side-card">
-          <header class="side-card-header">
-            <span class="side-icon">🗂️</span>
-            <h4>Classification</h4>
-          </header>
-          <div class="side-card-body">
-            <div class="side-field">
-              <label class="side-label">🚗 Vehicle Model</label>
-              <div *ngIf="!isEditing('vehicle_model'); else editVehicle"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('vehicle_model')"
-                   title="Click to edit">
-                <span *ngIf="testCase()?.vehicle_model; else emptyVehicle">{{ testCase()?.vehicle_model }}</span>
-                <ng-template #emptyVehicle><span class="inline-edit-placeholder">Add vehicle model…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editVehicle>
-                <input
-                  type="text"
-                  data-edit-field="vehicle_model"
-                  class="side-input"
-                  [value]="testCase()?.vehicle_model || ''"
-                  (input)="onFieldChange('vehicle_model', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="e.g., Volvo EX90, Polestar 3">
-              </ng-template>
-            </div>
-            <div class="side-field">
-              <label class="side-label">🎯 Feature</label>
-              <div *ngIf="!isEditing('feature'); else editFeature"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('feature')"
-                   title="Click to edit">
-                <span *ngIf="testCase()?.feature; else emptyFeature">{{ testCase()?.feature }}</span>
-                <ng-template #emptyFeature><span class="inline-edit-placeholder">Add feature…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editFeature>
-                <input
-                  type="text"
-                  data-edit-field="feature"
-                  class="side-input"
-                  [value]="testCase()?.feature || ''"
-                  (input)="onFieldChange('feature', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="Feature">
-              </ng-template>
-            </div>
-            <div class="side-field">
-              <label class="side-label">📱 Screen ID</label>
-              <div *ngIf="!isEditing('screen_id'); else editScreen"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('screen_id')"
-                   title="Click to edit">
-                <span *ngIf="testCase()?.screen_id; else emptyScreen">{{ testCase()?.screen_id }}</span>
-                <ng-template #emptyScreen><span class="inline-edit-placeholder">Add screen ID…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editScreen>
-                <input
-                  type="text"
-                  data-edit-field="screen_id"
-                  class="side-input"
-                  [value]="testCase()?.screen_id || ''"
-                  (input)="onFieldChange('screen_id', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="Screen ID">
-              </ng-template>
-            </div>
-            <div class="side-field">
-              <label class="side-label">📐 Requirement Type</label>
-              <div *ngIf="!isEditing('requirement_type'); else editReqType"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('requirement_type')"
-                   title="Click to edit">
-                <span *ngIf="testCase()?.requirement_type; else emptyReqType">{{ testCase()?.requirement_type }}</span>
-                <ng-template #emptyReqType><span class="inline-edit-placeholder">Add requirement type…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editReqType>
-                <input
-                  type="text"
-                  data-edit-field="requirement_type"
-                  class="side-input"
-                  [value]="testCase()?.requirement_type || ''"
-                  (input)="onFieldChange('requirement_type', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="Requirement type">
-              </ng-template>
-            </div>
-          </div>
-        </article>
-
-        <!-- Scope -->
-        <article class="side-card">
-          <header class="side-card-header">
-            <span class="side-icon">🌐</span>
-            <h4>Scope</h4>
-          </header>
-          <div class="side-card-body">
-            <div class="side-field">
-              <label class="side-label">🌍 Region</label>
-              <div *ngIf="!isEditing('region'); else editRegion"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('region')"
-                   title="Click to edit">
-                <span *ngIf="testCase()?.region; else emptyRegion">{{ testCase()?.region }}</span>
-                <ng-template #emptyRegion><span class="inline-edit-placeholder">Add region…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editRegion>
-                <input
-                  type="text"
-                  data-edit-field="region"
-                  class="side-input"
-                  [value]="testCase()?.region || ''"
-                  (input)="onFieldChange('region', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="Region">
-              </ng-template>
-            </div>
-            <div class="side-field">
-              <label class="side-label">🏷️ Brand</label>
-              <div *ngIf="!isEditing('brand'); else editBrand"
-                   class="side-view inline-edit-view"
-                   (click)="startEdit('brand')"
-                   title="Click to edit">
-                <span *ngIf="testCase()?.brand; else emptyBrand">{{ testCase()?.brand }}</span>
-                <ng-template #emptyBrand><span class="inline-edit-placeholder">Add brand…</span></ng-template>
-                <span class="inline-edit-pencil">✎</span>
-              </div>
-              <ng-template #editBrand>
-                <input
-                  type="text"
-                  data-edit-field="brand"
-                  class="side-input"
-                  [value]="testCase()?.brand || ''"
-                  (input)="onFieldChange('brand', $any($event.target).value)"
-                  (blur)="stopEdit()"
-                  (keydown)="onEditKeydown($event, false)"
-                  placeholder="Brand">
-              </ng-template>
-            </div>
-          </div>
-        </article>
-
-        <!-- Configurable pickers (driven by config.yaml > test_case_dropdowns) -->
-        <article class="side-card">
-          <header class="side-card-header">
-            <span class="side-icon">⚙️</span>
-            <h4>Pickers</h4>
-          </header>
-          <div class="side-card-body">
-
-            <ng-container *ngFor="let group of [
-              { field: 'feature',         label: '🎯 Feature',          options: dropdowns()?.feature || [] },
-              { field: 'region',          label: '🌍 Region',           options: dropdowns()?.region || [] },
-              { field: 'brand',                 label: '🏷️ Brand',                  options: dropdowns()?.brand || [] },
-              { field: 'vehicle_variant',       label: '🚗 Vehicle Variant',         options: dropdowns()?.vehicle_variant || [] },
-              { field: 'vehicle_specification', label: '⚙️ Vehicle Specification',   options: dropdowns()?.vehicle_specification || [] },
-              { field: 'env_dependency',        label: '🔌 Env Dependency',          options: dropdowns()?.env_dependency || [] },
-              { field: 'testsuite_type',        label: '📚 Test Suite Type',         options: dropdowns()?.testsuite_type || [] }
-            ]">
-              <div class="side-field">
-                <label class="side-label">{{ group.label }}</label>
-                <div class="multi-options">
-                  <button
-                    type="button"
-                    class="chip"
-                    *ngFor="let opt of group.options"
-                    [class.chip--active]="isMultiSelected(group.field, opt)"
-                    (click)="toggleMulti(group.field, opt)"
-                    [disabled]="!editMode()">
-                    {{ opt }}
-                  </button>
-                </div>
-                <div class="multi-selected" *ngIf="mvArray($any(testCase())?.[group.field]).length">
-                  <span class="chip chip--selected" *ngFor="let v of mvArray($any(testCase())?.[group.field])">
-                    {{ v }}
-                    <button type="button" class="chip-remove" (click)="toggleMulti(group.field, v)" aria-label="Remove" [disabled]="!editMode()">×</button>
-                  </span>
-                </div>
-              </div>
-            </ng-container>
-
-            <div class="side-field">
-              <label class="side-label">DR ID</label>
-              <input type="text" class="side-input"
-                     [value]="testCase()?.dr_id || ''"
-                     (input)="onFieldChange('dr_id', $any($event.target).value)"
-                     placeholder="e.g. DR_1234"
-                     [readonly]="!editMode()">
-            </div>
-          </div>
-        </article>
-
         <!-- Timeline -->
         <article class="side-card" *ngIf="testCase()?.created_at || testCase()?.updated_at">
           <header class="side-card-header">
@@ -607,6 +609,13 @@
             </div>
           </div>
         </article>
+
+        <!-- Git-style change history -->
+        <app-activity-history
+          *ngIf="testCase()?.test_case_id as tcid"
+          [entityType]="'test_case'"
+          [entityId]="tcid">
+        </app-activity-history>
 
       </aside>
     </div>

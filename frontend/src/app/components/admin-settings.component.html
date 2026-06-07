@@ -14,8 +14,18 @@
       <button class="btn-secondary" (click)="reload()" [disabled]="loading() || saving()">
         <span class="btn-label">{{ loading() ? 'Reloading…' : 'Reload' }}</span>
       </button>
+      <button class="btn-secondary" (click)="restartApp()" [disabled]="saving()" title="Force a full client reload">
+        <span class="btn-label">Restart app</span>
+      </button>
     </div>
   </header>
+
+  <div class="reload-banner" *ngIf="reloadBus.pendingReload()">
+    <span class="reload-dot"></span>
+    <span class="reload-text">
+      Reloading the app to apply changes{{ reloadBus.pendingReason() ? ': ' + reloadBus.pendingReason() : '' }}…
+    </span>
+  </div>
 
   <div class="toast" *ngIf="toast() as t" [class.ok]="t.kind === 'ok'" [class.err]="t.kind === 'err'">
     {{ t.msg }}
@@ -58,6 +68,14 @@
         <button class="side-nav-item" [class.active]="activeTab() === 'features'" (click)="setTab('features')">
           <span class="side-nav-title">Feature Flags</span>
           <span class="side-nav-sub">Toggle product capabilities</span>
+        </button>
+      </div>
+
+      <div class="side-nav-group">
+        <span class="side-nav-eyebrow">Database</span>
+        <button class="side-nav-item" [class.active]="activeTab() === 'schema'" (click)="setTab('schema')">
+          <span class="side-nav-title">Schema</span>
+          <span class="side-nav-sub">Tables, columns &amp; migrations</span>
         </button>
       </div>
 
@@ -450,6 +468,303 @@
             <div class="actions-row">
               <button class="btn-primary" (click)="saveSectionDraft()" [disabled]="saving()">Save</button>
               <button class="btn-secondary" (click)="selectSection(sec)" [disabled]="saving()">Revert</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- Database schema management                                   -->
+      <!-- ============================================================ -->
+      <section class="tab-panel" *ngIf="activeTab() === 'schema'">
+        <div class="panel-head">
+          <h2>Database Schema</h2>
+          <p class="panel-help">
+            Manage tables and columns in the local SQLite database. Every change is logged in
+            <code>schema_migrations</code> and the database file is snapshotted to
+            <code>data/local/dev/database/backups/</code> beforehand. The app reloads automatically
+            after a successful change so all open tabs pick up the new schema.
+          </p>
+        </div>
+
+        <div class="schema-toolbar">
+          <button class="btn-primary" (click)="openNewTableModal()" [disabled]="saving()">+ New table</button>
+          <button class="btn-secondary" (click)="createBackup()" [disabled]="saving()">Create backup now</button>
+          <button class="btn-secondary" (click)="toggleMigrations()">
+            {{ showMigrations() ? 'Hide' : 'Show' }} migration history ({{ migrations().length }})
+          </button>
+        </div>
+
+        <div class="banner err" *ngIf="schemaError()">{{ schemaError() }}</div>
+
+        <div class="two-col" *ngIf="schemaTables().length > 0; else noTables">
+          <aside class="left-rail">
+            <h3>Tables</h3>
+            <ul class="field-list">
+              <li *ngFor="let t of schemaTables()"
+                  [class.active]="selectedSchemaTable() === t.name"
+                  [class.protected]="t.protected"
+                  (click)="selectSchemaTable(t.name)">
+                <span class="field-name">
+                  {{ t.name }}
+                  <span *ngIf="t.protected" class="lock-tag" title="Protected — cannot be modified">locked</span>
+                </span>
+                <span class="count-badge">{{ t.row_count }}</span>
+              </li>
+            </ul>
+          </aside>
+
+          <div class="right-pane" *ngIf="currentSchemaTable() as tbl; else loadingTable">
+            <div class="pane-header">
+              <div>
+                <span class="pane-eyebrow">Table</span>
+                <h3>{{ tbl.name }}</h3>
+              </div>
+              <div class="pane-meta">
+                <span><span class="meta-label">rows</span><code>{{ tbl.row_count }}</code></span>
+                <span><span class="meta-label">columns</span><code>{{ tbl.columns.length }}</code></span>
+                <span *ngIf="tbl.protected" class="toggle-tag">protected</span>
+              </div>
+              <button class="btn-danger"
+                      *ngIf="!tbl.protected"
+                      (click)="dropCurrentTable()"
+                      [disabled]="saving()">
+                Drop table
+              </button>
+            </div>
+
+            <h4 class="section-label">Columns</h4>
+            <table class="grid-table schema-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th class="center-col">Nullable</th>
+                  <th>Default</th>
+                  <th class="center-col">PK</th>
+                  <th class="actions-col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <ng-container *ngFor="let col of tbl.columns">
+                  <tr *ngIf="editingColumn() !== col.name">
+                    <td><code>{{ col.name }}</code></td>
+                    <td><code>{{ col.type || 'TEXT' }}</code></td>
+                    <td class="center-col">{{ col.nullable ? 'yes' : 'no' }}</td>
+                    <td><code *ngIf="col.default != null">{{ col.default }}</code><span *ngIf="col.default == null" class="muted">—</span></td>
+                    <td class="center-col">{{ col.primary_key ? '✓' : '' }}</td>
+                    <td class="actions-col">
+                      <button class="btn-secondary"
+                              [disabled]="tbl.protected || saving()"
+                              (click)="startEditColumn(col)">Edit</button>
+                      <button class="btn-danger"
+                              [disabled]="tbl.protected || col.primary_key || saving()"
+                              (click)="deleteColumn(col)">Drop</button>
+                    </td>
+                  </tr>
+                  <tr *ngIf="editingColumn() === col.name" class="edit-row">
+                    <td>
+                      <input type="text"
+                             [value]="columnEditDraft().new_name"
+                             (input)="updateColumnEdit('new_name', $any($event.target).value)" />
+                    </td>
+                    <td>
+                      <select [value]="columnEditDraft().new_type"
+                              (change)="updateColumnEdit('new_type', $any($event.target).value)">
+                        <option *ngFor="let t of columnTypes" [value]="t">{{ t }}</option>
+                      </select>
+                    </td>
+                    <td class="center-col">
+                      <input type="checkbox"
+                             [checked]="columnEditDraft().nullable"
+                             (change)="updateColumnEdit('nullable', $any($event.target).checked)" />
+                    </td>
+                    <td>
+                      <input type="text"
+                             placeholder="(none)"
+                             [value]="columnEditDraft().default"
+                             (input)="updateColumnEdit('default', $any($event.target).value)" />
+                    </td>
+                    <td class="center-col">{{ col.primary_key ? '✓' : '' }}</td>
+                    <td class="actions-col">
+                      <button class="btn-primary" (click)="saveColumnEdit()" [disabled]="saving()">Save</button>
+                      <button class="btn-secondary" (click)="cancelEditColumn()" [disabled]="saving()">Cancel</button>
+                    </td>
+                  </tr>
+                </ng-container>
+              </tbody>
+            </table>
+
+            <h4 class="section-label" *ngIf="!tbl.protected">Add column</h4>
+            <form *ngIf="!tbl.protected" class="add-column-form"
+                  (submit)="$event.preventDefault(); addColumnToCurrentTable()">
+              <input type="text"
+                     placeholder="column_name"
+                     [value]="newColumnDraft().name"
+                     (input)="updateNewColumn('name', $any($event.target).value)"
+                     [disabled]="saving()" />
+              <select [value]="newColumnDraft().type"
+                      (change)="updateNewColumn('type', $any($event.target).value)"
+                      [disabled]="saving()">
+                <option *ngFor="let t of columnTypes" [value]="t">{{ t }}</option>
+              </select>
+              <label class="inline-toggle">
+                <input type="checkbox"
+                       [checked]="newColumnDraft().nullable"
+                       (change)="updateNewColumn('nullable', $any($event.target).checked)" />
+                <span>nullable</span>
+              </label>
+              <input type="text"
+                     placeholder="default (optional)"
+                     [value]="newColumnDraft().default"
+                     (input)="updateNewColumn('default', $any($event.target).value)"
+                     [disabled]="saving()" />
+              <button type="submit"
+                      class="btn-primary"
+                      [disabled]="saving() || !newColumnDraft().name.trim()">Add column</button>
+            </form>
+
+            <h4 class="section-label" *ngIf="tbl.indexes && tbl.indexes.length > 0">Indexes</h4>
+            <table class="grid-table" *ngIf="tbl.indexes && tbl.indexes.length > 0">
+              <thead>
+                <tr><th>Name</th><th>Unique</th><th>Columns</th><th>Origin</th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let ix of tbl.indexes">
+                  <td><code>{{ ix.name }}</code></td>
+                  <td>{{ ix.unique ? 'yes' : 'no' }}</td>
+                  <td>{{ ix.columns.join(', ') }}</td>
+                  <td><code>{{ ix.origin }}</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <ng-template #loadingTable>
+            <div class="right-pane empty-state">
+              {{ schemaLoading() ? 'Loading table…' : 'Select a table on the left.' }}
+            </div>
+          </ng-template>
+        </div>
+
+        <ng-template #noTables>
+          <div class="empty-card">
+            <p>No tables found. Click <strong>+ New table</strong> to create one.</p>
+          </div>
+        </ng-template>
+
+        <!-- Migration history -->
+        <div class="migration-history" *ngIf="showMigrations()">
+          <h3 class="section-label" style="margin-top: var(--spacing-md);">Migration history</h3>
+          <table class="grid-table" *ngIf="migrations().length > 0; else noMigrations">
+            <thead>
+              <tr>
+                <th>When</th><th>By</th><th>Operation</th><th>Table</th><th>Column</th>
+                <th class="center-col">OK</th><th>Backup</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let m of migrations()">
+                <td><code>{{ m.applied_at }}</code></td>
+                <td>{{ m.applied_by }}</td>
+                <td><code>{{ m.operation }}</code></td>
+                <td>{{ m.table_name }}</td>
+                <td>{{ m.column_name || '' }}</td>
+                <td class="center-col">{{ m.succeeded ? '✓' : '✗' }}</td>
+                <td><code class="muted" *ngIf="m.backup_path">{{ m.backup_path }}</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #noMigrations>
+            <div class="empty-card"><p>No migrations applied yet.</p></div>
+          </ng-template>
+
+          <h3 class="section-label" style="margin-top: var(--spacing-md);">Backups</h3>
+          <table class="grid-table" *ngIf="backups().length > 0; else noBackups">
+            <thead><tr><th>Name</th><th>Size</th><th>Created</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let b of backups()">
+                <td><code>{{ b.name }}</code></td>
+                <td>{{ formatBytes(b.size_bytes) }}</td>
+                <td>{{ b.created_at }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #noBackups>
+            <div class="empty-card"><p>No backups yet.</p></div>
+          </ng-template>
+        </div>
+
+        <!-- New table modal -->
+        <div class="modal-backdrop" *ngIf="showNewTableModal()" (click)="closeNewTableModal()">
+          <div class="modal" (click)="$event.stopPropagation()">
+            <div class="modal-head">
+              <h3>Create new table</h3>
+              <button class="btn-secondary" (click)="closeNewTableModal()">Close</button>
+            </div>
+            <div class="modal-body">
+              <label class="modal-field">
+                <span class="meta-label">Table name</span>
+                <input type="text"
+                       [value]="newTableName()"
+                       (input)="newTableName.set($any($event.target).value)"
+                       placeholder="e.g. orders" />
+              </label>
+
+              <h4 class="section-label">Columns</h4>
+              <table class="grid-table">
+                <thead>
+                  <tr>
+                    <th>Name</th><th>Type</th>
+                    <th class="center-col">PK</th>
+                    <th class="center-col">Nullable</th>
+                    <th>Default</th>
+                    <th class="actions-col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let col of newTableColumns(); let i = index">
+                    <td>
+                      <input type="text"
+                             [value]="col.name"
+                             (input)="updateNewTableColumn(i, 'name', $any($event.target).value)" />
+                    </td>
+                    <td>
+                      <select [value]="col.type"
+                              (change)="updateNewTableColumn(i, 'type', $any($event.target).value)">
+                        <option *ngFor="let t of columnTypes" [value]="t">{{ t }}</option>
+                      </select>
+                    </td>
+                    <td class="center-col">
+                      <input type="checkbox"
+                             [checked]="col.primary_key"
+                             (change)="updateNewTableColumn(i, 'primary_key', $any($event.target).checked)" />
+                    </td>
+                    <td class="center-col">
+                      <input type="checkbox"
+                             [checked]="col.nullable"
+                             (change)="updateNewTableColumn(i, 'nullable', $any($event.target).checked)" />
+                    </td>
+                    <td>
+                      <input type="text"
+                             placeholder="(none)"
+                             [value]="col.default"
+                             (input)="updateNewTableColumn(i, 'default', $any($event.target).value)" />
+                    </td>
+                    <td class="actions-col">
+                      <button class="btn-danger" (click)="removeNewTableColumn(i)">Remove</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="actions-row">
+                <button class="btn-secondary" (click)="addNewTableColumn()">+ Add column</button>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn-secondary" (click)="closeNewTableModal()" [disabled]="saving()">Cancel</button>
+              <button class="btn-primary" (click)="submitNewTable()" [disabled]="saving()">Create table</button>
             </div>
           </div>
         </div>
