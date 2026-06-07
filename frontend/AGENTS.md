@@ -67,8 +67,30 @@ export class RequirementsComponent {
 
 Sakura does not use Tailwind or utility CSS frameworks. It uses standard **Vanilla CSS** with CSS Custom Properties (variables) for theme coloring, spacing, and component rendering:
 - Color schemes are configured using theme variables like `var(--color-primary)`, `var(--color-accent)`, and `var(--color-gray-100)`.
-- Global styles, typography configurations, and general layout rules are defined in [`src/index.css`](file:///c:/workspace/sources/Simple/frontend/src/index.css).
+- Global styles, typography configurations, and general layout rules are defined in [`src/styles.scss`](file:///c:/workspace/sources/Simple/frontend/src/styles.scss).
 - Individual component styles are written either in the `@Component({ styles: [...] })` decorator array or imported stylesheets.
+
+### Design Consistency (NON-NEGOTIABLE)
+
+> [!IMPORTANT]
+> Every visual change MUST preserve overall design consistency with the rest of the app. Before introducing new visual treatments, look at sibling components (`dashboard`, `requirements`, `smart-import`, `test-case-management`, etc.) and reuse the established patterns.
+
+**Page background:** The application shell (`.app-container` in `app.scss`) is white (`var(--color-gray-100)`). Component pages MUST NOT paint their own gray/colored full-page background — content sits directly on the white shell.
+
+**Card pattern (canonical):** When grouping content into a card on the white page, use:
+```scss
+background: var(--color-gray-100);              /* white */
+border: 1px solid var(--color-gray-300);
+border-radius: var(--border-radius-lg);
+box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);   /* subtle elevation */
+padding: var(--spacing-lg) var(--spacing-xl);
+```
+
+**Tokens only:** Use the design tokens from `src/styles.scss` for color (`--color-*`), spacing (`--spacing-*`), radius (`--border-radius*`), typography size (`--fs-*`), weight (`--fw-*`), line-height (`--lh-*`), and tracking (`--tracking-*`). Do NOT introduce ad-hoc hex colors, magic px values, or inline font sizes for primary surfaces — exceptions are limited to small status/severity badges (priority, status) which already follow a documented pattern.
+
+**Typography hierarchy:** page title → `--fs-3xl`/`--fw-bold`; panel/section title → `--fs-xl`/`--fw-semibold`; pane subtitle → `--fs-lg`; eyebrow/meta-label → `--fs-xs` uppercase with `--tracking-wider`. Body text stays at `--fs-base`.
+
+**Full-width pages:** Admin/management pages use the full viewport width (`max-width: none`); do not impose narrow `max-width` caps unless the content is genuinely long-form prose.
 
 ---
 

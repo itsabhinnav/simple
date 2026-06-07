@@ -24,6 +24,18 @@ from src.services.parsing.models import (
 logger = get_logger(__name__)
 
 
+# SAK-040: shared hardened XML parser. lxml 5.x already defaults to
+# load_dtd=False / no_network=True, but pinning the flags explicitly makes
+# this robust against a future dependency bump and documents the intent.
+_SAFE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+    load_dtd=False,
+    huge_tree=False,
+    dtd_validation=False,
+)
+
+
 NS = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
     "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
@@ -134,7 +146,7 @@ class DocxDeterministicParser:
             warnings.append("word/document.xml missing")
             return []
         try:
-            root = etree.fromstring(zf.read(document_path))
+            root = etree.fromstring(zf.read(document_path), _SAFE_PARSER)
         except etree.XMLSyntaxError as exc:
             warnings.append(f"document.xml parse error: {exc}")
             return []
@@ -184,7 +196,7 @@ class DocxDeterministicParser:
         if rel_path not in zf.namelist():
             return {}
         try:
-            root = etree.fromstring(zf.read(rel_path))
+            root = etree.fromstring(zf.read(rel_path), _SAFE_PARSER)
         except etree.XMLSyntaxError:
             return {}
         out: Dict[str, str] = {}

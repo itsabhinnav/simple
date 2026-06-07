@@ -1,4 +1,8 @@
 """Admin-specific endpoints"""
+import os
+import ipaddress
+from urllib.parse import urlparse
+
 from flask import Blueprint, request, jsonify
 from typing import Dict, Any
 from src.middleware.admin_middleware import is_admin, get_current_user_role, require_admin
@@ -12,6 +16,54 @@ from src.infrastructure.configuration_manager import get_config_manager
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def _is_loopback_url(value: str) -> bool:
+    """Return True iff ``value`` is an http(s):// URL whose host is loopback.
+
+    Used by SAK-038 to refuse Ollama base_url redirections to anything outside
+    127.0.0.0/8 / ::1 / localhost. We deliberately do not resolve the hostname
+    because (a) DNS may be poisoned and (b) the restrictor's allow-list will
+    reject the lookup anyway when ENABLE_NETWORK_RESTRICTIONS=strict.
+    """
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").lower()
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_provider_config(name: str, cfg: dict) -> None:
+    """Validate an admin-supplied provider config (raises ValueError).
+
+    SAK-038 fix: refuse to persist an Ollama ``base_url`` that is not a
+    loopback URL unless the operator explicitly opted out via
+    ``SAKURA_LLM_ALLOW_REMOTE_OLLAMA=true`` at startup.
+    """
+    base_url = cfg.get("base_url")
+    if not isinstance(base_url, str) or not base_url.strip():
+        return
+    if name in ("ollama", "ollama-lite"):
+        allow_remote = os.environ.get("SAKURA_LLM_ALLOW_REMOTE_OLLAMA", "false").lower() == "true"
+        if not allow_remote and not _is_loopback_url(base_url.strip()):
+            raise ValueError(
+                f"Ollama base_url must be a loopback URL (e.g. http://127.0.0.1:11434); "
+                f"got {base_url!r}. Set SAKURA_LLM_ALLOW_REMOTE_OLLAMA=true to opt out."
+            )
+    if name in ("openai", "anthropic"):
+        if os.environ.get("SAKURA_LLM_ALLOW_EXTERNAL", "false").lower() != "true":
+            raise ValueError(
+                f"External LLM provider {name!r} is disabled on this build. "
+                "Set SAKURA_LLM_ALLOW_EXTERNAL=true to enable."
+            )
 
 
 # Top-level config.yaml sections that the admin UI is allowed to read/write.
@@ -228,12 +280,12 @@ class AdminController:
                     },
                 },
             }), 200
-        except Exception as e:
-            logger.error(f"Failed to load LLM config: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Failed to load LLM config")
             return jsonify({
                 "success": False,
                 "error": "Failed to load LLM config",
-                "message": str(e),
+                "message": "An internal error occurred",
             }), 500
 
     @require_admin
@@ -273,6 +325,9 @@ class AdminController:
                 for name, cfg in incoming_providers.items():
                     if not isinstance(cfg, dict):
                         continue
+                    # SAK-038: refuse non-loopback Ollama URLs and reject
+                    # external providers unless explicitly enabled.
+                    _validate_provider_config(name.lower(), cfg)
                     existing = dict(providers.get(name) or {})
                     for key, value in cfg.items():
                         if value is None:
@@ -309,12 +364,20 @@ class AdminController:
                     "providers": vlm.get("providers"),
                 },
             }), 200
-        except Exception as e:
-            logger.error(f"Failed to save LLM config: {e}", exc_info=True)
+        except ValueError as exc:
+            # Validation error from _validate_provider_config — safe to echo
+            # to the admin client because it does not contain stack data.
+            return jsonify({
+                "success": False,
+                "error": "Invalid LLM configuration",
+                "message": str(exc),
+            }), 400
+        except Exception:
+            logger.exception("Failed to save LLM config")
             return jsonify({
                 "success": False,
                 "error": "Failed to save LLM config",
-                "message": str(e),
+                "message": "An internal error occurred",
             }), 500
 
     @require_admin
@@ -371,12 +434,12 @@ class AdminController:
                     "error": "Unknown provider",
                     "message": f"No connectivity check implemented for '{name}'",
                 }), 400
-        except Exception as e:
-            logger.error(f"LLM test failed for {name}: {e}", exc_info=True)
+        except Exception:
+            logger.exception(f"LLM test failed for {name}")
             return jsonify({
                 "success": False,
                 "error": "LLM test failed",
-                "message": str(e),
+                "message": "An internal error occurred",
             }), 500
 
     @require_admin

@@ -7,39 +7,39 @@ from datetime import datetime, timedelta
 from src.services.user_service import IUserService
 from src.schemas.user_schema import LoginSchema, UserCreateSchema
 from src.infrastructure.logging_config import get_logger
+from src.middleware.error_handlers import limiter
 
 logger = get_logger(__name__)
 
 import os
 from cryptography.fernet import Fernet
-import base64
 
-# Secret key for JWT
+# SAK-007 fix: JWT_SECRET_KEY and ENCRYPTION_KEY are required in every
+# environment. The previous code shipped predictable defaults whenever
+# ENVIRONMENT was anything other than the literal string "production"
+# (so 'prod', 'staging', or 'corp' all matched the fallback). The fallback
+# is gone — the app refuses to start without explicit secrets.
 JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
-if not JWT_SECRET_KEY:
-    if os.environ.get('ENVIRONMENT') == 'production':
-        raise RuntimeError("JWT_SECRET_KEY must be set in production environment")
-    JWT_SECRET_KEY = 'dev-secret-key-change-in-prod'
-    logger.warning("Using default development JWT secret key. Set JWT_SECRET_KEY environment variable in production.")
+if not JWT_SECRET_KEY or len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError(
+        "JWT_SECRET_KEY must be set to at least 32 bytes of entropy. Generate one with: "
+        "python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
 
-# Encryption key for sensitive tokens (like Git tokens)
 ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY')
 if not ENCRYPTION_KEY:
-    if os.environ.get('ENVIRONMENT') == 'production':
-        raise RuntimeError("ENCRYPTION_KEY must be set in production environment")
-    # For development, we use a fixed valid Fernet key
-    ENCRYPTION_KEY = "dev-encryption-key-must-be-32-bytes-long="
-    logger.warning("Using default development ENCRYPTION_KEY. Set ENCRYPTION_KEY environment variable in production.")
+    raise RuntimeError(
+        "ENCRYPTION_KEY must be set. Generate one with: "
+        "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    )
 
 try:
     fernet = Fernet(ENCRYPTION_KEY)
 except Exception as e:
-    logger.error(f"Failed to initialize Fernet with ENCRYPTION_KEY: {e}")
-    if os.environ.get('ENVIRONMENT') == 'production':
-        raise
-    # Fallback to a newly generated key for this session if the provided one is invalid in dev
-    ENCRYPTION_KEY = Fernet.generate_key()
-    fernet = Fernet(ENCRYPTION_KEY)
+    raise RuntimeError(
+        "ENCRYPTION_KEY is not a valid Fernet key (must be a url-safe base64-encoded 32-byte value). "
+        "Regenerate with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    ) from e
 
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
@@ -157,14 +157,14 @@ class AuthController:
                 "error": "Validation error",
                 "message": str(e)
             }), 400
-        except Exception as e:
-            logger.error(f"Signup error: {str(e)}")
+        except Exception:
+            logger.exception("Signup error")
             return jsonify({
                 "success": False,
                 "error": "Failed to create user",
-                "message": str(e)
+                "message": "An internal error occurred"
             }), 500
-    
+
     def login(self) -> Dict[str, Any]:
         """POST /api/auth/login - Authenticate a user"""
         try:
@@ -222,12 +222,12 @@ class AuthController:
                 "error": "Validation error",
                 "message": str(e)
             }), 400
-        except Exception as e:
-            logger.error(f"Login error: {str(e)}")
+        except Exception:
+            logger.exception("Login error")
             return jsonify({
                 "success": False,
                 "error": "Failed to login",
-                "message": str(e)
+                "message": "An internal error occurred"
             }), 500
     
     def verify_token(self) -> Dict[str, Any]:
@@ -326,12 +326,12 @@ class AuthController:
                     "message": "Invalid username or secret key"
                 }), 401
                 
-        except Exception as e:
-            logger.error(f"Secret key verification error: {str(e)}")
+        except Exception:
+            logger.exception("Secret key verification error")
             return jsonify({
                 "success": False,
                 "error": "Verification failed",
-                "message": str(e)
+                "message": "An internal error occurred"
             }), 500
 
     def reset_password(self) -> Dict[str, Any]:
@@ -347,19 +347,20 @@ class AuthController:
             
             username = data.get('username')
             new_password = data.get('new_password')
-            
+
             if not username or not new_password:
                 return jsonify({
                     "success": False,
                     "error": "Missing fields",
                     "message": "Username and new_password are required"
                 }), 400
-            
-            if len(new_password) < 6:
+
+            from src.schemas.user_schema import PASSWORD_MIN_LENGTH
+            if len(new_password) < PASSWORD_MIN_LENGTH:
                 return jsonify({
                     "success": False,
                     "error": "Validation error",
-                    "message": "Password must be at least 6 characters"
+                    "message": f"Password must be at least {PASSWORD_MIN_LENGTH} characters"
                 }), 400
             
             user = self.user_service.user_repository.find_by_username(username)
@@ -396,12 +397,12 @@ class AuthController:
                 "message": "Password reset successfully"
             }), 200
                 
-        except Exception as e:
-            logger.error(f"Password reset error: {str(e)}")
+        except Exception:
+            logger.exception("Password reset error")
             return jsonify({
                 "success": False,
                 "error": "Reset failed",
-                "message": str(e)
+                "message": "An internal error occurred"
             }), 500
     
     def _sanitize_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
@@ -417,15 +418,32 @@ class AuthController:
 
 
 def create_auth_blueprint(user_service: IUserService) -> Blueprint:
-    """Create and configure auth blueprint"""
+    """Create and configure auth blueprint.
+
+    SAK-023 fix: per-route rate limits on every credential-checking endpoint.
+    Tighter than the global default (1000/day, 200/hour) which would allow
+    credential stuffing within the global budget. Verify-secret and reset are
+    coupled because they form the recovery flow.
+    """
     auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
     controller = AuthController(user_service)
-    
-    # Register routes
-    auth_bp.route('/signup', methods=['POST'])(controller.signup)
-    auth_bp.route('/login', methods=['POST'])(controller.login)
-    auth_bp.route('/verify', methods=['GET'])(controller.verify_token)
-    auth_bp.route('/verify-secret', methods=['POST'])(controller.verify_secret_key)
-    auth_bp.route('/reset-password', methods=['POST'])(controller.reset_password)
-    
+
+    # Each endpoint gets a strict per-IP limit. The limiter is configured at
+    # app-create time via setup_rate_limiting() in main.py.
+    auth_bp.route('/signup', methods=['POST'])(
+        limiter.limit("5 per minute; 20 per hour")(controller.signup)
+    )
+    auth_bp.route('/login', methods=['POST'])(
+        limiter.limit("10 per minute; 60 per hour")(controller.login)
+    )
+    auth_bp.route('/verify', methods=['GET'])(
+        limiter.limit("60 per minute")(controller.verify_token)
+    )
+    auth_bp.route('/verify-secret', methods=['POST'])(
+        limiter.limit("5 per minute; 20 per hour")(controller.verify_secret_key)
+    )
+    auth_bp.route('/reset-password', methods=['POST'])(
+        limiter.limit("3 per minute; 10 per hour")(controller.reset_password)
+    )
+
     return auth_bp

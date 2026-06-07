@@ -92,21 +92,63 @@ def setup_error_handlers(app: Flask) -> None:
         }), 500
 
 
+# SAK-006: never log these headers or these body field names — they carry
+# credentials or PII. The pre-audit logger dumped every header (including the
+# Authorization Bearer JWT) and the parsed JSON body (including login and
+# signup passwords) at INFO. We now log a small, deterministic surface only.
+_REDACTED = "<redacted>"
+_SENSITIVE_HEADERS = frozenset({
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "proxy-authorization",
+    "x-api-key",
+    "x-auth-token",
+})
+_NO_BODY_LOG_PATHS = (
+    "/api/auth/login",
+    "/api/auth/signup",
+    "/api/auth/reset-password",
+    "/api/auth/verify-secret",
+    "/api/auth/verify",
+    "/api/admin/llm",
+)
+_SENSITIVE_FIELDS = frozenset({
+    "password",
+    "new_password",
+    "old_password",
+    "secret_key",
+    "git_token",
+    "token",
+    "authorization",
+    "api_key",
+    "apikey",
+})
+
+
+def _safe_headers(headers) -> dict:
+    return {
+        k: (_REDACTED if k.lower() in _SENSITIVE_HEADERS else v)
+        for k, v in headers.items()
+    }
+
+
 def setup_request_logging(app: Flask) -> None:
-    """Setup request logging middleware"""
-    
+    """Setup request logging middleware (SAK-006: sensitive-redacted)."""
+
     @app.before_request
     def log_request_info():
-        """Log request information"""
-        app.logger.info(f"Request: {request.method} {request.url}")
-        app.logger.info(f"Headers: {dict(request.headers)}")
-        if request.is_json:
-            app.logger.info(f"JSON Body: {request.get_json()}")
-    
+        # Path + method are safe. URL may carry query strings; we still log it
+        # but operators should avoid putting secrets in query strings.
+        app.logger.info("Request: %s %s", request.method, request.path)
+        # Only log a short, allow-listed header summary — never the full set.
+        ua = request.headers.get("User-Agent", "")
+        ct = request.headers.get("Content-Type", "")
+        app.logger.debug("UA=%s CT=%s", ua[:120], ct[:80])
+
     @app.after_request
     def log_response_info(response):
-        """Log response information"""
-        app.logger.info(f"Response: {response.status_code}")
+        app.logger.info("Response: %s %s -> %s", request.method, request.path, response.status_code)
         return response
 
 
@@ -174,19 +216,53 @@ def setup_api_documentation(app: Flask) -> None:
         })
 
 def setup_security_headers(app: Flask) -> None:
-    """Setup secure headers using Flask-Talisman"""
-    # Force HTTPS only if not in development and not explicitly disabled.
-    # app.debug is not yet True at middleware-setup time (Flask flips it inside
-    # app.run(debug=True)), so prefer the SAKURA_IS_DEV flag stamped in main.py
-    # and fall back to FLASK_ENV to avoid silently redirecting localhost to HTTPS.
-    is_dev = bool(app.config.get('SAKURA_IS_DEV')) or os.environ.get('FLASK_ENV', 'development') == 'development' or app.debug
+    """Setup secure headers using Flask-Talisman.
+
+    SAK-018/019 fix:
+      * Force HTTPS by default in production (env-overridable).
+      * Ship a strict Content-Security-Policy. The Angular SPA is served
+        from the same origin and does not load anything cross-origin
+        (no Google Fonts, no CDN, no Sentry/etc), so 'self' is sufficient.
+      * Add Referrer-Policy and Permissions-Policy. COOP/CORP for isolation.
+    """
+    is_dev = bool(app.config.get('SAKURA_IS_DEV')) or os.environ.get('FLASK_ENV', 'production') == 'development' or app.debug
     force_https = os.environ.get('FORCE_HTTPS', str(not is_dev)).lower() == 'true'
-    
+
+    csp = {
+        'default-src': "'self'",
+        'script-src': "'self'",
+        # Angular injects style attributes at runtime — 'unsafe-inline' is
+        # unavoidable for style-src without nonces, but we still block scripts
+        # and other vectors.
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'img-src': ["'self'", "data:"],
+        'font-src': ["'self'", "data:"],
+        'connect-src': "'self'",
+        'frame-ancestors': "'none'",
+        'base-uri': "'self'",
+        'form-action': "'self'",
+        'object-src': "'none'",
+    }
+
     Talisman(
         app,
         force_https=force_https,
-        content_security_policy=None,  # Adjust CSP based on frontend needs
-        strict_transport_security=force_https
+        content_security_policy=csp,
+        content_security_policy_nonce_in=[],
+        strict_transport_security=force_https,
+        strict_transport_security_max_age=63072000,
+        strict_transport_security_include_subdomains=True,
+        referrer_policy='no-referrer',
+        frame_options='DENY',
+        session_cookie_secure=force_https,
+        session_cookie_http_only=True,
+        feature_policy={
+            'geolocation': "'none'",
+            'microphone': "'none'",
+            'camera': "'none'",
+            'payment': "'none'",
+            'usb': "'none'",
+        },
     )
 
 

@@ -51,33 +51,51 @@ RESTRICTED_MODULES = {
 _connection_log: List[dict] = []
 
 
+def _restrictor_mode() -> str:
+    """Resolve the runtime allow-list profile.
+
+    Values:
+      * ``strict``    — loopback only (default for on-prem corporate)
+      * ``allow_lan`` — loopback + RFC-1918 private ranges
+      * anything else — strict (fail closed)
+    """
+    import os
+    return os.environ.get('SAKURA_RESTRICTOR_MODE', 'strict').strip().lower()
+
+
 def is_host_allowed(host: str) -> bool:
-    """Check if host is in the allowed list"""
+    """Check if host is in the allowed list.
+
+    SAK-012 fix: stop allowing every RFC-1918 IP unconditionally. The pre-audit
+    behaviour matched the documentation lie that 'only loopback is allowed'
+    while actually permitting 10/8, 172.16/12, and 192.168/16. The allow-list
+    is now strict by default and only widens when the operator opts in via
+    ``ENABLE_NETWORK_RESTRICTIONS=allow_lan``.
+    """
     if not host:
         return True
-    
-    # Check exact match
-    if host in ALLOWED_HOSTS:
-        return True
-    
-    # Check if it's a localhost variant
+
     host_lower = host.lower()
-    if host_lower in ['localhost', '127.0.0.1', '::1', '0.0.0.0', '0::1']:
+
+    # Always-allowed loopback variants.
+    if host_lower in ALLOWED_HOSTS:
         return True
-    
-    # Check if it starts with localhost
-    if host_lower.startswith('localhost'):
+    if host_lower in ('localhost', '127.0.0.1', '::1', '0.0.0.0', '0::1'):
         return True
-    
-    # Check if it's an IP address in private ranges
+
+    # Loopback IPv4 range 127.0.0.0/8 — accepted in every profile.
     try:
         import ipaddress
         ip = ipaddress.ip_address(host)
-        # Allow private IP ranges
-        if ip.is_private or ip.is_loopback:
+        if ip.is_loopback:
+            return True
+        # Wider LAN allow-list only when the operator explicitly opted in.
+        if ip.is_private and _restrictor_mode() == 'allow_lan':
             return True
     except ValueError:
-        # Not a valid IP address
+        # Not an IP literal — fall through. Hostnames are matched against
+        # ALLOWED_HOSTS only; we deliberately do not resolve here to avoid a
+        # DNS rebinding race.
         pass
 
     return False
@@ -160,6 +178,47 @@ def restrict_urllib():
         logger.error(f"Failed to restrict urllib: {e}")
 
 
+def restrict_dns():
+    """Monkey-patch ``socket.getaddrinfo`` / ``gethostbyname*`` to enforce the
+    same allow-list (SAK-036 fix).
+
+    The pre-audit restrictor only patched ``socket.socket.connect``; libraries
+    that call ``getaddrinfo`` first (httpx, requests, urllib, …) still issued
+    a DNS query for the disallowed hostname *before* the connect was blocked.
+    A DNS query of up to 253 bytes per label is a textbook covert channel, so
+    we now refuse to resolve hostnames that would not be allowed to connect.
+    """
+    try:
+        original_getaddrinfo = socket.getaddrinfo
+        original_gethostbyname = socket.gethostbyname
+        original_gethostbyname_ex = socket.gethostbyname_ex
+
+        def restricted_getaddrinfo(host, *args, **kwargs):
+            if not is_host_allowed(host):
+                logger.error(f"Blocked DNS resolution for unauthorized host: {host}")
+                raise socket.gaierror(-2, f"Resolution of {host!r} blocked by allow-list")
+            return original_getaddrinfo(host, *args, **kwargs)
+
+        def restricted_gethostbyname(host):
+            if not is_host_allowed(host):
+                logger.error(f"Blocked DNS resolution for unauthorized host: {host}")
+                raise socket.gaierror(-2, f"Resolution of {host!r} blocked by allow-list")
+            return original_gethostbyname(host)
+
+        def restricted_gethostbyname_ex(host):
+            if not is_host_allowed(host):
+                logger.error(f"Blocked DNS resolution for unauthorized host: {host}")
+                raise socket.gaierror(-2, f"Resolution of {host!r} blocked by allow-list")
+            return original_gethostbyname_ex(host)
+
+        socket.getaddrinfo = restricted_getaddrinfo
+        socket.gethostbyname = restricted_gethostbyname
+        socket.gethostbyname_ex = restricted_gethostbyname_ex
+        logger.info("DNS resolution restrictions applied successfully")
+    except Exception as e:
+        logger.error(f"Failed to apply DNS restrictions: {e}")
+
+
 def get_connection_log() -> List[dict]:
     """Get the connection log"""
     return _connection_log.copy()
@@ -171,11 +230,12 @@ def clear_connection_log():
 
 
 def enable_network_restrictions():
-    """Enable all network restrictions"""
-    logger.info("Enabling network restrictions...")
-    
+    """Enable all network restrictions (socket connect + DNS resolution)."""
+    logger.info(f"Enabling network restrictions (mode={_restrictor_mode()})...")
+
     try:
         restrict_socket()
+        restrict_dns()
         restrict_urllib()
         logger.info("Network restrictions enabled successfully")
     except Exception as e:
@@ -258,15 +318,10 @@ def verify_network_isolation():
         logger.debug(f"Block test: {e}")
 
 
-# Initialize restrictions if this module is imported
-if __name__ != "__main__":
-    try:
-        # Load allowed hosts from configuration
-        load_allowed_hosts_from_config()
-        # Enable network restrictions
-        enable_network_restrictions()
-    except Exception as e:
-        logger.error(f"Could not initialize network restrictions: {e}")
+# NOTE: do NOT auto-enable restrictions on import. ``main.py`` is the single
+# authority for restriction lifecycle so that the mode (strict/allow_lan/off)
+# and configuration are honoured. Auto-enabling here also double-patches
+# socket.connect when the test harness imports this module directly.
 
 
 if __name__ == "__main__":

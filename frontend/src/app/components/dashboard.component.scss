@@ -755,11 +755,12 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   .db-bd-val { font-weight: 700; color: $db-text; font-variant-numeric: tabular-nums; }
 }
 
-/* ---------------- Triple grid (status / activity / priority) ---------------- */
+/* ---------------- Secondary grid (status / priority — activity card hidden) ---------------- */
 .db-grid-3 {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: 1.3fr 1fr;
   gap: 18px;
+  align-items: stretch;
 }
 
 /* Workflow stacked bars */

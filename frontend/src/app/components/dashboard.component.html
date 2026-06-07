@@ -469,7 +469,9 @@
           </div>
         </article>
 
-        <!-- Activity feed -->
+        <!--
+          Activity feed (hidden from UI per design request — kept here for future re-enable;
+          component logic / signals (combinedActivity, formatRelativeTime) remain intact).
         <article class="db-card db-card--activity">
           <header class="db-card-head">
             <h2 class="db-card-title">Recent Activity</h2>
@@ -499,6 +501,8 @@
             <span class="db-empty-text">No activity yet — create your first artifact to get started.</span>
           </div>
         </article>
+        -->
+
 
         <!-- Priority distribution -->
         <article class="db-card db-card--priority">
@@ -538,7 +542,9 @@
 
       </div>
 
-      <!-- ====================== WORKSPACE NAV ====================== -->
+      <!-- ====================== WORKSPACE NAV ======================
+        Removed from UI — redundant with the KPI strip / nav links above.
+        Kept here in source for future re-enable.
       <div class="db-nav-grid">
         <a routerLink="/specs" class="db-nav-tile db-nav-tile--specs">
           <span class="db-nav-icon">📑</span>
@@ -589,6 +595,8 @@
           <span class="db-nav-arrow">→</span>
         </a>
       </div>
+      -->
+
 
     </div>
   </section>

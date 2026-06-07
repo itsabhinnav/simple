@@ -1,0 +1,990 @@
+import {
+  Stack,
+  Row,
+  Grid,
+  Card,
+  CardHeader,
+  CardBody,
+  H1,
+  H2,
+  H3,
+  Text,
+  Code,
+  Pill,
+  Stat,
+  Table,
+  Callout,
+  Divider,
+  useHostTheme,
+} from "cursor/canvas";
+
+// =============================================================================
+// SAKURA — SECURITY & DATA AUDIT
+// Scope: Flask backend + Angular frontend + bundled Ollama sidecar + Celery + SQLite.
+// Target: high-security corporate environment with regulated customer data,
+//         on-premise deployment, no outbound internet.
+// Methodology: Code review of auth/authz, data boundaries, secrets, deps,
+//              network, injection, logging, file IO. Mapped to OWASP ASVS L2 /
+//              CWE / NIST 800-53 / ISO 27001 / GDPR controls.
+// =============================================================================
+
+const SEVERITY_FILL: Record<string, "danger" | "warning" | "info" | "success"> = {
+  Critical: "danger",
+  High: "danger",
+  Medium: "warning",
+  Low: "info",
+};
+
+type Finding = {
+  id: string;
+  severity: "Critical" | "High" | "Medium" | "Low";
+  title: string;
+  location: string;
+  cwe: string;
+  evidence: string;
+  impact: string;
+  fix: string;
+};
+
+const CRITICAL: Finding[] = [
+  {
+    id: "SAK-001",
+    severity: "Critical",
+    title: "Authentication globally disabled in frontend; every caller is auto-admin",
+    location: "frontend/src/app/app-settings.ts:29 — APP_SETTINGS.auth.enabled = false; AUTH_DISABLED_USER.role = 'admin'",
+    cwe: "CWE-306 (Missing Authentication) · CWE-269 (Improper Privilege Mgmt)",
+    evidence:
+      "auth.service.ts synthesises a workspace 'admin' user when authEnabled is false; AuthGuard and AdminGuard both return true; AdminGuard comment explicitly says 'Admin privileges are temporarily disabled — every authenticated session can reach admin-only routes'.",
+    impact:
+      "Anyone with network reach to the app obtains admin-equivalent UI without a login. Combined with SAK-002, the API does not gate either. Effective authn/authz boundary: NONE.",
+    fix:
+      "Set authEnabled=true, restore role check in AdminGuard, ship the app with a real login as the default. Treat 'auth disabled' as a developer-only debug switch behind a build flag, not a runtime config field.",
+  },
+  {
+    id: "SAK-002",
+    severity: "Critical",
+    title: "`require_admin` decorator is a no-op — all admin endpoints unauthenticated",
+    location: "backend/src/middleware/admin_middleware.py:11-25",
+    cwe: "CWE-862 (Missing Authorization)",
+    evidence:
+      "`is_admin()` returns True unconditionally; `require_admin` decorator passes through without inspecting the JWT or role. Admin routes (`/api/admin/settings`, `/api/admin/llm`, `/api/admin/bulk-import`, user create/delete) all use this decorator.",
+    impact:
+      "Any caller (no token required) can: read/write config.yaml sections, change the LLM provider to one that exfils data, bulk-import or wipe users, change roles. Total compromise of the control plane.",
+    fix:
+      "Validate the JWT, look up the role from the DB on every admin call, and gate explicitly. Remove the no-op shim and add an integration test that asserts a 401/403 on an unauthenticated admin call.",
+  },
+  {
+    id: "SAK-003",
+    severity: "Critical",
+    title: "`/api/all/` dumps the entire database with no authentication",
+    location: "backend/main.py:203-270 — `get_all_data()`",
+    cwe: "CWE-200 (Exposure of Sensitive Info) · CWE-862",
+    evidence:
+      "Route walks `sqlite_master`, iterates every table, returns full row data including users (password_hash, secret_key_hash, git_token_encrypted), test cases, requirements, design tickets. No auth check, no role check, no rate limit beyond the global default.",
+    impact:
+      "Single unauthenticated GET exfiltrates every customer record, every user hash, and the master admin's encrypted Git token. Catastrophic for any deployment with real customer data.",
+    fix:
+      "Delete the endpoint. If a backup/export is needed, add a separate admin-only download that streams a pre-redacted snapshot to disk, gated by JWT + admin role + audit log entry.",
+  },
+  {
+    id: "SAK-004",
+    severity: "Critical",
+    title: "Password reset endpoint accepts username only — no auth, no secret verification",
+    location: "backend/src/controllers/auth_controller.py:337-405 — `reset_password()`",
+    cwe: "CWE-640 (Weak Password Recovery)",
+    evidence:
+      "POST /api/auth/reset-password takes `{username, new_password}` and writes `password_hash` for that user. There is no token, no current password, no email/OOB challenge, and no proof the caller already passed verify-secret. verify-secret is a separate call whose state is not bound to the reset.",
+    impact:
+      "Account takeover of any known username, including the hardcoded `admin` master account, with a single POST. Combined with SAK-008 (hardcoded master admin) every install is exploitable.",
+    fix:
+      "Issue a short-lived single-use reset token from verify-secret, require it in the reset call, bind it to the username, expire after first use. Force re-login after reset and invalidate existing JWTs.",
+  },
+  {
+    id: "SAK-005",
+    severity: "Critical",
+    title: "User preferences endpoints lack auth and ownership checks (IDOR)",
+    location: "backend/main.py:299-339 — `/api/users/<int:user_id>/preferences`",
+    cwe: "CWE-639 (Authorization Bypass via User-Controlled Key)",
+    evidence:
+      "GET and POST take `user_id` from the URL and pass it directly to `LocalDatabaseService.get_user_preferences(user_id)` / `set_user_preference(user_id, …)`. No JWT check, no comparison against the authenticated user, no admin gate.",
+    impact:
+      "Any caller can read or write preferences (which may include tokens, last-search, customer-context strings) for any user_id. Preferences may be used for downstream state — manipulation is a foothold for further attacks.",
+    fix:
+      "Require JWT, enforce `path.user_id == jwt.user_id` (or admin role). Validate the key against an allow-list. Size-limit values.",
+  },
+  {
+    id: "SAK-006",
+    severity: "Critical",
+    title: "Verbose request logging captures Authorization headers and request bodies in plaintext",
+    location: "backend/src/middleware/error_handlers.py:99-104",
+    cwe: "CWE-532 (Insertion of Sensitive Info into Log) · CWE-312 (Cleartext Storage)",
+    evidence:
+      "`@app.before_request log_request_info()` does `app.logger.info(f\"Headers: {dict(request.headers)}\")` and `app.logger.info(f\"JSON Body: {request.get_json()}\")`. This runs on every request, including /api/auth/login, /signup, /reset-password.",
+    impact:
+      "Bearer JWTs, login passwords, signup passwords, secret_keys, and any customer payload land in app log files in plaintext. Log files are typically less protected than the DB — anyone with log read becomes anyone in the system.",
+    fix:
+      "Strip Authorization/Cookie headers, never log request bodies for auth routes, redact known sensitive field names (password, secret_key, git_token, token). Move structured logs to JSON with explicit allow-listed fields.",
+  },
+  {
+    id: "SAK-007",
+    severity: "Critical",
+    title: "Default JWT and encryption keys are predictable in any non-production env",
+    location: "backend/src/controllers/auth_controller.py:18-32",
+    cwe: "CWE-798 (Hardcoded Credentials) · CWE-321 (Hard-Coded Cryptographic Key)",
+    evidence:
+      "If `JWT_SECRET_KEY` is unset and `ENVIRONMENT != 'production'`, the code falls back to `'dev-secret-key-change-in-prod'`. Same pattern for `ENCRYPTION_KEY='dev-encryption-key-must-be-32-bytes-long='`. The env gate is exact-string `'production'`; common values like `prod`, `staging`, `corp` all fall through to the default.",
+    impact:
+      "Any non-prod-tagged deployment ships with a key every prior reader of the repo knows. Tokens minted with the dev key are forgeable; ENCRYPTION_KEY rotation is impossible because the value is shared across machines.",
+    fix:
+      "Refuse to start if either key is missing or shorter than 32 bytes — do not fall back. Generate per-install secrets in the setup script and persist them under restrictive ACLs. Add a key-rotation procedure that re-encrypts ciphertext columns.",
+  },
+  {
+    id: "SAK-008",
+    severity: "Critical",
+    title: "Hardcoded master admin (`admin`/`admin`) auto-provisioned on first boot",
+    location: "backend/src/infrastructure/master_admin_provision.py:19-26, 95-99",
+    cwe: "CWE-798 (Use of Hard-coded Credentials)",
+    evidence:
+      "On every startup a user `admin` is created with password `admin`, secret_key `sakura_master_admin_secret_2024`, git_token `master_admin_gitlab_token_placeholder` (base64-encoded, not encrypted). The credentials are then logged at INFO level.",
+    impact:
+      "Every install is born with the same root credential. Combined with SAK-004 the account is untrappable. The 'encrypted' Git token is reversible by anyone with log or filesystem read.",
+    fix:
+      "Generate a random password on first boot, write it once to a flagged file readable only by the installer user, force a change on first login, and never log it. Drop the git_token entirely (remote sync is removed per AGENTS.md).",
+  },
+  {
+    id: "SAK-009",
+    severity: "Critical",
+    title: "External LLM providers (OpenAI, Anthropic) ship customer data off-prem",
+    location:
+      "backend/src/implementations/llm/openai_provider.py, anthropic_provider.py · backend/src/services/assistant_service.py:343-392",
+    cwe: "CWE-200 (Information Exposure) · GDPR Art. 44 (Transfer to Third Countries)",
+    evidence:
+      "OpenAIProvider posts to `https://api.openai.com/v1/chat/completions` and `/embeddings`; AnthropicProvider posts to `https://api.anthropic.com/v1/messages`. AssistantService composes a JSON facts block containing requirements/test_cases/design_tickets/specs (titles, descriptions, IDs, statuses) and sends it as the user message. Admin UI lets any caller (SAK-002) switch the default provider.",
+    impact:
+      "Customer-confidential requirement and test-case content streams to a third-party SaaS in the US, against on-prem and data-residency policies. The Network Restrictor would block this only if (a) enabled — off by default (SAK-013) and (b) tightened to deny public IPs (SAK-012 says it currently allows all private IPs but still allows the dest hostnames if DNS resolves to a public IP outside loopback).",
+    fix:
+      "Strip OpenAI/Anthropic providers from the bundle for the corporate build, or hard-gate them behind an explicit, signed config switch that defaults to off. Make Ollama (local) the only registered provider in the on-prem profile. Audit-log every LLM call with provider, byte count, and JWT subject.",
+  },
+];
+
+const HIGH: Finding[] = [
+  {
+    id: "SAK-010",
+    severity: "High",
+    title: "SQL injection via manual `escape_sql_string` in master admin provisioning",
+    location: "backend/src/infrastructure/master_admin_provision.py:67-89",
+    cwe: "CWE-89 (SQL Injection)",
+    evidence:
+      "`escape_sql_string` does `.replace(\"'\", \"''\")` and concatenates into an INSERT. Today the inputs are constants, but the pattern is copy-paste-bait and bypasses SQLite's parameterized binding which is the only safe pathway.",
+    impact:
+      "Latent vector if anyone ever feeds dynamic values through this helper. Sets a bad precedent for the codebase.",
+    fix:
+      "Use parameterised `?` placeholders like the rest of the code, e.g. `execute_query(sql, params=(username, email, …))`. Delete `escape_sql_string`.",
+  },
+  {
+    id: "SAK-011",
+    severity: "High",
+    title: "SQL injection in `DatabaseConfigSource.save_config` via f-string interpolation",
+    location: "backend/src/infrastructure/configuration_manager.py:286-302",
+    cwe: "CWE-89 (SQL Injection)",
+    evidence:
+      "Inside the loop: `query = f\"\"\"INSERT OR REPLACE INTO {self.table_name} (config_key, config_value, updated_at) VALUES ('{key}', '{str_value}', CURRENT_TIMESTAMP)\"\"\"`. Both `key` and `str_value` are interpolated directly.",
+    impact:
+      "If config persistence is ever wired to the DB source (it currently writes to YAML), an admin (and SAK-002 says: any caller) can inject SQL. Combined with the local SQLite this can rewrite arbitrary tables.",
+    fix:
+      "Switch to parameterised binding; whitelist `table_name`; replace the entire DatabaseConfigSource with the file source for the on-prem build (config-in-DB introduces a chicken/egg bootstrap problem anyway).",
+  },
+  {
+    id: "SAK-012",
+    severity: "High",
+    title: "Network restrictor allow-lists every RFC-1918 private IP",
+    location: "backend/src/infrastructure/network_restrictor.py:54-83",
+    cwe: "CWE-918 (SSRF-like) · CWE-441 (Unintended Proxy)",
+    evidence:
+      "`is_host_allowed` returns True if `ipaddress.ip_address(host).is_private` is True — that covers 10/8, 172.16/12, 192.168/16, plus loopback. Documentation (AGENTS.md) claims only loopback is allowed; the code disagrees.",
+    impact:
+      "In a corporate LAN this becomes a lateral-movement primitive: the backend can reach any internal host (databases, S3-compatible stores, JIRA, GitLab Enterprise). If an attacker reaches the admin endpoints (SAK-002) they can re-point LLM/parsing base_url to an internal collector and exfil.",
+    fix:
+      "Restrict to the documented set {127.0.0.1, ::1, 0.0.0.0} plus an explicit allow-list of internal hostnames the operator must opt into. Block by default. Reject DNS that resolves outside the allow-list (rebind-safe check on every connect).",
+  },
+  {
+    id: "SAK-013",
+    severity: "High",
+    title: "Network restrictor disabled by default; .env.example ships it OFF",
+    location: "backend/main.py:33 · .env.example:28",
+    cwe: "CWE-1188 (Insecure Default Initialization)",
+    evidence:
+      "`ENABLE_NETWORK_RESTRICTIONS=false` is the default in both code and the example env file. The 'sandbox' is only active when the operator explicitly opts in.",
+    impact:
+      "On-prem installs that follow the README will run with no egress restriction. Every outbound primitive (LLM, parsing toolchain, ollama_sidecar fallback) is unrestricted.",
+    fix:
+      "Default to ON for the on-prem profile. Make the variable a 3-state {strict, allow_lan, off} and refuse to start with `off` if ENVIRONMENT=production.",
+  },
+  {
+    id: "SAK-014",
+    severity: "High",
+    title: "JWT bearer stored in `localStorage` — vulnerable to any XSS sink",
+    location: "frontend/src/app/services/auth.service.ts:194-198, 234 · interceptors/auth.interceptor.ts:5",
+    cwe: "CWE-922 (Insecure Storage of Sensitive Info) · CWE-79 (XSS amplifier)",
+    evidence:
+      "`localStorage.setItem('token', token)` on every login; interceptor reads from localStorage on every request. There is no HttpOnly cookie option, no CSP (see SAK-019), and no token rotation.",
+    impact:
+      "Any XSS — even a single innerHTML mistake or a future third-party widget — is upgraded to full account takeover. JWTs are valid for 24h with no revocation list.",
+    fix:
+      "Issue session cookies (HttpOnly, Secure, SameSite=strict) from the backend; pair with a CSRF token in a non-HttpOnly cookie that the SPA echoes back as a header. Add a server-side `jti` blocklist for revocation.",
+  },
+  {
+    id: "SAK-015",
+    severity: "High",
+    title: "CORS allows any origin in dev mode and `supports_credentials=True`",
+    location: "backend/main.py:92-96",
+    cwe: "CWE-942 (Permissive Cross-domain Policy)",
+    evidence:
+      "`cors_origins = [\"*\"] if is_dev else …` and `CORS(app, origins=cors_origins, supports_credentials=True)`. Flask-CORS accepts `*` + credentials in dev. `is_dev` defaults to True because `FLASK_ENV` defaults to `'development'` in main.main().",
+    impact:
+      "Any malicious page in the browser can issue authenticated requests to a developer's local backend. In corporate networks the 'dev' build often gets exposed by accident on 0.0.0.0.",
+    fix:
+      "Hard-fail when `origins='*'` and `supports_credentials=True` ever coexist. Default `is_dev=False`; require an opt-in `SAKURA_DEV=1`. In production, restrict to a single FQDN.",
+  },
+  {
+    id: "SAK-016",
+    severity: "High",
+    title: "Password and secret-key complexity well below corporate baseline",
+    location: "backend/src/schemas/user_schema.py:25, 29 · auth_controller.py:358-363",
+    cwe: "CWE-521 (Weak Password Requirements)",
+    evidence:
+      "Password: min_length=6, max_length=100, no charset rule. Secret key: min_length=3. Reset endpoint independently enforces min_length=6 (and only that).",
+    impact:
+      "A 6-char password is brute-forceable offline; combined with werkzeug's pbkdf2-sha256 default (still acceptable but no peppering) the corpus is too small. 3-char secret keys can be exhausted in O(seconds) against /api/auth/verify-secret with no lockout.",
+    fix:
+      "Require ≥12 chars, ≥1 of each class, deny common-password list (HIBP top 1M or a smaller curated list). Argon2id with peppered hash via cryptography. Lockout after 5 failed verify-secret/login attempts per username AND per IP, exponential backoff.",
+  },
+  {
+    id: "SAK-017",
+    severity: "High",
+    title: "Bulk import / parsing accept files with no size, MIME, or content sanity checks",
+    location:
+      "backend/src/controllers/parsing_controller.py:52 · backend/src/services/bulk_import_service.py:519-535 · backend/src/controllers/spec_controller.py:65-80",
+    cwe: "CWE-434 (Unrestricted Upload) · CWE-400 (DoS)",
+    evidence:
+      "`Flask.config.MAX_CONTENT_LENGTH` is never set. Extension check uses untrusted `filename.rsplit('.', 1)`. `file.save(tmp.name)` writes uncapped bytes to disk. CSV parser reads the whole file and walks every row.",
+    impact:
+      "DoS via 5 GB 'xlsx', disk exhaustion under /backend/uploads/specs, zip-bomb-like decompression in openpyxl, decompression bombs in PIL via the Ollama VLM path.",
+    fix:
+      "Set `app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024` (or per-route). Sniff the file magic (python-magic) and reject mismatches. Stream-parse Excel via openpyxl `read_only=True` (already done) but cap rows. Hash-and-deduplicate uploads. Quarantine + virus-scan integration hook.",
+  },
+  {
+    id: "SAK-018",
+    severity: "High",
+    title: "Bind address `0.0.0.0` and `FORCE_HTTPS=false` are the defaults",
+    location: "backend/main.py:402 · .env.example:13-32",
+    cwe: "CWE-668 (Exposure of Resource to Wrong Sphere) · CWE-319 (Cleartext Transmission)",
+    evidence:
+      "`HOST=0.0.0.0` and `FORCE_HTTPS=false` come from .env.example. Talisman is initialised with `force_https=False` when `FLASK_ENV=development` (which is itself the default).",
+    impact:
+      "App listens on every interface, transmits JWTs in cleartext on first hop. Trivially passively sniffable on a switched corporate VLAN.",
+    fix:
+      "Default `HOST=127.0.0.1` and require operator to explicitly broaden. Mandatory TLS termination at nginx (the bundled image already has nginx — wire the cert chain through). Set HSTS with `includeSubDomains; preload`.",
+  },
+  {
+    id: "SAK-019",
+    severity: "High",
+    title: "Content-Security-Policy is explicitly disabled (CSP=None)",
+    location: "backend/src/middleware/error_handlers.py:188",
+    cwe: "CWE-1021 (Improper Restriction of Frames) · CWE-79 (XSS exploitation surface)",
+    evidence:
+      "`Talisman(app, …, content_security_policy=None, …)`. nginx.conf adds X-Frame-Options, X-XSS-Protection, X-Content-Type-Options but no `Content-Security-Policy` or `Referrer-Policy`. No `Permissions-Policy`, no `Cross-Origin-Opener-Policy`.",
+    impact:
+      "If an XSS lands (token in localStorage — SAK-014), no browser-side mitigation kicks in. Third-party scripts (if any future bundle pulls them) execute unsanctioned.",
+    fix:
+      "Ship a strict CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'`. Add Referrer-Policy `no-referrer`, COOP `same-origin`, CORP `same-origin`, Permissions-Policy locking down camera/mic/geo.",
+  },
+  {
+    id: "SAK-020",
+    severity: "High",
+    title: "SQLite database is unencrypted at rest; backups inherit that posture",
+    location: "backend/src/services/local_database_service.py:14-34 · backend/data/local/dev/database/sakura_db.db",
+    cwe: "CWE-311 (Missing Encryption of Sensitive Data)",
+    evidence:
+      "Plain `sqlite3.connect(...)` — no SQLCipher, no OS-level FDE assumed. The DB file lives under the application working dir, world-readable by the running user. The git-tracked sakura_db.db file shows DB content has been committed at least once.",
+    impact:
+      "Disk theft / VM snapshot / backup archive reveals user hashes, encrypted Git tokens, and every requirement/test-case row. Encryption keys for Fernet (git_token) sit beside the DB in the same env file.",
+    fix:
+      "Move to SQLCipher (drop-in via pysqlcipher3) with a per-install passphrase fetched from OS keyring / Windows DPAPI / Linux secret-service. Disk-level: insist on BitLocker / LUKS at the host. Strip the DB file from git history and add it to .gitignore (urgent — see SAK-024).",
+  },
+  {
+    id: "SAK-021",
+    severity: "High",
+    title: "Git token 'encryption' for the master admin is base64 (reversible)",
+    location: "backend/src/infrastructure/master_admin_provision.py:61-64",
+    cwe: "CWE-326 (Inadequate Encryption Strength)",
+    evidence:
+      "`git_token_encrypted = base64.b64encode(MASTER_ADMIN_GIT_TOKEN.encode())` — labeled 'encrypted' in column name, but base64 is a transparent encoding.",
+    impact:
+      "Anyone reading the DB sees the Git token. The token is itself a placeholder string today but the schema invites future real tokens to take the same path.",
+    fix:
+      "Use the Fernet path used by the regular signup flow (auth_controller.py). Better: drop the git_token column outright — the remote/Git sync layer is removed per AGENTS.md.",
+  },
+];
+
+const MEDIUM: Finding[] = [
+  {
+    id: "SAK-022",
+    severity: "Medium",
+    title: "No CSRF protection (acceptable iff token never travels in cookie — but cookies are planned)",
+    location: "backend/main.py CORS config; no CSRF blueprint",
+    cwe: "CWE-352",
+    evidence: "No Flask-WTF / Flask-SeaSurf in requirements; no CSRF token issued. Mitigated today by JWT-in-Authorization-header, but only by accident.",
+    impact: "If SAK-014 fix moves to cookie-based sessions (recommended), the app becomes CSRF-vulnerable on that day.",
+    fix: "Add CSRF middleware concurrently with the cookie-session move. Double-submit cookie pattern is the minimum.",
+  },
+  {
+    id: "SAK-023",
+    severity: "Medium",
+    title: "Rate limiting is global only; no per-endpoint throttle on /login, /reset, /verify-secret",
+    location: "backend/src/middleware/error_handlers.py:11-14, 194-196",
+    cwe: "CWE-307 (Improper Restriction of Authentication Attempts)",
+    evidence: "`Limiter(default_limits=['1000 per day', '200 per hour'])` — same budget for the login endpoint as for an idle status check.",
+    impact: "Allows credential stuffing and secret-key brute force within the global quota. No lockout signal to the user or to ops.",
+    fix: "Per-route limits: `@limiter.limit('5/minute;30/hour')` on /login, /reset-password, /verify-secret. Emit a security event on threshold breach.",
+  },
+  {
+    id: "SAK-024",
+    severity: "Medium",
+    title: "Live production database (`sakura_db.db`) is tracked in git",
+    location: "git status shows `M backend/data/local/dev/database/sakura_db.db`",
+    cwe: "CWE-540 (Inclusion of Sensitive Information in Source Code)",
+    evidence: "The DB file is in the repo and shows as modified. History likely contains earlier user hashes and customer data.",
+    impact: "Anyone with read access to the repo / mirrors / forks has historical customer data and hashes. GDPR right-to-erasure cannot be honored from git history.",
+    fix: "Stop tracking the DB. `git rm --cached`, add to .gitignore. Force-push a history rewrite (BFG / git-filter-repo) and rotate every credential that ever lived in the file. Treat as a confirmed data breach until rotated.",
+  },
+  {
+    id: "SAK-025",
+    severity: "Medium",
+    title: "JWT lifetime 24h, no refresh, no jti revocation, no per-device session",
+    location: "backend/src/controllers/auth_controller.py:45 — JWT_EXPIRATION_HOURS = 24",
+    cwe: "CWE-613 (Insufficient Session Expiration)",
+    evidence: "Token contains user_id, username, iat, exp — no jti. Logout is client-side localStorage clear only; the token is still valid server-side.",
+    impact: "Stolen tokens are usable for 24h. Forced sign-out / compromised user response is impossible.",
+    fix: "Short-lived access tokens (15 min) + refresh token rotation; persist a `revoked_jti` table; provide an admin 'sign out all sessions' button.",
+  },
+  {
+    id: "SAK-026",
+    severity: "Medium",
+    title: "No audit log of security-relevant actions",
+    location: "Searched controllers; no `audit_log` table, no SIEM-shaped events",
+    cwe: "CWE-778 (Insufficient Logging)",
+    evidence: "Logins, role changes, admin config edits, LLM provider switches, bulk imports — none persist a tamper-evident record.",
+    impact: "Incident response is blind. Most compliance regimes require an immutable audit trail for privileged actions.",
+    fix: "Add `audit_log(id, ts, user_id, action, target, prev_value, new_value, src_ip, ua, signature)`; append-only, hash-chained. Stream a copy to syslog/journald for off-host correlation.",
+  },
+  {
+    id: "SAK-027",
+    severity: "Medium",
+    title: "Generic exception handler echoes `str(e)` into the HTTP response",
+    location: "Many controllers — search `\"message\": str(e)`",
+    cwe: "CWE-209 (Information Exposure Through Error Message)",
+    evidence: "auth_controller.py:165, 230, 273; admin_controller.py multiple; user_controller.py multiple — `return jsonify({..., 'message': str(e)})`.",
+    impact: "Stack-derived strings (SQL fragments, file paths, internal table names) leak to the client. Aids reconnaissance.",
+    fix: "Catch specific exception classes; map to client-safe messages; log the full `exc_info` server-side only. Add a global `[error_id]` correlation token the client can quote to support.",
+  },
+  {
+    id: "SAK-028",
+    severity: "Medium",
+    title: "Flask dev server (`app.run`) is the entry point in `main.py`",
+    location: "backend/main.py:415 — `app.run(host=host, port=port, debug=debug)`",
+    cwe: "CWE-1188 / werkzeug docs explicitly say 'do not use in production'",
+    evidence: "`python main.py` boots the werkzeug dev server. `run_server.py` exists as a Waitress/Gunicorn launcher but main.py remains the obvious entry. Debug is on when FLASK_ENV=development (default).",
+    impact: "Werkzeug dev server has the debug PIN console; if `FLASK_ENV=development` ever leaks to prod the entire process is RCE-pwned.",
+    fix: "Make `main.py` import-only; route every operator workflow through `run_server.py`. Add a startup guard that aborts if debug=True AND HOST != 127.0.0.1.",
+  },
+  {
+    id: "SAK-029",
+    severity: "Medium",
+    title: "`/api/sync/status` reachable unauthenticated; legacy endpoints respond 410 (good) but leak shape",
+    location: "backend/main.py:280-297",
+    cwe: "CWE-200 (Info Exposure, low-value)",
+    evidence: "Anyone can hit `/api/sync/status` and learn it's a Sakura local-only deployment.",
+    impact: "Reconnaissance only; no data leak. Useful to attackers fingerprinting the stack.",
+    fix: "Gate behind JWT; return 401 for unauthenticated callers without leaking the product name.",
+  },
+];
+
+const LOW: Finding[] = [
+  {
+    id: "SAK-030",
+    severity: "Low",
+    title: "Wide version ranges in requirements.txt prevent reproducible builds",
+    location: "backend/requirements.txt — `Flask>=3.1,<4`, `cryptography>=42.0.5` open-upper",
+    cwe: "CWE-1357 (Reliance on Insufficiently Trustworthy Component)",
+    evidence: "File documents this is intentional for Python 3.10–3.13 compatibility but acknowledges a `pip freeze` lockfile is needed for reproducibility — none shipped.",
+    impact: "Two installs on the same day can resolve different transitive deps. Supply-chain compromise harder to attribute and remediate.",
+    fix: "Ship `requirements.lock.txt` per supported Python; enable `pip install --require-hashes`. Add a daily `pip-audit` job and fail the build on KEV/critical CVEs.",
+  },
+  {
+    id: "SAK-031",
+    severity: "Low",
+    title: "`secret_key` field semantically overlaps with 'security question' but enforced like a 2nd password",
+    location: "user schema; provisioning; reset flow",
+    cwe: "Design",
+    evidence: "Mixed usage — sometimes called a recovery factor, sometimes treated as a secondary password. UX confusion is a security risk for corporate users.",
+    impact: "Users pick weak values because the purpose is ambiguous.",
+    fix: "Drop secret-key reset entirely; replace with admin-initiated reset workflow that emails (or otherwise OOB-delivers) a single-use link.",
+  },
+  {
+    id: "SAK-032",
+    severity: "Low",
+    title: "Email regex too permissive",
+    location: "backend/src/schemas/user_schema.py — `pattern=r'^[^@]+@[^@]+\\.[^@]+$'`",
+    cwe: "CWE-20 (Improper Input Validation)",
+    evidence: "Accepts `\"@a.b\"`, `\" @x.y\"`, etc.",
+    impact: "Allows malformed emails to enter the DB; harmless but creates downstream parsing surprises.",
+    fix: "Use `email-validator` (Pydantic's EmailStr) — checks domain shape and length per RFC 5321.",
+  },
+  {
+    id: "SAK-033",
+    severity: "Low",
+    title: "Verbose `print()` statements for security-relevant events; bypass the configured logger",
+    location: "backend/main.py:39-43, 357-414",
+    cwe: "CWE-778",
+    evidence: "`print('[SECURITY] Network restrictions enabled')`, master admin status, server boot — go to stdout only, not the log file.",
+    impact: "Operators relying on the log file for forensics miss boot-time security state.",
+    fix: "Route through `logger.info(...)`. Keep stdout for the human-friendly banner only.",
+  },
+  {
+    id: "SAK-034",
+    severity: "Low",
+    title: "Ollama sidecar spawned with no resource caps and no signature check",
+    location: "backend/src/infrastructure/ollama_sidecar.py:200-220",
+    cwe: "CWE-494 (Download of Code Without Integrity Check)",
+    evidence: "Bundled `ollama.exe` is invoked from `<backend>/resources/ollama/ollama.exe` with the user's env. No checksum verification, no Authenticode requirement.",
+    impact: "If the installer is repackaged maliciously the sidecar is RCE-on-launch.",
+    fix: "Verify Authenticode (Windows) / GPG (Linux) before spawn. Document the expected hash in `resources/ollama/SHA256SUMS`.",
+  },
+];
+
+// ----------------------------------------------------------------------------
+// Tables
+// ----------------------------------------------------------------------------
+const ALL_FINDINGS: Finding[] = [...CRITICAL, ...HIGH, ...MEDIUM, ...LOW];
+
+const SeverityPill = ({ severity }: { severity: Finding["severity"] }) => (
+  <Pill size="sm" active={severity === "Critical" || severity === "High"}>
+    {severity}
+  </Pill>
+);
+
+const FindingsTable = ({ items }: { items: Finding[] }) => (
+  <Table
+    headers={["ID", "Sev", "Title", "Location"]}
+    rows={items.map((f) => [
+      <Code>{f.id}</Code>,
+      <SeverityPill severity={f.severity} />,
+      <Text weight="medium">{f.title}</Text>,
+      <Text size="small" tone="secondary" truncate>{f.location}</Text>,
+    ])}
+    columnAlign={["left", "left", "left", "left"]}
+    rowTone={items.map((f) =>
+      f.severity === "Critical" ? "danger" : f.severity === "High" ? "danger" : f.severity === "Medium" ? "warning" : "info"
+    )}
+    striped
+    stickyHeader
+  />
+);
+
+const FindingCard = ({ f }: { f: Finding }) => (
+  <Card>
+    <CardHeader trailing={<SeverityPill severity={f.severity} />}>
+      {`${f.id} · ${f.title}`}
+    </CardHeader>
+    <CardBody>
+      <Stack gap={8}>
+        <Row gap={8} wrap>
+          <Pill size="sm">{f.cwe}</Pill>
+          <Text size="small" tone="tertiary">
+            <Code>{f.location}</Code>
+          </Text>
+        </Row>
+        <Text size="small">
+          <Text weight="semibold" as="span">Evidence. </Text>{f.evidence}
+        </Text>
+        <Text size="small">
+          <Text weight="semibold" as="span">Impact. </Text>{f.impact}
+        </Text>
+        <Text size="small">
+          <Text weight="semibold" as="span">Fix. </Text>{f.fix}
+        </Text>
+      </Stack>
+    </CardBody>
+  </Card>
+);
+
+// ----------------------------------------------------------------------------
+// Data boundary map
+// ----------------------------------------------------------------------------
+const DATA_BOUNDARIES = [
+  {
+    zone: "Browser (Angular SPA)",
+    holds: "JWT in localStorage, last-viewed user JSON, conversation history (assistant)",
+    trust: "Untrusted",
+    crosses: "→ Flask via fetch (Authorization: Bearer)",
+    risk: "XSS lifts the token; no HttpOnly cookie option.",
+  },
+  {
+    zone: "Flask process",
+    holds: "JWT_SECRET_KEY (env), ENCRYPTION_KEY (env), in-mem signed JWTs, request bodies in log buffer (SAK-006)",
+    trust: "Half-trusted",
+    crosses: "↔ SQLite (file), → Ollama sidecar (loopback), → external LLM (if enabled — SAK-009)",
+    risk: "Secrets in env file readable by process user; logs persist headers/bodies.",
+  },
+  {
+    zone: "SQLite file (sakura_db.db)",
+    holds: "users, password_hash, secret_key_hash, git_token_encrypted, customer requirements/test_cases/design_tickets/specs, user_preferences, vectors (separate file)",
+    trust: "Trusted iff disk encrypted",
+    crosses: "← Flask only (no remote sync — local-only mode)",
+    risk: "Unencrypted at rest (SAK-020); committed to git in repo (SAK-024).",
+  },
+  {
+    zone: "Celery + Redis (parsing queue)",
+    holds: "Pickled parse jobs, file paths, task results",
+    trust: "Half-trusted",
+    crosses: "↔ Flask via redis://, ↔ workers reading temp file paths",
+    risk: "Redis runs unauth by default in dev; pickle deserialization risk if Redis is reachable.",
+  },
+  {
+    zone: "Ollama sidecar (local VLM)",
+    holds: "Model blobs (qwen2.5vl), in-flight prompts containing customer data",
+    trust: "Trusted (local)",
+    crosses: "↔ Flask via http://localhost:11434",
+    risk: "No auth between Flask and Ollama; any LAN process on the host can query the model with customer context.",
+  },
+  {
+    zone: "External LLM (OpenAI / Anthropic)",
+    holds: "Receives full requirement+test-case prompts when selected",
+    trust: "Untrusted external",
+    crosses: "→ api.openai.com:443 / api.anthropic.com:443",
+    risk: "Off-prem data egress (SAK-009); blocked only if Network Restrictor on AND tightened.",
+  },
+  {
+    zone: "Bulk import / parsing tempdir",
+    holds: "Uploaded .xlsx/.xlsm/.docx/.csv, rendered PNGs via LibreOffice",
+    trust: "Untrusted (user-supplied)",
+    crosses: "→ openpyxl / soffice / pdftoppm / PIL → vector store",
+    risk: "Decompression bombs, formula injection, image bombs (SAK-017); no MAX_CONTENT_LENGTH.",
+  },
+];
+
+// ----------------------------------------------------------------------------
+// Dependency posture
+// ----------------------------------------------------------------------------
+const PROD_PY_DEPS = [
+  { name: "Flask", range: ">=3.1,<4", risk: "OK", note: "3.x line; ensure ≥3.1.0 for CVE-2024-1681." },
+  { name: "Werkzeug", range: ">=3.1,<4", risk: "Watch", note: "Pin ≥3.0.6 (CVE-2024-49767 DoS, CVE-2024-49766 path traversal)." },
+  { name: "Flask-CORS", range: ">=4,<7", risk: "Watch", note: "v4.x has CVE-2024-1681-ish patterns; pin to ≥5.0.1." },
+  { name: "PyJWT", range: ">=2.8,<3", risk: "OK", note: "Stay ≥2.8.0 (CVE-2024-53861 algorithm confusion fixed)." },
+  { name: "cryptography", range: ">=42.0.5", risk: "Watch", note: "Open upper bound; OpenSSL CVE-2024-12797 in transitively bundled wheels. Pin upper." },
+  { name: "requests", range: ">=2.32,<3", risk: "OK", note: "Stay ≥2.32.0 (CVE-2024-35195 Session.verify)." },
+  { name: "PyYAML", range: ">=6,<7", risk: "OK", note: "Use safe_load only (the file source does this)." },
+  { name: "openpyxl", range: "==3.1.5", risk: "Watch", note: "Pinned. Subject to zip-bomb-style DoS; combine with file-size limit." },
+  { name: "python-docx", range: "==1.1.2", risk: "OK", note: "Latest minor; XXE not applicable (lxml hardened below)." },
+  { name: "lxml", range: "==5.3.0", risk: "Watch", note: "Use resolve_entities=False (default in 5.x). Confirm no XXE path in parsing pipeline." },
+  { name: "Pillow", range: "==10.4.0", risk: "Watch", note: "Decompression bomb DoS; set Image.MAX_IMAGE_PIXELS." },
+  { name: "celery", range: "==5.4.0", risk: "Watch", note: "Acceptable; pin Redis to localhost-only." },
+  { name: "redis", range: "==5.0.8", risk: "Watch", note: "Default no auth; require Redis ACL or unix socket on the host." },
+  { name: "httpx", range: "==0.27.2", risk: "OK", note: "—" },
+  { name: "psycopg2-binary", range: ">=2.9.9", risk: "Unused?", note: "Imported by `postgresql_database_service.py` but local-only mode means Postgres is not in scope. Either remove or document why it ships." },
+  { name: "gunicorn", range: ">=21,<24", risk: "OK", note: "Stay ≥22.0 (CVE-2024-1135 HTTP smuggling). Linux only." },
+  { name: "flask-limiter", range: ">=3.5,<4", risk: "OK", note: "Configure per-endpoint (SAK-023)." },
+  { name: "flask-talisman", range: ">=1.1,<2", risk: "OK", note: "Currently CSP-disabled (SAK-019)." },
+];
+
+const PROD_NG_DEPS = [
+  { name: "@angular/*", range: "^20.3.21", risk: "OK", note: "Active LTS line. Ensure SSR is off (it is — SPA only)." },
+  { name: "rxjs", range: "~7.8.0", risk: "OK", note: "—" },
+  { name: "tslib", range: "^2.3.0", risk: "OK", note: "—" },
+  { name: "karma + jasmine", range: "~6.4 / ~5.x", risk: "Dev-only", note: "Strip from prod image; ensure dist/ does not bundle test runners." },
+  { name: "@types/node", range: "^20.17", risk: "Dev-only", note: "—" },
+];
+
+// ----------------------------------------------------------------------------
+// Compliance gap matrix
+// ----------------------------------------------------------------------------
+const COMPLIANCE_ROWS: Array<[string, string, string, string]> = [
+  ["Identification & Authn",                   "OWASP ASVS V2",     "FAIL",   "SAK-001/002/008 — no real auth in the shipped build"],
+  ["Session Management",                       "OWASP ASVS V3",     "FAIL",   "JWT in localStorage, no revocation, no rotation (SAK-014/025)"],
+  ["Access Control",                           "OWASP ASVS V4",     "FAIL",   "IDOR on preferences, admin no-op decorator (SAK-002/005)"],
+  ["Input Validation & SQLi",                  "OWASP ASVS V5",     "PARTIAL","Most queries parameterised; two raw-interpolation paths (SAK-010/011)"],
+  ["Stored Cryptography",                      "OWASP ASVS V6",     "FAIL",   "Default keys (SAK-007), base64 'encryption' (SAK-021), no DB-at-rest crypto (SAK-020)"],
+  ["Error & Logging",                          "OWASP ASVS V7",     "FAIL",   "Headers/bodies logged (SAK-006), no audit log (SAK-026)"],
+  ["Data Protection (transit)",                "OWASP ASVS V9",     "FAIL",   "FORCE_HTTPS=false default (SAK-018)"],
+  ["Configuration",                            "OWASP ASVS V14",    "FAIL",   "Insecure defaults across env (SAK-013/015/018/028)"],
+  ["GDPR Art. 5 (Storage Limitation, Confid.)","GDPR",              "FAIL",   "DB committed to git (SAK-024), no encryption-at-rest (SAK-020)"],
+  ["GDPR Art. 44 (Transfer to Third Countries)","GDPR",             "FAIL",   "External LLM ships data off-prem (SAK-009)"],
+  ["GDPR Art. 32 (Security of Processing)",    "GDPR",              "FAIL",   "Weak passwords, no rate-limit (SAK-016/023), no audit (SAK-026)"],
+  ["NIST 800-53 AC-3 (Access Enforcement)",    "NIST 800-53 r5",    "FAIL",   "Authz absent at controller layer"],
+  ["NIST 800-53 AU-2 (Audit Events)",          "NIST 800-53 r5",    "FAIL",   "No audit log table"],
+  ["NIST 800-53 IA-5 (Authenticator Mgmt)",    "NIST 800-53 r5",    "FAIL",   "Hardcoded master admin (SAK-008), weak min-length (SAK-016)"],
+  ["NIST 800-53 SC-8 (Transmission Confid.)",  "NIST 800-53 r5",    "FAIL",   "TLS not enforced"],
+  ["NIST 800-53 SC-28 (Protection at Rest)",   "NIST 800-53 r5",    "FAIL",   "Unencrypted SQLite (SAK-020)"],
+  ["SOC 2 CC6.1 (Logical Access)",             "SOC 2",             "FAIL",   "—"],
+  ["SOC 2 CC6.6 (Communications)",             "SOC 2",             "PARTIAL","Egress allow-list exists (network_restrictor) but off by default and too permissive (SAK-012/013)"],
+  ["SOC 2 CC7.2 (Detection of Anomalies)",     "SOC 2",             "FAIL",   "No audit log, no alerting"],
+  ["ISO 27001 A.5.17 (Auth info)",             "ISO 27001:2022",    "FAIL",   "—"],
+  ["ISO 27001 A.8.24 (Use of cryptography)",   "ISO 27001:2022",    "FAIL",   "—"],
+];
+
+// ----------------------------------------------------------------------------
+// Remediation roadmap
+// ----------------------------------------------------------------------------
+type RoadmapItem = { phase: string; days: string; items: string[] };
+
+const ROADMAP: RoadmapItem[] = [
+  {
+    phase: "P0 — Stop the bleed (must merge before any external pilot)",
+    days: "Week 1",
+    items: [
+      "Delete /api/all/ and /api/users/<id>/preferences routes (SAK-003/005)",
+      "Restore role enforcement in require_admin and AdminGuard (SAK-001/002)",
+      "Rebind JWT_SECRET_KEY / ENCRYPTION_KEY check to fail-closed in every env (SAK-007)",
+      "Replace master admin auto-provision with first-boot random password (SAK-008)",
+      "Bind reset-password to a single-use token from verify-secret (SAK-004)",
+      "Strip headers and bodies from request logging (SAK-006)",
+      "git rm --cached the sakura_db.db file; rewrite history; rotate every cred ever present (SAK-024)",
+    ],
+  },
+  {
+    phase: "P1 — Hardened on-prem baseline (corporate pilot)",
+    days: "Weeks 2–4",
+    items: [
+      "Tighten Network Restrictor to documented loopback-only + explicit opt-in LAN allow-list; enable by default (SAK-012/013)",
+      "Drop OpenAI/Anthropic providers from the on-prem profile or hard-gate behind signed config (SAK-009)",
+      "Default HOST=127.0.0.1, FORCE_HTTPS=true; nginx-fronted TLS with HSTS (SAK-018)",
+      "Strict CSP, COOP, CORP, Referrer-Policy, Permissions-Policy (SAK-019)",
+      "Move JWT to HttpOnly+Secure+SameSite=strict cookie; add CSRF middleware (SAK-014/022)",
+      "Per-route rate limits on auth endpoints; lockout on N failures (SAK-016/023)",
+      "Argon2id + Pydantic EmailStr; password complexity ≥12; secret-key flow redesigned (SAK-016/032/031)",
+      "Set MAX_CONTENT_LENGTH; magic-byte sniff every upload (SAK-017)",
+      "Ship requirements.lock with --require-hashes; add pip-audit + npm audit to CI (SAK-030)",
+    ],
+  },
+  {
+    phase: "P2 — Compliance-ready (HIPAA-adjacent / SOC 2 / ISO 27001)",
+    days: "Weeks 5–8",
+    items: [
+      "SQLCipher with per-install passphrase from OS keyring/DPAPI (SAK-020)",
+      "audit_log table — append-only, hash-chained, mirrored to syslog (SAK-026)",
+      "Short-lived access tokens + refresh rotation + jti revocation (SAK-025)",
+      "Eliminate str(e) leakage; client-safe error envelope with correlation id (SAK-027)",
+      "Remove Flask dev-server entry point; only `run_server.py` for ops (SAK-028)",
+      "Authenticode/GPG verify Ollama sidecar before spawn (SAK-034)",
+      "Document and enforce the data-flow diagram below as a code-review checklist",
+    ],
+  },
+  {
+    phase: "P3 — Continuous controls",
+    days: "Ongoing",
+    items: [
+      "Quarterly dependency CVE review; daily pip-audit/npm audit job in CI",
+      "Annual third-party pentest with on-prem scope",
+      "Threat-model review on every new controller (template: STRIDE per endpoint)",
+      "Secret rotation runbook (JWT/ENCRYPTION/master) at most every 90 days",
+      "GDPR DPIA refresh whenever a new data field is added to the customer schema",
+    ],
+  },
+];
+
+// ----------------------------------------------------------------------------
+// Page
+// ----------------------------------------------------------------------------
+export default function SakuraSecurityAudit() {
+  const theme = useHostTheme();
+
+  const counts = {
+    crit: CRITICAL.length,
+    high: HIGH.length,
+    med: MEDIUM.length,
+    low: LOW.length,
+    total: ALL_FINDINGS.length,
+  };
+
+  return (
+    <Stack gap={24}>
+      {/* ========= Header ========= */}
+      <Stack gap={6}>
+        <H1>Sakura — Security & Data Audit</H1>
+        <Text tone="secondary">
+          Code-review-grade audit of the Flask backend, Angular frontend, bundled Ollama sidecar, Celery worker pool, and the local SQLite store.
+          Scope assumes deployment into a high-security corporate environment with regulated customer data and a no-egress on-premise mandate.
+        </Text>
+        <Row gap={8} wrap>
+          <Pill size="sm">OWASP ASVS L2</Pill>
+          <Pill size="sm">NIST 800-53 r5</Pill>
+          <Pill size="sm">SOC 2 CC6/CC7</Pill>
+          <Pill size="sm">ISO 27001:2022</Pill>
+          <Pill size="sm">GDPR Art. 5/32/44</Pill>
+        </Row>
+      </Stack>
+
+      {/* ========= Executive verdict ========= */}
+      <Callout tone="danger" title="Verdict — NOT FIT for a high-security corporate deployment as shipped">
+        Nine Critical findings remove authentication and authorization, expose the
+        full database via a single GET, and route customer data to third-party
+        LLMs by default. The Critical set must be remediated before any pilot
+        touches real customer data. With the P0+P1 roadmap completed (≈4 weeks of focused
+        work) the platform reaches a defensible on-prem baseline; with P2 it is
+        compliance-ready.
+      </Callout>
+
+      {/* ========= Severity strip ========= */}
+      <Grid columns={5} gap={16}>
+        <Stat value={counts.crit} label="Critical" tone="danger" />
+        <Stat value={counts.high} label="High" tone="danger" />
+        <Stat value={counts.med} label="Medium" tone="warning" />
+        <Stat value={counts.low} label="Low" tone="info" />
+        <Stat value={counts.total} label="Total findings" />
+      </Grid>
+
+      {/* ========= Findings overview ========= */}
+      <Stack gap={12}>
+        <H2>Findings — all severities</H2>
+        <Text tone="secondary" size="small">
+          Sorted Critical → Low. Each row links to a code location verified against the working tree at audit time.
+        </Text>
+        <FindingsTable items={ALL_FINDINGS} />
+      </Stack>
+
+      {/* ========= Critical findings expanded ========= */}
+      <Stack gap={12}>
+        <H2>Critical findings — detail</H2>
+        <Text tone="secondary" size="small">
+          Every Critical here is independently sufficient to block a corporate
+          rollout. Several chain together — e.g. SAK-001 + SAK-002 + SAK-003
+          collapses authn/authz/data-protection in one request.
+        </Text>
+        <Grid columns={1} gap={12}>
+          {CRITICAL.map((f) => (
+            <FindingCard key={f.id} f={f} />
+          ))}
+        </Grid>
+      </Stack>
+
+      {/* ========= High findings expanded ========= */}
+      <Stack gap={12}>
+        <H2>High findings — detail</H2>
+        <Grid columns={1} gap={12}>
+          {HIGH.map((f) => (
+            <FindingCard key={f.id} f={f} />
+          ))}
+        </Grid>
+      </Stack>
+
+      {/* ========= Medium findings expanded (collapsible) ========= */}
+      <Stack gap={12}>
+        <H2>Medium findings</H2>
+        <Grid columns={2} gap={12}>
+          {MEDIUM.map((f) => (
+            <FindingCard key={f.id} f={f} />
+          ))}
+        </Grid>
+      </Stack>
+
+      {/* ========= Low findings expanded ========= */}
+      <Stack gap={12}>
+        <H2>Low findings</H2>
+        <Grid columns={2} gap={12}>
+          {LOW.map((f) => (
+            <FindingCard key={f.id} f={f} />
+          ))}
+        </Grid>
+      </Stack>
+
+      <Divider />
+
+      {/* ========= Data boundary map ========= */}
+      <Stack gap={12}>
+        <H2>Data boundaries & trust zones</H2>
+        <Text tone="secondary" size="small">
+          Where customer data lives, where it crosses a trust boundary, and what
+          breaks on each hop. For an on-prem build the right column is the one
+          to drive the deny-list from.
+        </Text>
+        <Table
+          headers={["Zone", "Holds", "Trust", "Crosses to", "Risk on hop"]}
+          rows={DATA_BOUNDARIES.map((z) => [
+            <Text weight="medium">{z.zone}</Text>,
+            <Text size="small">{z.holds}</Text>,
+            <Pill size="sm" active={z.trust.startsWith("Untrusted")}>{z.trust}</Pill>,
+            <Text size="small" tone="secondary">{z.crosses}</Text>,
+            <Text size="small">{z.risk}</Text>,
+          ])}
+          columnAlign={["left", "left", "left", "left", "left"]}
+          striped
+          stickyHeader
+        />
+      </Stack>
+
+      {/* ========= Network egress posture ========= */}
+      <Stack gap={12}>
+        <H2>Network egress posture (current vs. required)</H2>
+        <Grid columns={2} gap={12}>
+          <Card>
+            <CardHeader trailing={<Pill size="sm">Current</Pill>}>As shipped</CardHeader>
+            <CardBody>
+              <Stack gap={6}>
+                <Text size="small">• ENABLE_NETWORK_RESTRICTIONS=false (default)</Text>
+                <Text size="small">• Allow-list includes <Code>ip.is_private</Code> — full RFC-1918</Text>
+                <Text size="small">• OpenAI/Anthropic providers registered and selectable from admin UI</Text>
+                <Text size="small">• Ollama sidecar speaks plain HTTP to <Code>http://localhost:11434</Code></Text>
+                <Text size="small">• Redis (Celery) bind unspecified — likely 127.0.0.1, not enforced</Text>
+                <Text size="small">• HOST=0.0.0.0, FORCE_HTTPS=false</Text>
+              </Stack>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader trailing={<Pill size="sm" active>Target</Pill>}>On-prem corporate</CardHeader>
+            <CardBody>
+              <Stack gap={6}>
+                <Text size="small">• Restrictor ON by default; <Code>strict</Code> mode = loopback only</Text>
+                <Text size="small">• External LLM providers removed from the on-prem build profile</Text>
+                <Text size="small">• Egress allow-list is explicit FQDN list, DNS-rebind-safe at connect()</Text>
+                <Text size="small">• Outbound proxy (if any) terminates at corporate egress controller; backend itself denies</Text>
+                <Text size="small">• HOST=127.0.0.1; reverse proxy (nginx) terminates TLS with HSTS preload</Text>
+                <Text size="small">• Audit-log every blocked connection attempt and ship to SIEM</Text>
+              </Stack>
+            </CardBody>
+          </Card>
+        </Grid>
+      </Stack>
+
+      {/* ========= Dependency posture ========= */}
+      <Stack gap={12}>
+        <H2>Dependency posture</H2>
+        <Text tone="secondary" size="small">
+          Backend prod runtime (Python) — pin ranges from <Code>requirements.txt</Code>.
+          Notes call out the CVEs to track and the upper-bound issues that prevent reproducible builds.
+        </Text>
+        <Table
+          headers={["Package", "Range", "Risk", "Notes"]}
+          rows={PROD_PY_DEPS.map((d) => [
+            <Code>{d.name}</Code>,
+            <Text size="small">{d.range}</Text>,
+            <Pill size="sm" active={d.risk === "Watch" || d.risk === "Unused?"}>{d.risk}</Pill>,
+            <Text size="small">{d.note}</Text>,
+          ])}
+          striped
+          stickyHeader
+        />
+        <H3>Frontend runtime</H3>
+        <Table
+          headers={["Package", "Range", "Risk", "Notes"]}
+          rows={PROD_NG_DEPS.map((d) => [
+            <Code>{d.name}</Code>,
+            <Text size="small">{d.range}</Text>,
+            <Pill size="sm" active={d.risk === "Watch"}>{d.risk}</Pill>,
+            <Text size="small">{d.note}</Text>,
+          ])}
+          striped
+        />
+        <Callout tone="info">
+          No production lockfile is shipped today (<Code>requirements.lock.txt</Code> absent;
+          <Code> package-lock.json</Code> exists for npm — verify it is up to date and committed).
+          For reproducible on-prem audits ship the lockfile, pin the upper bounds, and require <Code>pip install --require-hashes</Code>.
+        </Callout>
+      </Stack>
+
+      {/* ========= Compliance gap matrix ========= */}
+      <Stack gap={12}>
+        <H2>Compliance gap matrix</H2>
+        <Text tone="secondary" size="small">
+          Mapping of the findings above against the corporate-relevant control frameworks. Pass-as-shipped is currently empty.
+        </Text>
+        <Table
+          headers={["Control area", "Framework", "Status", "Driver findings"]}
+          rows={COMPLIANCE_ROWS.map(([area, fw, status, driver]) => [
+            <Text weight="medium">{area}</Text>,
+            <Text size="small" tone="secondary">{fw}</Text>,
+            <Pill size="sm" active={status === "FAIL"}>{status}</Pill>,
+            <Text size="small">{driver}</Text>,
+          ])}
+          rowTone={COMPLIANCE_ROWS.map(([, , s]) => (s === "FAIL" ? "danger" : s === "PARTIAL" ? "warning" : "success"))}
+          striped
+          stickyHeader
+        />
+      </Stack>
+
+      {/* ========= Remediation roadmap ========= */}
+      <Stack gap={12}>
+        <H2>Remediation roadmap</H2>
+        <Grid columns={1} gap={12}>
+          {ROADMAP.map((p) => (
+            <Card key={p.phase}>
+              <CardHeader trailing={<Pill size="sm">{p.days}</Pill>}>{p.phase}</CardHeader>
+              <CardBody>
+                <Stack gap={6}>
+                  {p.items.map((item, i) => (
+                    <Text key={i} size="small">• {item}</Text>
+                  ))}
+                </Stack>
+              </CardBody>
+            </Card>
+          ))}
+        </Grid>
+      </Stack>
+
+      {/* ========= On-prem build profile ========= */}
+      <Stack gap={12}>
+        <H2>Proposed on-prem build profile</H2>
+        <Text tone="secondary" size="small">
+          A single set of env defaults + build-time switches that flips the
+          posture for the corporate target. Treat this as the contract every
+          on-prem image must satisfy at boot.
+        </Text>
+        <Grid columns={2} gap={12}>
+          <Card>
+            <CardHeader>Runtime env (.env)</CardHeader>
+            <CardBody>
+              <Stack gap={4}>
+                <Text size="small"><Code>ENVIRONMENT=production</Code></Text>
+                <Text size="small"><Code>HOST=127.0.0.1</Code></Text>
+                <Text size="small"><Code>FORCE_HTTPS=true</Code></Text>
+                <Text size="small"><Code>ENABLE_NETWORK_RESTRICTIONS=strict</Code></Text>
+                <Text size="small"><Code>JWT_SECRET_KEY=&lt;random-64B&gt;</Code></Text>
+                <Text size="small"><Code>ENCRYPTION_KEY=&lt;Fernet.generate_key()&gt;</Code></Text>
+                <Text size="small"><Code>SAKURA_DISABLE_OLLAMA_SIDECAR=false</Code> · localhost only</Text>
+                <Text size="small"><Code>SAKURA_LLM_ALLOW_EXTERNAL=false</Code> · gate provider registration</Text>
+                <Text size="small"><Code>SAKURA_DB_PASSPHRASE=&lt;from keyring&gt;</Code> · SQLCipher</Text>
+                <Text size="small"><Code>ALLOWED_ORIGINS=https://sakura.corp.example</Code></Text>
+              </Stack>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader>Build-time switches</CardHeader>
+            <CardBody>
+              <Stack gap={4}>
+                <Text size="small">• Strip <Code>openai_provider.py</Code> and <Code>anthropic_provider.py</Code> from the wheel</Text>
+                <Text size="small">• Strip <Code>postgresql_database_service.py</Code> if not used (and remove psycopg2-binary)</Text>
+                <Text size="small">• Remove dev guards: <Code>main.app.run()</Code>, <Code>SAKURA_USE_DEV_SERVER</Code></Text>
+                <Text size="small">• Frontend: <Code>APP_SETTINGS.auth.enabled = true</Code>, drop <Code>AUTH_DISABLED_USER</Code></Text>
+                <Text size="small">• Ship strict CSP / HSTS / COOP / CORP / Referrer-Policy via Talisman</Text>
+                <Text size="small">• Authenticode-sign the bundled Ollama binary; verify on launch</Text>
+                <Text size="small">• <Code>pip install --require-hashes -r requirements.lock.txt</Code> in the installer</Text>
+                <Text size="small">• Image scan (Trivy/Grype) at CI; fail on KEV/critical</Text>
+              </Stack>
+            </CardBody>
+          </Card>
+        </Grid>
+      </Stack>
+
+      {/* ========= Methodology footnote ========= */}
+      <Stack gap={4}>
+        <H3>Methodology & scope notes</H3>
+        <Text size="small" tone="tertiary">
+          Manual static review of the repo at audit time. Backend (Flask, Python), frontend (Angular 20), bundled Ollama sidecar,
+          Celery+Redis worker layer, SQLite/sqlite-vec storage. Dynamic testing (DAST), threat-modelling workshops, and a third-party
+          pentest are recommended follow-ups before any go-live. Every finding cites a concrete file:line so it is verifiable from the
+          working tree. Severity uses the OWASP risk-rating method (impact × likelihood) calibrated for a high-trust corporate environment.
+        </Text>
+      </Stack>
+    </Stack>
+  );
+}

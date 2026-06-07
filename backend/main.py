@@ -29,18 +29,33 @@ except Exception:
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-# Enable network restrictions for security (optional, can be disabled for development)
-ENABLE_NETWORK_RESTRICTIONS = os.environ.get('ENABLE_NETWORK_RESTRICTIONS', 'false').lower() == 'true'
+# Network egress allow-list. Default is "strict" (loopback only). The audit
+# (SAK-013) flagged that this used to default off — keeping it on closes the
+# easiest exfiltration channel during development too. Production refuses to
+# boot with restrictions fully off.
+_RESTRICTOR_MODE = os.environ.get('ENABLE_NETWORK_RESTRICTIONS', 'strict').strip().lower()
+# Back-compat: legacy boolean values still work.
+if _RESTRICTOR_MODE in ('true', '1', 'yes', 'on'):
+    _RESTRICTOR_MODE = 'strict'
+elif _RESTRICTOR_MODE in ('false', '0', 'no'):
+    _RESTRICTOR_MODE = 'off'
+
+if _RESTRICTOR_MODE == 'off' and os.environ.get('ENVIRONMENT', '').lower() == 'production':
+    raise RuntimeError(
+        "ENABLE_NETWORK_RESTRICTIONS=off is not allowed when ENVIRONMENT=production. "
+        "Use 'strict' (loopback-only) or 'allow_lan' (RFC-1918) instead."
+    )
+
+ENABLE_NETWORK_RESTRICTIONS = _RESTRICTOR_MODE in ('strict', 'allow_lan')
+os.environ['SAKURA_RESTRICTOR_MODE'] = _RESTRICTOR_MODE
 
 if ENABLE_NETWORK_RESTRICTIONS:
     try:
         from src.infrastructure.network_restrictor import enable_network_restrictions, verify_network_isolation
         enable_network_restrictions()
-        print("[SECURITY] Network restrictions enabled")
     except Exception as e:
-        print(f"[WARNING] Could not enable network restrictions: {e}")
-else:
-    print("[INFO] Network restrictions disabled (set ENABLE_NETWORK_RESTRICTIONS=true to enable)")
+        # Use stderr because the structured logger isn't configured yet at module load time.
+        sys.stderr.write(f"[WARNING] Could not enable network restrictions: {e}\n")
 
 from src.infrastructure.dependency_injection import (
     get_user_service, get_test_case_service, get_hybrid_database_service,
@@ -86,13 +101,23 @@ def create_app() -> Flask:
     
     # Determine development mode from environment (app.debug is not yet set at this point
     # because Flask only flips it when app.run(debug=True) is called later in main()).
-    is_dev = os.environ.get('FLASK_ENV', 'development') == 'development'
+    # SAK-018/028 fix: production is now the default; dev mode must be opted into.
+    is_dev = os.environ.get('FLASK_ENV', 'production') == 'development'
     app.config['SAKURA_IS_DEV'] = is_dev
-    
-    # Configure CORS. In development, allow any origin so the Angular dev server
-    # (http://localhost:4200) can talk to the API on http://localhost:5000.
-    cors_origins = ["*"] if is_dev else os.environ.get('ALLOWED_ORIGINS', 'https://sakura.company.com').split(',')
-    CORS(app, origins=cors_origins, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+
+    # Configure CORS. The pre-audit version allowed origins="*" together with
+    # supports_credentials=True in dev, which Flask-CORS would happily emit —
+    # browsers refuse it, but the misconfiguration also hides real CSRF posture
+    # bugs. We now demand an explicit allow-list and refuse the wildcard +
+    # credentials combination outright (SAK-015).
+    allowed_origins_env = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:4200,http://localhost:5000')
+    cors_origins = [o.strip() for o in allowed_origins_env.split(',') if o.strip()]
+    if '*' in cors_origins:
+        raise RuntimeError(
+            "ALLOWED_ORIGINS must not contain '*' (refused at startup: SAK-015). "
+            "List the exact frontend origin(s) instead."
+        )
+    CORS(app, origins=cors_origins, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization"], supports_credentials=True)
     
     # Setup middleware
@@ -200,74 +225,20 @@ def register_legacy_routes(app: Flask) -> None:
             "version": "1.0.0"
         }
     
+    # SAK-003: the legacy /api/all/ endpoint dumped every table including
+    # users.password_hash, secret_key_hash, and git_token_encrypted with no
+    # authentication. Removed wholesale. The endpoint now returns 410 so old
+    # clients learn the feature is gone and stop polling. Use the per-resource
+    # APIs (with proper authz) instead.
     @app.route('/api/all/')
+    @app.route('/api/all')
     def get_all_data():
-        """Get all data from all tables."""
-        try:
-            import sqlite3
-            from pathlib import Path
-            
-            # Get database path from configuration
-            from src.infrastructure.configuration_manager import get_config_manager
-            config_manager = get_config_manager()
-            local_db_path = config_manager.get_config("database.local_db_path", "data/local/dev/database/local.db")
-            
-            # Resolve path relative to backend directory
-            backend_dir = Path(__file__).parent
-            db_path = backend_dir / local_db_path
-            
-            if not db_path.exists():
-                return {
-                    "success": False,
-                    "error": "Database not found",
-                    "path": str(db_path)
-                }, 404
-            
-            # Connect to database
-            conn = sqlite3.connect(str(db_path))
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            try:
-                # Get all table names
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                tables = [t[0] for t in cursor.fetchall() if t[0] != 'sqlite_sequence']
-                
-                all_data = {}
-                
-                for table in tables:
-                    # Get all rows from the table
-                    cursor.execute(f"SELECT * FROM {table}")
-                    rows = cursor.fetchall()
-                    
-                    # Convert rows to dictionaries
-                    table_data = []
-                    for row in rows:
-                        table_data.append(dict(row))
-                    
-                    all_data[table] = {
-                        "count": len(table_data),
-                        "data": table_data
-                    }
-                
-                return {
-                    "success": True,
-                    "message": "All data retrieved successfully",
-                    "database": str(db_path.name),
-                    "tables": all_data,
-                    "total_tables": len(tables),
-                    "total_rows": sum(data["count"] for data in all_data.values())
-                }
-                
-            finally:
-                conn.close()
-                
-        except Exception as e:
-            logger.error(f"Failed to get all data: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }, 500
+        return jsonify({
+            "success": False,
+            "error": "Endpoint removed",
+            "message": "GET /api/all was removed in the security hardening pass (SAK-003). Use the per-resource APIs.",
+        }), 410
+
     
     # Remote/Git database sync was removed. The legacy endpoints below exist
     # only to give old clients a clean 410 response instead of a hard 404 so
@@ -289,16 +260,26 @@ def register_legacy_routes(app: Flask) -> None:
 
     @app.route('/api/sync/status', methods=['GET'])
     def get_sync_status():
-        """Local-only sync status."""
+        """Local-only sync status. Auth required (SAK-029)."""
+        from flask import g
+        if not getattr(g, 'current_user', None):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         try:
             hybrid_service = get_hybrid_database_service()
             return jsonify(hybrid_service.get_sync_status())
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+        except Exception:
+            logger.exception("sync status failed")
+            return jsonify({"success": False, "error": "Internal error"}), 500
 
     @app.route('/api/users/<int:user_id>/preferences', methods=['GET'])
     def get_user_preferences(user_id):
-        """Get user preferences."""
+        """Get user preferences (SAK-005: owner or admin only)."""
+        from flask import g
+        current = getattr(g, 'current_user', None)
+        if not current:
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        if current.get('id') != user_id and current.get('role') != 'admin':
+            return jsonify({"success": False, "error": "Forbidden"}), 403
         try:
             from src.infrastructure.dependency_injection import get_local_database_service
             local_service = get_local_database_service()
@@ -307,15 +288,22 @@ def register_legacy_routes(app: Flask) -> None:
                 "success": True,
                 "data": preferences
             })
-        except Exception as e:
+        except Exception:
+            logger.exception("get_user_preferences failed")
             return jsonify({
                 "success": False,
-                "error": str(e)
+                "error": "Internal error"
             }), 500
-    
+
     @app.route('/api/users/<int:user_id>/preferences', methods=['POST'])
     def set_user_preference(user_id):
-        """Set user preference."""
+        """Set user preference (SAK-005: owner or admin only)."""
+        from flask import g
+        current = getattr(g, 'current_user', None)
+        if not current:
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        if current.get('id') != user_id and current.get('role') != 'admin':
+            return jsonify({"success": False, "error": "Forbidden"}), 403
         try:
             from src.infrastructure.dependency_injection import get_local_database_service
             data = request.get_json()
@@ -324,54 +312,53 @@ def register_legacy_routes(app: Flask) -> None:
                     "success": False,
                     "error": "Key and value are required"
                 }), 400
-            
+
             local_service = get_local_database_service()
             success = local_service.set_user_preference(user_id, data['key'], data['value'])
-            
+
             return jsonify({
                 "success": success,
                 "message": "Preference set" if success else "Failed to set preference"
             })
-        except Exception as e:
+        except Exception:
+            logger.exception("set_user_preference failed")
             return jsonify({
                 "success": False,
-                "error": str(e)
+                "error": "Internal error"
             }), 500
-    
+
     logger.info("Legacy routes registered successfully")
 
 
 def main():
     """Main entry point for the Sakura backend application."""
-    
-    # Set environment variables for configuration
-    os.environ.setdefault('FLASK_ENV', 'development')
-    
+
+    # SAK-018/028 fix: production is the default; development must be opted-into.
+    os.environ.setdefault('FLASK_ENV', 'production')
+    os.environ.setdefault('ENVIRONMENT', 'production')
+
     # Create Flask application
     app = create_app()
-    
+
     # Initialize hybrid database service
     try:
         hybrid_service = get_hybrid_database_service()
         if hybrid_service.initialize():
-            print("[SUCCESS] Hybrid database service initialized successfully")
+            logger.info("Hybrid database service initialized successfully")
         else:
-            print("[ERROR] Failed to initialize hybrid database service")
-            print("[WARNING] Continuing with limited functionality...")
-    except Exception as e:
-        print(f"[ERROR] Error initializing hybrid database service: {e}")
-        print("[WARNING] Continuing with limited functionality...")
-    
+            logger.error("Failed to initialize hybrid database service; continuing with limited functionality")
+    except Exception:
+        logger.exception("Error initializing hybrid database service; continuing with limited functionality")
+
     # Provision master admin account
     try:
         from src.infrastructure.master_admin_provision import provision_master_admin
         if provision_master_admin():
-            print("[SUCCESS] Master admin account provisioned")
+            logger.info("Master admin account provisioned")
         else:
-            print("[WARNING] Failed to provision master admin account")
-    except Exception as e:
-        print(f"[ERROR] Error provisioning master admin account: {e}")
-        print("[WARNING] Continuing without master admin account...")
+            logger.warning("Failed to provision master admin account")
+    except Exception:
+        logger.exception("Error provisioning master admin account; continuing without it")
 
     # Start bundled Ollama VLM sidecar (best-effort; falls back silently if
     # the binary or pre-pulled qwen2.5vl:7b blobs aren't shipped in this build).
@@ -379,8 +366,8 @@ def main():
         try:
             from src.infrastructure.ollama_sidecar import ensure_ollama_running
             ensure_ollama_running()
-        except Exception as e:
-            print(f"[WARNING] Ollama sidecar not started: {e}")
+        except Exception:
+            logger.exception("Ollama sidecar not started")
 
     # Start the assistant's live vector indexer (RAG). Runs in a daemon
     # thread that polls database_metadata.version every N seconds and
@@ -392,26 +379,29 @@ def main():
             live = get_live_indexer()
             if live is not None:
                 live.start()
-                print("[SUCCESS] Assistant live indexer started")
+                logger.info("Assistant live indexer started")
             else:
-                print("[INFO] Assistant live indexer disabled (assistant.rag.enabled=false)")
-        except Exception as e:
-            print(f"[WARNING] Live indexer not started: {e}")
-    
-    # Get configuration
-    host = os.environ.get('HOST', '0.0.0.0')
+                logger.info("Assistant live indexer disabled (assistant.rag.enabled=false)")
+        except Exception:
+            logger.exception("Live indexer not started")
+
+    host = os.environ.get('HOST', '127.0.0.1')
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
-    
-    print(f"[START] Starting Sakura Backend Server")
-    print(f"[INFO] Host: {host}")
-    print(f"[INFO] Port: {port}")
-    print(f"[INFO] Debug: {debug}")
-    print(f"[INFO] API Base URL: http://{host}:{port}")
-    print(f"[INFO] Health Check: http://{host}:{port}/health")
-    print(f"[INFO] API Documentation: http://{host}:{port}/api/docs")
-    
-    # Start the application
+
+    # SAK-028 fix: the werkzeug dev server exposes a debug PIN console that is
+    # RCE-on-LAN. Refuse to bind a debug server to anything except loopback.
+    if debug and host not in ('127.0.0.1', '::1', 'localhost'):
+        raise RuntimeError(
+            f"Refusing to start: FLASK_ENV=development with HOST={host}. "
+            "The werkzeug debug server must only bind to loopback. "
+            "Either set FLASK_ENV=production or HOST=127.0.0.1."
+        )
+
+    logger.info("Starting Sakura backend server host=%s port=%s debug=%s", host, port, debug)
+
+    # In production, hand off to run_server.py (Waitress/Gunicorn). The
+    # werkzeug dev server is only used when explicitly running in dev mode.
     app.run(host=host, port=port, debug=debug)
 
 

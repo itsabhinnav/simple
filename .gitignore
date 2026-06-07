@@ -331,9 +331,23 @@ Temporary Items
 # Project Specific
 # ===========================================
 
-# Database files
+# Database files (SAK-024 fix: never commit local SQLite state).
+# The historical sakura_db.db file was tracked in this repo for a while —
+# remove it from history with git-filter-repo and rotate every credential
+# that ever lived inside it before treating this rule as sufficient.
 *.sqlite
 *.sqlite3
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Specific local data paths used at runtime (defence in depth above the
+# glob rules in case a future feature ships a non-.db extension).
+backend/data/
+data/local/
+data/tmp/
+data/admin-credentials.txt
 
 # Log files
 *.log
@@ -345,9 +359,6 @@ config/secrets.json
 .env.local
 .env.production.local
 .env.development.local
-
-# Data directories — local-only DB lives under backend/data/. Never commit it
-# (no remote/Git mirror exists anymore; the SQLite file is per-machine).
 
 
 # Test artifacts

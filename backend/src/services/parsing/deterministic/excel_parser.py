@@ -31,6 +31,18 @@ from src.services.parsing.models import (
 logger = get_logger(__name__)
 
 
+# SAK-040: shared hardened XML parser. All etree.fromstring calls in this
+# module must use this parser to keep XXE/SSRF off even if upstream defaults
+# regress.
+_SAFE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+    load_dtd=False,
+    huge_tree=False,
+    dtd_validation=False,
+)
+
+
 NS = {
     "s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
@@ -159,7 +171,7 @@ class ExcelDeterministicParser:
             return []
         try:
             data = zf.read("xl/sharedStrings.xml")
-            root = etree.fromstring(data)
+            root = etree.fromstring(data, _SAFE_PARSER)
         except etree.XMLSyntaxError as exc:
             warnings.append(f"sharedStrings parse error: {exc}")
             return []
@@ -171,7 +183,7 @@ class ExcelDeterministicParser:
 
     def _read_workbook_sheets(self, zf: zipfile.ZipFile, warnings: List[str]) -> Tuple[List[Tuple[str, str]], List[str]]:
         try:
-            root = etree.fromstring(zf.read("xl/workbook.xml"))
+            root = etree.fromstring(zf.read("xl/workbook.xml"), _SAFE_PARSER)
         except (KeyError, etree.XMLSyntaxError) as exc:
             warnings.append(f"workbook.xml unreadable: {exc}")
             return [], []
@@ -188,7 +200,7 @@ class ExcelDeterministicParser:
         if rel_path not in zf.namelist():
             return {}
         try:
-            root = etree.fromstring(zf.read(rel_path))
+            root = etree.fromstring(zf.read(rel_path), _SAFE_PARSER)
         except etree.XMLSyntaxError:
             return {}
         out: Dict[str, str] = {}
@@ -219,7 +231,7 @@ class ExcelDeterministicParser:
             warnings.append(f"sheet xml missing: {sheet_path}")
             return data
         try:
-            root = etree.fromstring(zf.read(sheet_path))
+            root = etree.fromstring(zf.read(sheet_path), _SAFE_PARSER)
         except etree.XMLSyntaxError as exc:
             warnings.append(f"sheet {name} parse error: {exc}")
             return data
@@ -409,7 +421,7 @@ class ExcelDeterministicParser:
                 warnings.append(f"drawing missing for sheet {sd.name}: {drawing_xml_path}")
                 continue
             try:
-                root = etree.fromstring(zf.read(drawing_xml_path))
+                root = etree.fromstring(zf.read(drawing_xml_path), _SAFE_PARSER)
             except etree.XMLSyntaxError as exc:
                 warnings.append(f"drawing parse error for {sd.name}: {exc}")
                 continue
