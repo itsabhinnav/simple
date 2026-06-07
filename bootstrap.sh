@@ -34,11 +34,24 @@ if [ ! -f .env ]; then
 
   cat <<EOF > .env
 ENVIRONMENT=production
+FLASK_ENV=production
+HOST=0.0.0.0
+PORT=5000
 JWT_SECRET_KEY=$JWT_SECRET
 ENCRYPTION_KEY=$ENCRYPTION_KEY
 ALLOWED_ORIGINS=http://$LOCAL_IP:5000,http://localhost:5000
 FORCE_HTTPS=false
+# strict | allow_lan | off  (off is refused in production)
+ENABLE_NETWORK_RESTRICTIONS=strict
+# AI assistant — external LLM providers are refused unless flipped on.
+SAKURA_LLM_ALLOW_EXTERNAL=false
+SAKURA_LLM_ALLOW_REMOTE_OLLAMA=false
+# Bundled Ollama daemon (desktop installer only). Containers stay off by default.
+SAKURA_DISABLE_OLLAMA_SIDECAR=true
+# RAG live indexer thread — disable only when debugging cold-start CPU.
+SAKURA_DISABLE_LIVE_INDEXER=false
 EOF
+  chmod 600 .env 2>/dev/null || true
   echo "[SUCCESS] .env file created."
 fi
 

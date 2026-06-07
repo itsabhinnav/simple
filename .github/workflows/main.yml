@@ -15,13 +15,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
-          cd backend
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           pip install pytest
-      - name: Run tests
+      - name: Run backend tests
+        env:
+          # CI lives outside any LAN we trust; force loopback-only egress.
+          ENABLE_NETWORK_RESTRICTIONS: strict
+          # Background sidecars / RAG indexer would just slow tests down.
+          SAKURA_DISABLE_OLLAMA_SIDECAR: 'true'
+          SAKURA_DISABLE_LIVE_INDEXER: 'true'
         run: |
           cd backend
           pytest
@@ -34,11 +39,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: |
           cd frontend
-          npm install
-      - name: Lint
+          npm ci || npm install
+      - name: Build (production)
         run: |
           cd frontend
           npm run build -- --configuration production
@@ -47,12 +52,15 @@ jobs:
     needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -60,16 +68,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push backend
+      # Single unified image: Flask backend + bundled Angular SPA. The legacy
+      # split-image build (backend-only + nginx-frontend) is no longer
+      # published — the unified image is what docker-compose.yml drives.
+      - name: Build and push unified image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
+          context: .
+          file: ./Dockerfile.unified
           push: true
-          tags: ghcr.io/${{ github.repository }}/backend:latest
-
-      - name: Build and push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ghcr.io/${{ github.repository }}/frontend:latest
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

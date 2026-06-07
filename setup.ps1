@@ -320,6 +320,35 @@ if (-not (Test-Path $EnvFile)) {
 Log "Setup complete"
 
 # ---------------------------------------------------------------------------
+# 4b. Optional runtime deps (Smart Import + local VLM)
+# ---------------------------------------------------------------------------
+# The Smart Import wizard's hybrid parser uses LibreOffice (soffice) + Poppler
+# (pdftoppm) to render Excel/Word pages into PNG snapshots for the VLM. The
+# in-app assistant talks to a local Ollama daemon. Both are OPTIONAL - when
+# missing, parsing falls back to deterministic-only and the assistant
+# degrades gracefully - but probing here lets the operator know what they're
+# giving up.
+$sofficeFound = (Test-Command soffice) -or `
+                (Test-Path "C:\Program Files\LibreOffice\program\soffice.exe") -or `
+                (Test-Path "C:\Program Files (x86)\LibreOffice\program\soffice.exe")
+if (-not $sofficeFound) {
+    Warn "LibreOffice ('soffice') not found - Smart Import will run without page snapshots."
+    Warn "  Install: https://www.libreoffice.org/download/download/ or 'winget install TheDocumentFoundation.LibreOffice'"
+}
+if (-not (Test-Command pdftoppm)) {
+    Warn "Poppler ('pdftoppm') not on PATH - needed alongside LibreOffice for visual previews."
+    Warn "  Install: 'winget install oschwartz10612.Poppler' or https://github.com/oschwartz10612/poppler-windows/releases/"
+}
+$bundledOllama = Join-Path $RootDir 'backend\resources\ollama\ollama.exe'
+if (-not (Test-Command ollama) -and -not (Test-Path $bundledOllama)) {
+    Warn "Ollama not detected - in-app assistant VLM features will be unavailable."
+    Warn "  Install from https://ollama.com/download/windows, then pre-pull a model:"
+    Warn "    ollama pull qwen2.5vl:7b"
+    Warn "  Or vendor the binary + blobs for offline use via:"
+    Warn "    pwsh backend\scripts\prepare_ollama_resources.ps1"
+}
+
+# ---------------------------------------------------------------------------
 # 5. Launch
 # ---------------------------------------------------------------------------
 if (-not $NoStart) {

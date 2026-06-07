@@ -277,6 +277,28 @@ fi
 log "Setup complete"
 
 # ---------------------------------------------------------------------------
+# 4b. Optional runtime deps (Smart Import + local VLM)
+# ---------------------------------------------------------------------------
+# The Smart Import wizard's hybrid parser uses LibreOffice (soffice) + Poppler
+# (pdftoppm) to render Excel/Word pages into PNG snapshots for the VLM. The
+# in-app assistant talks to a local Ollama daemon. Both are OPTIONAL — when
+# missing, parsing falls back to deterministic-only and the assistant
+# degrades gracefully — but probing here lets the operator know what they're
+# giving up.
+if ! command -v soffice >/dev/null 2>&1; then
+  warn "LibreOffice ('soffice') not on PATH — Smart Import will run without page snapshots."
+  warn "  Install: sudo apt-get install -y libreoffice-core libreoffice-calc libreoffice-writer (Debian/Ubuntu)"
+fi
+if ! command -v pdftoppm >/dev/null 2>&1; then
+  warn "Poppler ('pdftoppm') not on PATH — needed alongside LibreOffice for visual previews."
+  warn "  Install: sudo apt-get install -y poppler-utils"
+fi
+if ! command -v ollama >/dev/null 2>&1 && [ ! -f "$ROOT_DIR/backend/resources/ollama/ollama" ]; then
+  warn "Ollama not detected — in-app assistant VLM features will be unavailable."
+  warn "  Install: https://ollama.com/download, then pre-pull a model (qwen2.5vl:7b)."
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Launch
 # ---------------------------------------------------------------------------
 if [ "$START_AFTER_SETUP" -eq 1 ]; then

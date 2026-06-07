@@ -49,9 +49,26 @@ if (!(Test-Path .env)) {
     $encryptionKeyBytes = (1..32 | ForEach-Object { [byte](Get-Random -Minimum 0 -Maximum 255) })
     $encryptionKey = [Convert]::ToBase64String($encryptionKeyBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_') + "="
 
-    $envContent = "ENVIRONMENT=production`nJWT_SECRET_KEY=$jwtSecret`nENCRYPTION_KEY=$encryptionKey`nALLOWED_ORIGINS=http://${localIp}:5000,http://localhost:5000`nFORCE_HTTPS=false"
-
-    $envContent | Out-File -FilePath .env -Encoding ascii
+    $envLines = @(
+        "ENVIRONMENT=production"
+        "FLASK_ENV=production"
+        "HOST=0.0.0.0"
+        "PORT=5000"
+        "JWT_SECRET_KEY=$jwtSecret"
+        "ENCRYPTION_KEY=$encryptionKey"
+        "ALLOWED_ORIGINS=http://${localIp}:5000,http://localhost:5000"
+        "FORCE_HTTPS=false"
+        "# strict | allow_lan | off  (off is refused in production)"
+        "ENABLE_NETWORK_RESTRICTIONS=strict"
+        "# AI assistant - external LLM providers are refused unless flipped on."
+        "SAKURA_LLM_ALLOW_EXTERNAL=false"
+        "SAKURA_LLM_ALLOW_REMOTE_OLLAMA=false"
+        "# Bundled Ollama daemon (desktop installer only). Containers stay off by default."
+        "SAKURA_DISABLE_OLLAMA_SIDECAR=true"
+        "# RAG live indexer thread - disable only when debugging cold-start CPU."
+        "SAKURA_DISABLE_LIVE_INDEXER=false"
+    )
+    Set-Content -Path .env -Value ($envLines -join "`n") -Encoding ascii
     Write-Host "[SUCCESS] .env file created." -ForegroundColor Green
 }
 

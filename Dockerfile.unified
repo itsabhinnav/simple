@@ -53,8 +53,16 @@ ARG NO_PROXY
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production \
+    FLASK_ENV=production \
     HOST=0.0.0.0 \
     PORT=5000 \
+    ENABLE_NETWORK_RESTRICTIONS=strict \
+    FORCE_HTTPS=false \
+    SAKURA_LLM_ALLOW_EXTERNAL=false \
+    SAKURA_LLM_ALLOW_REMOTE_OLLAMA=false \
+    SAKURA_DISABLE_OLLAMA_SIDECAR=true \
+    SAKURA_DISABLE_LIVE_INDEXER=false \
+    OLLAMA_MODELS=/app/data/ollama/models \
     HTTP_PROXY=${HTTP_PROXY} \
     HTTPS_PROXY=${HTTPS_PROXY} \
     NO_PROXY=${NO_PROXY} \
@@ -66,11 +74,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# git is required by the HybridDatabaseService when git_sync_enabled=true.
-# libpq-dev is needed only when psycopg2-binary doesn't have a wheel for the
-# target arch (it does on amd64/arm64 -- kept for safety on uncommon arches).
+# System runtime deps:
+#   * curl, ca-certificates  - healthcheck + TLS roots
+#   * libreoffice-core/calc/writer + poppler-utils - hybrid document parser
+#     visual preprocessor (soffice xlsx/docx -> pdf -> pdftoppm -> png) used
+#     by the Smart Import VLM pipeline. Without these the parser silently
+#     falls back to deterministic-only mode with no page snapshots.
+#   * fonts-dejavu-core   - LibreOffice headless needs at least one font
+#     family to render snapshots; the alpine-style "no fonts" image yields
+#     blank tiles.
+#   * git  - retained for future Git-backed import flows. The local-only
+#     HybridDatabaseService does NOT need it at runtime any more.
+# psycopg2-binary ships pre-built manylinux wheels for amd64/arm64, so
+# libpq-dev is no longer required in the runtime image.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git curl ca-certificates \
+ && apt-get install -y --no-install-recommends \
+        git curl ca-certificates \
+        libreoffice-core libreoffice-calc libreoffice-writer \
+        poppler-utils fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
 # Build pip --proxy args from the build-arg proxy (pip already honours env
@@ -92,9 +113,16 @@ RUN if [ ! -s ./static/index.html ] && [ -f ./static/index.csr.html ]; then \
         cp ./static/index.csr.html ./static/index.html ; \
     fi
 
-# Persistent data lives here; mount a volume to keep the SQLite DB across
-# container recreations (see docker-compose.yml).
-RUN mkdir -p data/local/dev/database data/remote/dev uploads/specs
+# Persistent data lives here; mount a volume to keep the SQLite DB, the RAG
+# vector index, uploaded specs, and (optionally) the bundled Ollama model
+# blobs across container recreations (see docker-compose.yml).
+#   data/local/dev/database  - primary SQLite (sakura_db.db)
+#   data/local/dev/vectors   - RAG sidecar SQLite (sakura_vec.db) for sqlite-vec
+#   data/ollama/models       - matches OLLAMA_MODELS env, only used when an
+#                              external Ollama sidecar is started (off by default)
+#   uploads/specs            - user-uploaded specification documents
+RUN mkdir -p data/local/dev/database data/local/dev/vectors \
+             data/ollama/models uploads/specs
 
 EXPOSE 5000
 

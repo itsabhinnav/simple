@@ -7,20 +7,24 @@
 # re-provisions the master admin from .env, so there is no separate
 # "re-init" step.
 #
-# By default this script ONLY deletes the SQLite databases. Pass switches to
-# also blow away the cloned Git workspace or uploaded spec files.
+# The legacy -WithRemote flag was removed: the remote/Git database mirror
+# was deleted, and backend\data\remote\* no longer exists.
+#
+# By default this script deletes the SQLite primary DB and the RAG vector
+# sidecar. Pass -WithUploads to also blow away uploaded spec files.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File .\clean_db.ps1
 #   powershell -ExecutionPolicy Bypass -File .\clean_db.ps1 -Force
-#   powershell -ExecutionPolicy Bypass -File .\clean_db.ps1 -WithRemote -WithUploads
+#   powershell -ExecutionPolicy Bypass -File .\clean_db.ps1 -WithUploads
 # =============================================================================
 
 [CmdletBinding()]
 param(
     [switch]$Force,
-    [switch]$WithRemote,
-    [switch]$WithUploads
+    [switch]$WithUploads,
+    # No-op kept so old call sites don't break with an "unknown parameter".
+    [switch]$WithRemote
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,19 +35,28 @@ function Log  { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Cyan }
 function Warn { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Yellow }
 function Fail { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Red; exit 1 }
 
-$LocalDb     = Join-Path $RootDir 'backend\data\local\dev\database\sakura_db.db'
+if ($WithRemote) {
+    Warn "-WithRemote is a no-op (remote/Git sync was removed)."
+}
+
 $LocalWalDir = Join-Path $RootDir 'backend\data\local\dev\database'
-$RemoteDir   = Join-Path $RootDir 'backend\data\remote\dev'
+$LocalDb     = Join-Path $LocalWalDir 'sakura_db.db'
+$VectorDir   = Join-Path $RootDir 'backend\data\local\dev\vectors'
 $UploadsDir  = Join-Path $RootDir 'backend\uploads'
 
 $targets = @()
 if (Test-Path $LocalDb) { $targets += $LocalDb }
-# SQLite WAL / SHM sidecars (when journal_mode=WAL).
 foreach ($side in @('sakura_db.db-wal', 'sakura_db.db-shm', 'sakura_db.db-journal')) {
     $p = Join-Path $LocalWalDir $side
     if (Test-Path $p) { $targets += $p }
 }
-if ($WithRemote -and (Test-Path $RemoteDir))   { $targets += $RemoteDir }
+# RAG vector index sidecar (sqlite-vec); rebuilt on next start by the live indexer.
+if (Test-Path $VectorDir) {
+    foreach ($vec in @('sakura_vec.db', 'sakura_vec.db-wal', 'sakura_vec.db-shm', 'sakura_vec.db-journal')) {
+        $p = Join-Path $VectorDir $vec
+        if (Test-Path $p) { $targets += $p }
+    }
+}
 if ($WithUploads -and (Test-Path $UploadsDir)) { $targets += $UploadsDir }
 
 if (-not $targets) {
@@ -66,7 +79,6 @@ foreach ($t in $targets) {
     Write-Host ("  - {0}   ({1} KB)" -f $t, $kb)
 }
 
-if (-not $WithRemote)  { Warn "Pass -WithRemote to also delete backend\data\remote\dev (Git workspace)." }
 if (-not $WithUploads) { Warn "Pass -WithUploads to also delete backend\uploads (uploaded spec files)." }
 
 if (-not $Force) {
@@ -91,4 +103,5 @@ foreach ($t in $targets) {
 }
 
 Log "Database cleaned. Start the server (start.ps1) - the schema will be"
-Log "recreated and the master admin (.env) will be re-provisioned automatically."
+Log "recreated, the master admin (.env) re-provisioned, and the RAG vector"
+Log "index rebuilt automatically by the live indexer."
