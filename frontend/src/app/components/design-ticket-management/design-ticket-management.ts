@@ -45,10 +45,25 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
         </div>
       </header>
 
-      <!-- Loading State -->
-      <div *ngIf="isLoading()" class="loading-container">
-        <div class="spinner"></div>
-        <p>Loading designs...</p>
+      <!-- Loading State (skeleton) -->
+      <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading designs">
+        <div class="skeleton-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <span class="skeleton-text is-title"></span>
+            <span class="skeleton-text is-pill"></span>
+          </div>
+        </div>
+        <div class="skeleton-grid">
+          <div class="skeleton-card" *ngFor="let _ of [1,2,3,4,5,6]">
+            <span class="skeleton-block is-sm"></span>
+            <span class="skeleton-text is-lg"></span>
+            <span class="skeleton-text"></span>
+            <div style="display:flex;gap:8px;">
+              <span class="skeleton-text is-pill"></span>
+              <span class="skeleton-text is-pill"></span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Error State -->
@@ -135,9 +150,9 @@ import { DesignTicketService, DesignTicket } from '../../services/design-ticket.
   `,
   styles: [`
     .design-ticket-management-container {
-      max-width: 1400px;
+      max-width: 100%;
       margin: 0 auto;
-      padding: 20px;
+      padding: 20px 24px;
     }
 
     .management-header {

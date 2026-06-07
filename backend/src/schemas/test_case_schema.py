@@ -3,8 +3,19 @@
 The data model now distinguishes between **single-value** dropdown columns
 (``test_type``, ``priority``, ``regulation``, ...) and **multi-value**
 columns (``feature``, ``region``, ``brand``, ``vehicle_variant``,
-``vehicle_mode``, ``env_dependency``, ``testsuite_type``,
+``vehicle_specification``, ``env_dependency``, ``testsuite_type``,
 ``reference_document``, ``associated_requirement_id``, ``screen_id``).
+
+Schema notes (June 2026):
+    * ``vehicle_mode`` was removed; ``vehicle_specification`` now carries
+      the engine / powertrain class (Common, ICE, HEV, PHEV, EV) and is
+      multi-value. Any inbound payload still using ``vehicle_mode`` is
+      automatically migrated into ``vehicle_specification`` by the create
+      / update validators below.
+    * ``description`` was removed; the test narrative lives solely in
+      ``test_objective``. Inbound payloads carrying a ``description``
+      (older clients, legacy bulk imports) have it folded into
+      ``test_objective`` if the latter is empty.
 
 Multi-value fields accept either::
     - a JSON-style list  : ["FOTA", "Radio"]
@@ -24,7 +35,7 @@ without code changes.
 from datetime import datetime
 from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # Field names that this module treats as multi-value lists. Kept in sync
@@ -37,7 +48,7 @@ MULTI_VALUE_FIELDS = (
     "region",
     "brand",
     "vehicle_variant",
-    "vehicle_mode",
+    "vehicle_specification",
     "env_dependency",
     "testsuite_type",
 )
@@ -84,7 +95,6 @@ class _TestCaseFieldsMixin(BaseModel):
     """
 
     title: Optional[str] = Field(None, max_length=500)
-    description: Optional[str] = Field(None, max_length=10000)
     vehicle_model: Optional[str] = Field(None, max_length=200)
     severity: Optional[str] = Field(None, max_length=50)
 
@@ -96,19 +106,18 @@ class _TestCaseFieldsMixin(BaseModel):
     region: MultiValue = None
     brand: MultiValue = None
     vehicle_variant: MultiValue = None
-    vehicle_mode: MultiValue = None
+    vehicle_specification: MultiValue = None
     env_dependency: MultiValue = None
     testsuite_type: MultiValue = None
 
     # --- single-value columns ---
     dr_applicable_screens: Optional[str] = Field(None, max_length=1000)
     dr_id: Optional[str] = Field(None, max_length=200)
-    test_objective: Optional[str] = Field(None, max_length=2000)
+    test_objective: Optional[str] = Field(None, max_length=10000)
     preconditions: Optional[str] = Field(None, max_length=5000)
     procedure: Optional[str] = Field(None, max_length=10000)
     expected_behavior: Optional[str] = Field(None, max_length=5000)
     test_type: Optional[str] = Field(None, max_length=50)
-    vehicle_specification: Optional[str] = Field(None, max_length=200)
     requirement_type: Optional[str] = Field(None, max_length=50)
     regulation: Optional[str] = Field(None, max_length=10)  # "Yes"/"No"
     priority: Optional[str] = Field(None, max_length=10)
@@ -117,6 +126,31 @@ class _TestCaseFieldsMixin(BaseModel):
     @classmethod
     def _normalise_multi_value(cls, value: Any) -> Any:
         return _coerce_to_list(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_aliases(cls, data: Any) -> Any:
+        """Absorb retired field names from older clients / imports.
+
+        * ``vehicle_mode`` payloads are funnelled into ``vehicle_specification``
+          (and dropped). If both arrive, the explicit ``vehicle_specification``
+          wins; otherwise the legacy value is reused.
+        * ``description`` is folded into ``test_objective`` whenever the latter
+          is empty, then dropped, so legacy CSV / API callers don't lose data
+          on round-trip.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        legacy_mode = data.pop("vehicle_mode", None)
+        if legacy_mode is not None and not data.get("vehicle_specification"):
+            data["vehicle_specification"] = legacy_mode
+
+        legacy_description = data.pop("description", None)
+        if legacy_description is not None and not data.get("test_objective"):
+            data["test_objective"] = legacy_description
+
+        return data
 
 
 class TestCaseSchema(_TestCaseFieldsMixin):

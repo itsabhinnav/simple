@@ -16,6 +16,7 @@ import { CreateDesignTicket } from './components/create-design-ticket/create-des
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { SpecManagementComponent } from './components/spec-management.component';
+import { AdminSettingsComponent } from './components/admin-settings.component';
 import { APP_SETTINGS } from './app-settings';
 
 // When auth is disabled, /login and /forgot-password are meaningless. Redirect
@@ -45,6 +46,7 @@ export const routes: Routes = [
   { path: 'requirements/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'requirements' } },
   { path: 'requirements/:id', component: RequirementDetailComponent, canActivate: [AuthGuard] },
   { path: 'users', component: UserManagementComponent, canActivate: [AuthGuard, AdminGuard] },
+  { path: 'admin/settings', component: AdminSettingsComponent, canActivate: [AuthGuard, AdminGuard] },
   { path: 'test-cases', component: TestCaseManagementComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/create', component: CreateTestCaseComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'test_cases' } },

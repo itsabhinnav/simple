@@ -4,11 +4,10 @@ import { RouterModule, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl } from '@angular/forms';
 import { AuthService } from '../services/auth.service';
 import { RequirementService } from '../services/requirement.service';
-import { TestCaseService } from '../services/test-case.service';
+import { TestCase, TestCaseService } from '../services/test-case.service';
 import { DesignTicketService, DesignTicket } from '../services/design-ticket.service';
 import { Requirement } from '../services/requirement.service';
 import { SpecService } from '../services/spec.service';
-import { TestCase } from '../services/test-case.service';
 import { TranslatePipe } from '../services/translate.pipe';
 
 @Component({
@@ -68,6 +67,192 @@ export class DashboardComponent implements OnInit {
   designStatusBreakdown = computed(() =>
     this.countBy(this.allDesignTickets(), (d) => d.status || '', ['Draft', 'In Review', 'Approved', 'Implemented'])
   );
+
+  // ---------- Aggregate KPIs ----------
+  totalAssets = computed(() =>
+    this.requirementsCount() + this.testCasesCount() + this.designTicketsCount() + this.specsCount()
+  );
+
+  /** % of requirements covered by at least one linked test case (via associated_requirement_id). */
+  coveragePercent = computed(() => {
+    const reqs = this.allRequirements();
+    if (reqs.length === 0) return 0;
+    const covered = new Set<string>();
+    for (const tc of this.allTestCases()) {
+      for (const id of TestCaseService.mvArray(tc.associated_requirement_id)) {
+        covered.add(id);
+      }
+    }
+    let n = 0;
+    for (const r of reqs) if (covered.has(r.requirement_id)) n++;
+    return Math.round((n / reqs.length) * 100);
+  });
+
+  /** Number of requirements linked downstream to at least one design. */
+  designLinkedPercent = computed(() => {
+    const reqs = this.allRequirements();
+    if (reqs.length === 0) return 0;
+    const linked = new Set<string>();
+    for (const d of this.allDesignTickets()) {
+      if (d.linked_requirement_id) linked.add(d.linked_requirement_id);
+    }
+    let n = 0;
+    for (const r of reqs) if (linked.has(r.requirement_id)) n++;
+    return Math.round((n / reqs.length) * 100);
+  });
+
+  /** Composite project-health score (0–100) blending workflow progress and coverage. */
+  qualityScore = computed(() => {
+    const reqs = this.allRequirements();
+    const designs = this.allDesignTickets();
+    let score = 0, weight = 0;
+    if (reqs.length > 0) {
+      const advanced = reqs.filter(r => ['Approved','Implemented','Tested','Closed'].includes(r.status || '')).length;
+      score += (advanced / reqs.length) * 40; weight += 40;
+    }
+    if (designs.length > 0) {
+      const advanced = designs.filter(d => ['Approved','Implemented'].includes(d.status || '')).length;
+      score += (advanced / designs.length) * 30; weight += 30;
+    }
+    score += (this.coveragePercent() / 100) * 30; weight += 30;
+    return weight > 0 ? Math.round((score / weight) * 100) : 0;
+  });
+
+  // ---------- Donut & bar segment helpers ----------
+  private static REQ_STATUS_COLORS: Record<string, string> = {
+    Draft: '#94a3b8', Approved: '#10b981', Implemented: '#3b82f6', Tested: '#8b5cf6', Closed: '#475569',
+  };
+  private static DESIGN_STATUS_COLORS: Record<string, string> = {
+    Draft: '#94a3b8', 'In Review': '#f59e0b', Approved: '#10b981', Implemented: '#3b82f6',
+  };
+  private static TEST_TYPE_COLORS: Record<string, string> = {
+    Positive: '#10b981', Negative: '#ef4444', Boundary: '#f59e0b', Performance: '#3b82f6', Abnormal: '#a855f7',
+  };
+  private static PRIORITY_COLORS: Record<string, string> = {
+    P1: '#dc2626', P2: '#ea580c', P3: '#ca8a04', P4: '#16a34a',
+  };
+
+  private static DONUT_R = 42;
+  private static DONUT_C = 2 * Math.PI * 42;
+
+  private toDonutSegments(rows: { key: string; count: number }[], palette: Record<string, string>) {
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    if (total === 0) return [] as { label: string; count: number; percent: number; color: string; length: number; offset: number }[];
+    let cum = 0;
+    return rows.filter(r => r.count > 0).map(r => {
+      const length = (r.count / total) * DashboardComponent.DONUT_C;
+      const seg = {
+        label: r.key,
+        count: r.count,
+        percent: Math.round((r.count / total) * 100),
+        color: palette[r.key] || '#94a3b8',
+        length,
+        offset: -cum,
+      };
+      cum += length;
+      return seg;
+    });
+  }
+
+  donutCircumference = DashboardComponent.DONUT_C;
+
+  testTypeDonut = computed(() =>
+    this.toDonutSegments(this.testCaseTypeBreakdown(), DashboardComponent.TEST_TYPE_COLORS)
+  );
+  requirementStatusDonut = computed(() =>
+    this.toDonutSegments(this.requirementStatusBreakdown(), DashboardComponent.REQ_STATUS_COLORS)
+  );
+  designStatusDonut = computed(() =>
+    this.toDonutSegments(this.designStatusBreakdown(), DashboardComponent.DESIGN_STATUS_COLORS)
+  );
+
+  /** Stacked horizontal bar segments for an entity's status breakdown. */
+  private toStackBar(rows: { key: string; count: number }[], palette: Record<string, string>) {
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    if (total === 0) return [] as { label: string; count: number; percent: number; color: string }[];
+    return rows.filter(r => r.count > 0).map(r => ({
+      label: r.key,
+      count: r.count,
+      percent: Math.round((r.count / total) * 100),
+      color: palette[r.key] || '#94a3b8',
+    }));
+  }
+
+  requirementStatusBar = computed(() =>
+    this.toStackBar(this.requirementStatusBreakdown(), DashboardComponent.REQ_STATUS_COLORS)
+  );
+  designStatusBar = computed(() =>
+    this.toStackBar(this.designStatusBreakdown(), DashboardComponent.DESIGN_STATUS_COLORS)
+  );
+  testTypeBar = computed(() =>
+    this.toStackBar(this.testCaseTypeBreakdown(), DashboardComponent.TEST_TYPE_COLORS)
+  );
+
+  /** Priority distribution merged across requirements + test cases for the bar widget. */
+  priorityDistribution = computed(() => {
+    const order = ['P1', 'P2', 'P3', 'P4'];
+    const map: Record<string, { req: number; test: number }> =
+      Object.fromEntries(order.map(k => [k, { req: 0, test: 0 }]));
+    for (const r of this.allRequirements()) {
+      const p = (r.priority || '').toUpperCase();
+      if (map[p]) map[p].req++;
+    }
+    for (const t of this.allTestCases()) {
+      const p = (t.priority || '').toUpperCase();
+      if (map[p]) map[p].test++;
+    }
+    const maxVal = Math.max(1, ...order.flatMap(k => [map[k].req, map[k].test]));
+    return order.map(key => ({
+      key,
+      req: map[key].req,
+      test: map[key].test,
+      reqWidth: Math.round((map[key].req / maxVal) * 100),
+      testWidth: Math.round((map[key].test / maxVal) * 100),
+      color: DashboardComponent.PRIORITY_COLORS[key],
+    }));
+  });
+
+  /** Combined recent activity timeline across requirements / tests / designs, newest first. */
+  combinedActivity = computed(() => {
+    const items: { kind: 'requirement' | 'test' | 'design'; icon: string; id: string; title: string; meta: string; ts: number; route: string; color: string }[] = [];
+    for (const r of this.recentRequirements()) {
+      const ts = r.created_at ? new Date(r.created_at).getTime() : 0;
+      items.push({ kind: 'requirement', icon: '📋', id: r.requirement_id, title: r.title || '(untitled)', meta: r.status || r.priority || '', ts, route: '/requirements', color: '#3b82f6' });
+    }
+    for (const t of this.recentTestCases()) {
+      const ts = t.created_at ? new Date(t.created_at).getTime() : 0;
+      items.push({ kind: 'test', icon: '🧪', id: t.test_case_id, title: t.title || t.test_objective || '(untitled)', meta: t.test_type || t.priority || '', ts, route: '/test-cases', color: '#10b981' });
+    }
+    for (const d of this.recentDesignTickets()) {
+      const ts = d.created_at ? new Date(d.created_at).getTime() : 0;
+      items.push({ kind: 'design', icon: '🎨', id: d.design_ticket_id, title: d.title || '(untitled)', meta: d.status || d.priority || '', ts, route: '/design-tickets', color: '#f59e0b' });
+    }
+    return items.sort((a, b) => b.ts - a.ts).slice(0, 6);
+  });
+
+  /** Human-friendly relative time for the activity feed. */
+  formatRelativeTime(ts: number): string {
+    if (!ts) return '';
+    const diffMs = Date.now() - ts;
+    const m = Math.round(diffMs / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.round(h / 24);
+    if (d < 30) return `${d}d ago`;
+    const mo = Math.round(d / 30);
+    if (mo < 12) return `${mo}mo ago`;
+    return `${Math.round(mo / 12)}y ago`;
+  }
+
+  /** Tier label for the quality gauge (drives the gauge color). */
+  qualityTier = computed<'low' | 'mid' | 'high'>(() => {
+    const s = this.qualityScore();
+    if (s >= 75) return 'high';
+    if (s >= 45) return 'mid';
+    return 'low';
+  });
 
   private countBy<T>(items: T[], key: (x: T) => string, order: string[]): { key: string; count: number }[] {
     const map: Record<string, number> = {};

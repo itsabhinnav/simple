@@ -76,10 +76,13 @@ HEADER_ALIASES = {
     "summary": "title",
     "name": "title",
     "test name": "title",
-    "description": "description",
-    "test description": "description",
-    "testcase description": "description",
-    "details": "description",
+    # `description` was retired June 2026 — fold legacy "description" /
+    # narrative columns onto `test_objective` so older spreadsheets still
+    # import cleanly without the data falling on the floor.
+    "description": "test_objective",
+    "test description": "test_objective",
+    "testcase description": "test_objective",
+    "details": "test_objective",
     "vehicle": "vehicle_model",
     "vehicle model": "vehicle_model",
     "model": "vehicle_model",
@@ -126,17 +129,20 @@ HEADER_ALIASES = {
     "vehicle variants": "vehicle_variant",
     "variant": "vehicle_variant",
     "variants": "vehicle_variant",
-    # vehicle_mode is the canonical multi-value powertrain field
-    # (Common/EV/HEV/ICE/PHEV). vehicle_specification is a separate free-form
-    # legacy column kept for backwards compatibility — do NOT alias the same
-    # human header to both, or one mapping silently shadows the other.
-    "vehicle mode": "vehicle_mode",
-    "vehicle modes": "vehicle_mode",
-    "vehiclemode": "vehicle_mode",
-    "powertrain": "vehicle_mode",
-    "drive mode": "vehicle_mode",
+    # June 2026: vehicle_mode was merged into vehicle_specification, which
+    # is now the multi-value powertrain field (Common / ICE / HEV / PHEV /
+    # EV). Every legacy header — "vehicle mode", "powertrain", "drive
+    # mode", and the original "vehicle specification" — funnels into the
+    # single canonical column.
+    "vehicle mode": "vehicle_specification",
+    "vehicle modes": "vehicle_specification",
+    "vehiclemode": "vehicle_specification",
+    "powertrain": "vehicle_specification",
+    "drive mode": "vehicle_specification",
     "vehicle specification": "vehicle_specification",
+    "vehicle specifications": "vehicle_specification",
     "vehicle spec": "vehicle_specification",
+    "engine type": "vehicle_specification",
     "env dependency": "env_dependency",
     "env dependencies": "env_dependency",
     "environment": "env_dependency",
@@ -229,11 +235,11 @@ TARGET_CONFIG = {
         "required": ["test_case_id"],
         "defaults": {"priority": "P2", "test_type": "Positive"},
         "fields": [
-            "test_case_id", "title", "description", "vehicle_model", "severity",
+            "test_case_id", "title", "vehicle_model", "severity",
             "reference_document", "associated_requirement_id", "screen_id",
             "feature", "dr_applicable_screens", "dr_id", "test_objective", "preconditions",
             "procedure", "expected_behavior", "test_type", "region", "brand", "vehicle_variant",
-            "vehicle_specification", "vehicle_mode", "env_dependency", "requirement_type",
+            "vehicle_specification", "env_dependency", "requirement_type",
             "regulation", "priority", "testsuite_type", "created_by",
         ],
         "ddl": None,
@@ -297,6 +303,84 @@ class _CsvSheet:
             yield tuple(row)
 
 
+def _load_header_alias_overlay() -> Dict[str, Optional[str]]:
+    """Read admin-managed alias overrides from ``config.yaml`` so the bulk
+    import header detection can be extended visually without touching code.
+
+    Shape (under ``bulk_import.header_aliases``)::
+
+        {"my custom column": "title", "old id": null}
+
+    A null value explicitly drops the column from imports (matches the
+    semantics of the in-module ``HEADER_ALIASES`` for ``"id"``).
+    """
+    try:
+        from src.infrastructure.configuration_manager import get_config_manager
+        overlay = get_config_manager().get_config("bulk_import.header_aliases", {}) or {}
+    except Exception:
+        return {}
+    if not isinstance(overlay, dict):
+        return {}
+    cleaned: Dict[str, Optional[str]] = {}
+    for raw, target in overlay.items():
+        if raw is None:
+            continue
+        key = str(raw).strip().lower()
+        if not key:
+            continue
+        if target is None or target == "":
+            cleaned[key] = None
+        else:
+            cleaned[key] = str(target).strip() or None
+    return cleaned
+
+
+def _load_target_field_overlay() -> Dict[str, Dict[str, Any]]:
+    """Per-target override for ``required`` / ``fields`` from config.yaml::
+
+        bulk_import:
+          target_fields:
+            test_cases:
+              required: ["test_case_id"]
+              fields: ["test_case_id", "title", ...]
+    """
+    try:
+        from src.infrastructure.configuration_manager import get_config_manager
+        overlay = get_config_manager().get_config("bulk_import.target_fields", {}) or {}
+    except Exception:
+        return {}
+    if not isinstance(overlay, dict):
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for target, override in overlay.items():
+        if not isinstance(override, dict):
+            continue
+        merged: Dict[str, Any] = {}
+        if isinstance(override.get("fields"), list):
+            merged["fields"] = [str(f).strip() for f in override["fields"] if str(f).strip()]
+        if isinstance(override.get("required"), list):
+            merged["required"] = [str(f).strip() for f in override["required"] if str(f).strip()]
+        if merged:
+            out[str(target)] = merged
+    return out
+
+
+def get_effective_target_config(target: str) -> Optional[Dict[str, Any]]:
+    """Return a copy of ``TARGET_CONFIG[target]`` with any admin overrides
+    from ``bulk_import.target_fields`` merged in. Returns ``None`` for
+    unknown targets."""
+    base = TARGET_CONFIG.get(target)
+    if not base:
+        return None
+    overlay = _load_target_field_overlay().get(target, {})
+    merged = dict(base)
+    if "fields" in overlay:
+        merged["fields"] = overlay["fields"]
+    if "required" in overlay:
+        merged["required"] = overlay["required"]
+    return merged
+
+
 class BulkImportService:
     def __init__(self):
         self.database_service = get_hybrid_database_service()
@@ -310,7 +394,7 @@ class BulkImportService:
         normalized = self._normalize_target(target)
         if normalized is None:
             raise ValueError("Unsupported import type")
-        config = TARGET_CONFIG[normalized]
+        config = get_effective_target_config(normalized) or TARGET_CONFIG[normalized]
         return {
             "target": normalized,
             "id_field": config["id_field"],
@@ -349,7 +433,7 @@ class BulkImportService:
             sheets_preview = []
             for sheet in sheets:
                 sheet_target = normalized_target or self._infer_target(sheet.title, filename)
-                config = TARGET_CONFIG.get(sheet_target) if sheet_target else None
+                config = get_effective_target_config(sheet_target) if sheet_target else None
                 rows = sheet.iter_rows(values_only=True)
                 header_row = next(rows, None) or []
                 raw_headers = [str(h).strip() if h is not None else "" for h in header_row]
@@ -553,7 +637,7 @@ class BulkImportService:
         user_mapping: Optional[Dict[str, str]] = None,
         duplicate_strategy: str = "skip",
     ) -> Dict[str, Any]:
-        config = TARGET_CONFIG[target]
+        config = get_effective_target_config(target) or TARGET_CONFIG[target]
         self._ensure_table(config)
 
         rows = sheet.iter_rows(values_only=True)
@@ -670,7 +754,14 @@ class BulkImportService:
             payload[id_field] = self._generated_id(config["prefix"], row_number)
 
         if "title" in config["required"] and not payload.get("title"):
-            payload["title"] = payload.get("description") or payload.get(id_field)
+            # `description` was retired for test_cases (folded into
+            # `test_objective`); other targets still write the column directly,
+            # so check both before falling back to the ID.
+            payload["title"] = (
+                payload.get("test_objective")
+                or payload.get("description")
+                or payload.get(id_field)
+            )
 
         return payload
 
@@ -761,6 +852,12 @@ class BulkImportService:
                 mapped = user_mapping[normalized_raw]
                 return mapped or None
         lowered = raw.lower().strip()
+        # Admin-managed overlay (config.yaml > bulk_import.header_aliases)
+        # takes precedence over the in-module defaults so operators can
+        # adapt to vendor spreadsheet quirks without redeploying.
+        overlay = _load_header_alias_overlay()
+        if lowered in overlay:
+            return overlay[lowered]
         if lowered in HEADER_ALIASES:
             return HEADER_ALIASES[lowered]
         return self._normalize_header(raw)

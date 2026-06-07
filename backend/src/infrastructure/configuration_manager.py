@@ -20,6 +20,17 @@ except ImportError:
     YAML_AVAILABLE = False
     yaml = None
 
+# Optional ruamel.yaml — preserves comments, key order, and quoting when
+# rewriting config.yaml. PyYAML's `safe_dump` flattens all of that, so the
+# admin UI would otherwise destroy the carefully-authored file each time
+# someone toggles a checkbox.
+try:
+    from ruamel.yaml import YAML as _RuamelYAML
+    _RUAMEL_AVAILABLE = True
+except ImportError:
+    _RuamelYAML = None
+    _RUAMEL_AVAILABLE = False
+
 from config.environments import ApplicationConfig, get_config
 from src.interfaces.providers import IConfigurationProvider
 from src.infrastructure.logging_config import get_logger
@@ -129,29 +140,121 @@ class FileConfigSource(ConfigurationSource):
             return {}
     
     def save_config(self, config: Dict[str, Any]) -> bool:
-        """Save configuration to file"""
+        """Save configuration to file.
+
+        For YAML files we prefer ruamel.yaml so comments, key order, and
+        quoting from the original file are preserved across an admin-driven
+        edit. The implementation re-loads the on-disk document, then
+        recursively patches it with values from ``config`` (deleting keys
+        that disappeared and inserting new ones at the end of their parent
+        block) before writing it back in one atomic ``with`` block.
+        """
         try:
             # Ensure directory exists
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(self.file_path, 'w', encoding='utf-8') as f:
-                if self.file_format == "json" or (self.file_format == "auto" and self.file_path.suffix == '.json'):
+            if self.file_format == "json" or (self.file_format == "auto" and self.file_path.suffix == '.json'):
+                with open(self.file_path, 'w', encoding='utf-8') as f:
                     json.dump(config, f, indent=2, default=str)
-                elif self.file_format == "yaml" or (self.file_format == "auto" and self.file_path.suffix in ['.yaml', '.yml']):
-                    if YAML_AVAILABLE:
-                        yaml.dump(config, f, default_flow_style=False)
-                    else:
-                        logger.error(f"YAML support not available. Install PyYAML to save YAML configuration files.")
-                        return False
+            elif self.file_format == "yaml" or (self.file_format == "auto" and self.file_path.suffix in ['.yaml', '.yml']):
+                if _RUAMEL_AVAILABLE:
+                    self._save_yaml_preserving_comments(config)
+                elif YAML_AVAILABLE:
+                    with open(self.file_path, 'w', encoding='utf-8') as f:
+                        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
                 else:
-                    logger.error(f"Unsupported file format: {self.file_format}")
+                    logger.error("YAML support not available. Install PyYAML or ruamel.yaml to save YAML configuration files.")
                     return False
+            else:
+                logger.error(f"Unsupported file format: {self.file_format}")
+                return False
             
             logger.info(f"Configuration saved to {self.file_path}")
             return True
         except Exception as e:
             logger.error(f"Failed to save configuration to {self.file_path}: {e}")
             return False
+
+    def _save_yaml_preserving_comments(self, config: Dict[str, Any]) -> None:
+        """Round-trip the YAML through ruamel so comments survive admin edits.
+
+        Loads the existing document and deep-merges the incoming ``config``
+        into it. Comments on untouched keys/blocks are preserved by virtue
+        of the CommentedMap nodes staying in place; only the leaves and
+        explicitly mutated sub-maps are rewritten.
+        """
+        ryaml = _RuamelYAML()
+        ryaml.preserve_quotes = True
+        ryaml.indent(mapping=2, sequence=4, offset=2)
+        existing: Any = None
+        if self.file_path.exists():
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                existing = ryaml.load(f)
+        if existing is None:
+            from ruamel.yaml.comments import CommentedMap
+            existing = CommentedMap()
+
+        self._deep_merge_into(existing, config)
+
+        with open(self.file_path, 'w', encoding='utf-8') as f:
+            ryaml.dump(existing, f)
+
+    def _deep_merge_into(self, target: Any, incoming: Dict[str, Any]) -> None:
+        """Recursively merge ``incoming`` into ``target`` (a ruamel
+        CommentedMap or plain dict) so comments / key order survive.
+
+        Rules:
+        - Scalars and lists are replaced wholesale (lists are not deep-
+          merged because admins expect chip removal to take effect).
+        - Nested dicts recurse so per-key comments inside the same map are
+          preserved when only one key changes.
+        - Keys missing from ``incoming`` are kept untouched (this is how
+          we preserve env-var-only keys that never appear in the YAML).
+        - Keys explicitly set to ``None`` are interpreted as "no change"
+          rather than "delete" to avoid clobbering optional config when
+          the admin UI omits them.
+        """
+        if not isinstance(target, dict):
+            return
+        for key, value in (incoming or {}).items():
+            if not isinstance(key, str):
+                continue
+            # Skip environment-variable noise (uppercase / underscore-prefixed)
+            # that EnvironmentConfigSource folds into the global config dict.
+            if key.isupper() or key.startswith("_"):
+                continue
+            if key not in target:
+                target[key] = self._coerce_for_yaml(value)
+                continue
+            if value is None:
+                # Treat None as "leave the existing value alone" so that
+                # partial section updates don't wipe sibling keys.
+                continue
+            current = target[key]
+            if isinstance(value, dict) and isinstance(current, dict):
+                self._deep_merge_into(current, value)
+            else:
+                target[key] = self._coerce_for_yaml(value)
+
+    def _coerce_for_yaml(self, value: Any) -> Any:
+        """Best-effort conversion of arbitrary Python values to
+        YAML-friendly primitives. Pydantic / dataclass objects fall back to
+        their dict representation."""
+        if isinstance(value, dict):
+            return {k: self._coerce_for_yaml(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [self._coerce_for_yaml(v) for v in value]
+        if hasattr(value, "model_dump"):
+            try:
+                return self._coerce_for_yaml(value.model_dump())
+            except Exception:
+                pass
+        if hasattr(value, "to_dict"):
+            try:
+                return self._coerce_for_yaml(value.to_dict())
+            except Exception:
+                pass
+        return value
     
     def is_available(self) -> bool:
         """Check if file is available"""
@@ -329,6 +432,33 @@ class ConfigurationManager(IConfigurationProvider):
         
         logger.warning(f"Failed to save configuration {key} to any source")
         return False
+
+    def set_section(self, section: str, value: Any) -> bool:
+        """Persist a top-level configuration section (e.g. ``test_case_dropdowns``)
+        back to the writable file source and invalidate the cached read for it.
+
+        Unlike ``set_config`` this is explicitly meant for whole-block edits
+        coming from the admin UI: it drops any cached partial reads so the
+        next ``get_config(section)`` returns the freshly-saved value.
+        """
+        if not section or not isinstance(section, str):
+            return False
+        # Drop any cached sub-key reads so a subsequent get_config() reflects
+        # the new structure (e.g. dropdown options removed from a list).
+        for cached_key in [k for k in self._config_cache.keys() if k == section or k.startswith(f"{section}.")]:
+            self._config_cache.pop(cached_key, None)
+        return self.set_config(section, value)
+
+    def get_file_config_path(self) -> Optional[str]:
+        """Return the absolute path of the active YAML file source, if any.
+
+        Used by the admin UI so the operator knows which file would be
+        rewritten by a settings change.
+        """
+        for source in self.sources:
+            if isinstance(source, FileConfigSource):
+                return str(source.file_path.resolve())
+        return None
     
     def get_all_configs(self) -> Dict[str, Any]:
         """Get all configuration values"""
@@ -468,34 +598,37 @@ class ConfigurationManager(IConfigurationProvider):
         Shape::
 
             {
-              "multi_value_fields": [<field>, ...],
-              "feature":           [<option>, ...],
-              "test_type":         [<option>, ...],
-              "region":            [<option>, ...],
-              "brand":             [<option>, ...],
-              "vehicle_variant":   [<option>, ...],
-              "vehicle_mode":      [<option>, ...],
-              "env_dependency":    [<option>, ...],
-              "regulation":        [<option>, ...],
-              "priority":          [<option>, ...],
-              "testsuite_type":    [<option>, ...],
+              "multi_value_fields":    [<field>, ...],
+              "feature":               [<option>, ...],
+              "test_type":             [<option>, ...],
+              "region":                [<option>, ...],
+              "brand":                 [<option>, ...],
+              "vehicle_variant":       [<option>, ...],
+              "vehicle_specification": [<option>, ...],
+              "env_dependency":        [<option>, ...],
+              "regulation":            [<option>, ...],
+              "priority":              [<option>, ...],
+              "testsuite_type":        [<option>, ...],
             }
 
         Returns an empty dict (with empty lists) if config is missing so
         callers can rely on `.get(field, [])` without KeyError handling.
+
+        Note: ``vehicle_mode`` was retired (June 2026) — its options are
+        now served under ``vehicle_specification``.
         """
         defaults: Dict[str, Any] = {
             "multi_value_fields": [
                 "reference_document", "associated_requirement_id", "screen_id",
-                "feature", "region", "brand", "vehicle_variant", "vehicle_mode",
-                "env_dependency", "testsuite_type",
+                "feature", "region", "brand", "vehicle_variant",
+                "vehicle_specification", "env_dependency", "testsuite_type",
             ],
             "feature": [],
             "test_type": ["Positive", "Negative", "Abnormal", "Boundary"],
             "region": [],
             "brand": [],
             "vehicle_variant": [],
-            "vehicle_mode": ["Common", "EV", "HEV", "ICE", "PHEV"],
+            "vehicle_specification": ["Common", "ICE", "HEV", "PHEV", "EV"],
             "env_dependency": [],
             "regulation": ["Yes", "No"],
             "priority": ["P1", "P2", "P3", "P4"],

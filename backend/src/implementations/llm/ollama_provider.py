@@ -20,9 +20,9 @@ _RETRYABLE = (httpx.HTTPError, httpx.TransportError)
 class OllamaProvider(VLMProvider):
     """Adapter for a local Ollama daemon (default http://localhost:11434)."""
 
-    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None, timeout: float = 120.0):
+    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None, timeout: float = 300.0):
         self._base_url = base_url or resolve_config("ollama", "base_url", default="http://localhost:11434")
-        self._model = model or resolve_config("ollama", "model", default="llava:7b")
+        self._model = model or resolve_config("ollama", "model", default="qwen2.5vl:7b")
         self._timeout = timeout
 
     def name(self) -> str:

@@ -36,10 +36,20 @@ import { AuthService } from '../services/auth.service';
         </button>
       </header>
 
-      <!-- Loading State -->
-      <div *ngIf="isLoading()" class="loading-container">
-        <div class="spinner"></div>
-        <p>Loading users...</p>
+      <!-- Loading State (skeleton) -->
+      <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading users">
+        <div class="skeleton-card">
+          <span class="skeleton-text is-title"></span>
+          <span class="skeleton-text is-md"></span>
+        </div>
+        <div class="skeleton-card" style="padding:0;">
+          <div class="skeleton-row" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+            <span class="skeleton-circle"></span>
+            <span class="skeleton-text is-md" style="flex:1;"></span>
+            <span class="skeleton-text is-pill"></span>
+            <span class="skeleton-text is-sm" style="width:90px;"></span>
+          </div>
+        </div>
       </div>
 
       <!-- Error State -->
@@ -322,7 +332,7 @@ import { AuthService } from '../services/auth.service';
   `,
   styles: [`
     .user-management-container {
-      max-width: 1400px;
+      max-width: 100%;
       margin: 0 auto;
       padding: var(--spacing-md);
     }

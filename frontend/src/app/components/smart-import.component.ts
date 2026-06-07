@@ -126,6 +126,24 @@ export class SmartImportComponent implements OnInit {
   defaultProvider = signal<string | null>(null);
   selectedProvider = signal<string | null>(null);
   aiBusy = signal(false);
+  // Quality vs Speed preset for the local Ollama provider. "quality" routes to
+  // the registered "ollama" factory (qwen2.5vl:7b by default); "speed" routes
+  // to "ollama-lite" (qwen2.5vl:3b). Has no effect when the user picks a
+  // non-Ollama provider (openai / anthropic) from the dropdown.
+  qualityPreset = signal<'quality' | 'speed'>('quality');
+  isOllamaProvider = computed(() => {
+    const p = (this.selectedProvider() || this.defaultProvider() || '').toLowerCase();
+    return p === 'ollama' || p === 'ollama-lite';
+  });
+  effectiveProvider = computed<string | null>(() => {
+    const sel = this.selectedProvider();
+    const fallback = this.defaultProvider();
+    const base = (sel || fallback || '').toLowerCase();
+    if (base === 'ollama' || base === 'ollama-lite') {
+      return this.qualityPreset() === 'speed' ? 'ollama-lite' : 'ollama';
+    }
+    return sel || null;
+  });
 
   // -------------------- Presets / history --------------------
   presets = signal<MappingPreset[]>([]);
@@ -360,7 +378,7 @@ export class SmartImportComponent implements OnInit {
         ? this.parsing
             .smartPreview(p.e.file, {
               target: this.target(),
-              provider: this.selectedProvider() || undefined,
+              provider: this.effectiveProvider() || undefined,
               sampleRows: 5,
               enableAi: true,
               enableVisual: this.enableVisual(),
@@ -726,7 +744,6 @@ export class SmartImportComponent implements OnInit {
         return [
           'test_case_id',
           'title',
-          'description',
           'vehicle_model',
           'severity',
           'feature',

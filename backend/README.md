@@ -104,7 +104,8 @@ parsing:
     providers:
       ollama:
         base_url: http://localhost:11434
-        model: llava:7b
+        model: qwen2.5vl:7b      # default VLM (Q4_K_M ~6GB, ~7GB resident, CPU-OK)
+        lite_model: qwen2.5vl:3b # used when the Smart Import "Speed" preset is selected
       openai:
         base_url: https://api.openai.com/v1
         model: gpt-4o-mini       # OPENAI_API_KEY env or parsing.vlm.providers.openai.api_key
@@ -117,7 +118,32 @@ parsing:
 ```
 
 Environment overrides: `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`,
-`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`.
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SAKURA_OLLAMA_EXE`,
+`SAKURA_DISABLE_OLLAMA_SIDECAR`.
+
+### Bundled Ollama sidecar (offline desktop deployments)
+
+For the packaged Windows installer Sakura ships its own `ollama.exe` plus
+pre-pulled `qwen2.5vl:7b` (and optionally `qwen2.5vl:3b` for the Smart
+Import "Speed" preset). On startup `main.py` calls
+`src/infrastructure/ollama_sidecar.py::ensure_ollama_running()` which:
+
+- Skips if a daemon is already listening on `parsing.vlm.providers.ollama.base_url`.
+- Otherwise spawns `<install>/resources/ollama/ollama.exe serve` with
+  `OLLAMA_HOST=127.0.0.1:11434` and `OLLAMA_MODELS` pointed at
+  `%LOCALAPPDATA%\sakura\ollama\models` (override via
+  `parsing.vlm.providers.ollama.models_dir` or `OLLAMA_MODELS`).
+- Pins `OLLAMA_NUM_PARALLEL=1` and `OLLAMA_MAX_LOADED_MODELS=1` to avoid
+  swap-thrash on CPU-only machines.
+- Registers an `atexit` hook to terminate the child on shutdown.
+
+Set `SAKURA_DISABLE_OLLAMA_SIDECAR=true` to opt out (e.g. when developing
+against a system-installed `ollama` on a different port).
+
+To prepare the installer payload, run
+`backend/scripts/prepare_ollama_resources.ps1` on the build machine. It
+vendors `ollama.exe` and the model blobs into `backend/resources/ollama/`
+which the sidecar's lookup chain prefers over `PATH`.
 
 ### Add a new VLM provider
 

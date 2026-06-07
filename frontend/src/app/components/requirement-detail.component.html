@@ -28,10 +28,30 @@
     </div>
   </header>
 
-  <!-- Loading State -->
-  <div *ngIf="isLoading()" class="loading-container">
-    <div class="spinner"></div>
-    <p>Loading requirement…</p>
+  <!-- Loading State (skeleton) -->
+  <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading requirement">
+    <div class="skeleton-card">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="skeleton-circle"></span>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <span class="skeleton-text is-sm"></span>
+          <span class="skeleton-text is-title"></span>
+        </div>
+        <span class="skeleton-text is-pill"></span>
+      </div>
+      <span class="skeleton-text is-lg"></span>
+      <span class="skeleton-text"></span>
+    </div>
+    <div class="skeleton-card">
+      <span class="skeleton-text is-xl"></span>
+      <span class="skeleton-text"></span>
+      <span class="skeleton-text"></span>
+      <span class="skeleton-text is-md"></span>
+    </div>
+    <div class="skeleton-card">
+      <span class="skeleton-text is-xl"></span>
+      <span class="skeleton-block"></span>
+    </div>
   </div>
 
   <!-- Error State -->

@@ -1,10 +1,18 @@
 """SQLite repository for the ``test_cases`` table.
 
 Multi-value columns (``feature``, ``region``, ``brand``, ``vehicle_variant``,
-``vehicle_mode``, ``env_dependency``, ``testsuite_type``,
+``vehicle_specification``, ``env_dependency``, ``testsuite_type``,
 ``reference_document``, ``associated_requirement_id``, ``screen_id``)
 are persisted as JSON arrays so callers can supply ``["FOTA","BT"]`` and
 get the same shape back.
+
+Reads quietly migrate two retired columns onto their replacements:
+    * legacy ``vehicle_mode`` JSON  → ``vehicle_specification``
+    * legacy ``description`` text   → ``test_objective`` (when empty)
+
+The column data is left in place on disk (SQLite ``DROP COLUMN`` is finicky
+across versions) but never round-tripped through the API. ``_hydrate_row``
+is the single funnel that strips them out of every response shape.
 
 Reads are tolerant of legacy single-string rows: anything that does not
 parse as a JSON list is returned as a one-element list (empty for blank
@@ -76,9 +84,29 @@ def _deserialize_multi(value: Any) -> List[str]:
 
 
 def _hydrate_row(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Apply ``_deserialize_multi`` to every multi-value column in a row."""
+    """Apply ``_deserialize_multi`` to every multi-value column in a row.
+
+    Also migrates the two retired columns onto their replacements so legacy
+    rows (written before the schema change) keep flowing through the API
+    without dropping data:
+
+        vehicle_mode (JSON list) -> vehicle_specification (when empty)
+        description (text)       -> test_objective       (when empty)
+
+    The legacy columns themselves are stripped from the response shape so
+    clients only ever see the canonical names.
+    """
     if not row:
         return row
+
+    legacy_mode = row.pop("vehicle_mode", None)
+    if legacy_mode is not None and not row.get("vehicle_specification"):
+        row["vehicle_specification"] = legacy_mode
+
+    legacy_description = row.pop("description", None)
+    if legacy_description is not None and not row.get("test_objective"):
+        row["test_objective"] = legacy_description
+
     for field in MULTI_VALUE_FIELDS:
         if field in row:
             row[field] = _deserialize_multi(row.get(field))

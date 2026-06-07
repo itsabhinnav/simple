@@ -1,0 +1,311 @@
+<div class="admin-settings">
+  <header class="settings-header">
+    <div>
+      <h1>Admin Settings</h1>
+      <p class="muted" *ngIf="settings()?.file_path">
+        Editing <code>{{ settings()!.file_path }}</code>
+      </p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" (click)="reload()" [disabled]="loading() || saving()">Reload</button>
+    </div>
+  </header>
+
+  <div class="toast" *ngIf="toast() as t" [class.ok]="t.kind === 'ok'" [class.err]="t.kind === 'err'">
+    {{ t.msg }}
+  </div>
+  <div class="banner err" *ngIf="error()">{{ error() }}</div>
+  <div class="banner muted" *ngIf="loading()">Loading…</div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" [class.active]="activeTab() === 'dropdowns'" (click)="setTab('dropdowns')">Dropdown Values</button>
+    <button class="tab" [class.active]="activeTab() === 'multiValue'" (click)="setTab('multiValue')">Multi-Value Fields</button>
+    <button class="tab" [class.active]="activeTab() === 'aliases'" (click)="setTab('aliases')">Column Mapping</button>
+    <button class="tab" [class.active]="activeTab() === 'targets'" (click)="setTab('targets')">Entity Fields</button>
+    <button class="tab" [class.active]="activeTab() === 'features'" (click)="setTab('features')">Feature Flags</button>
+    <button class="tab" [class.active]="activeTab() === 'sections'" (click)="setTab('sections')">Advanced</button>
+    <button class="tab" [class.active]="activeTab() === 'readonly'" (click)="setTab('readonly')">Read-only</button>
+  </nav>
+
+  <!-- ============================================================ -->
+  <!-- Dropdown values                                              -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'dropdowns'">
+    <p class="panel-help">
+      Add or remove options for each picker/multi-select rendered on the create &amp; detail screens.
+      Changes persist immediately to <code>test_case_dropdowns</code> in config.yaml.
+    </p>
+
+    <div class="two-col">
+      <aside class="left-rail">
+        <h3>Fields</h3>
+        <ul class="field-list">
+          <li *ngFor="let f of dropdownFields()"
+              [class.active]="selectedDropdownField() === f"
+              (click)="selectDropdownField(f)">
+            <span class="field-name">{{ f }}</span>
+            <span class="count-badge">{{ optionsFor(f).length }}</span>
+          </li>
+        </ul>
+      </aside>
+
+      <div class="right-pane" *ngIf="selectedDropdownField() as field">
+        <div class="pane-header">
+          <h3>{{ field }}</h3>
+          <span class="muted">{{ optionsFor(field).length }} option(s)</span>
+        </div>
+
+        <div class="chip-grid">
+          <span class="chip" *ngFor="let o of optionsFor(field)">
+            {{ o }}
+            <button class="chip-x" (click)="removeOption(field, o)" title="Remove">×</button>
+          </span>
+          <span class="chip empty" *ngIf="optionsFor(field).length === 0">No options yet</span>
+        </div>
+
+        <form class="inline-form" (submit)="$event.preventDefault(); addOption()">
+          <input
+            type="text"
+            placeholder="Add option…"
+            [ngModel]="newOption()"
+            (ngModelChange)="newOption.set($event)"
+            name="newOption"
+            [disabled]="saving()" />
+          <button type="submit" class="btn-primary" [disabled]="!newOption().trim() || saving()">Add</button>
+        </form>
+      </div>
+
+      <div class="right-pane empty-state" *ngIf="!selectedDropdownField()">
+        Select a field on the left to edit its options.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Multi-value fields                                           -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'multiValue'">
+    <p class="panel-help">
+      Mark a test-case column as multi-value to make it accept multiple selections.
+      Values are persisted as a JSON array in the database.
+    </p>
+
+    <div class="toggle-grid">
+      <label class="toggle-row" *ngFor="let f of allTrackedFields()">
+        <input type="checkbox" [checked]="isMultiValue(f)" (change)="toggleMultiValue(f)" />
+        <span class="toggle-label">{{ f }}</span>
+        <span class="toggle-tag" *ngIf="isMultiValue(f)">multi</span>
+      </label>
+    </div>
+
+    <form class="inline-form" (submit)="$event.preventDefault(); addMultiValueField()">
+      <input
+        type="text"
+        placeholder="Add custom multi-value field…"
+        [ngModel]="newMultiValueField()"
+        (ngModelChange)="newMultiValueField.set($event)"
+        name="newMv"
+        [disabled]="saving()" />
+      <button type="submit" class="btn-primary" [disabled]="!newMultiValueField().trim() || saving()">Mark as multi-value</button>
+    </form>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Column / header aliases                                      -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'aliases'">
+    <p class="panel-help">
+      Map spreadsheet column headers to canonical entity fields. Use these to absorb vendor
+      header quirks during bulk import. Leave the target empty to <strong>ignore</strong> a column.
+    </p>
+
+    <form class="alias-add" (submit)="$event.preventDefault(); addAlias()">
+      <input
+        type="text"
+        placeholder="Spreadsheet header (case-insensitive)"
+        [ngModel]="newAliasRaw()"
+        (ngModelChange)="newAliasRaw.set($event)"
+        name="aliasRaw" />
+      <span class="arrow">→</span>
+      <input
+        type="text"
+        placeholder="Canonical field (or empty to ignore)"
+        [ngModel]="newAliasTarget()"
+        (ngModelChange)="newAliasTarget.set($event)"
+        name="aliasTarget" />
+      <button type="submit" class="btn-primary" [disabled]="!newAliasRaw().trim() || saving()">Add / Update</button>
+    </form>
+
+    <table class="grid-table" *ngIf="aliasRows().length > 0; else noAliases">
+      <thead>
+        <tr><th>Header</th><th>Maps to</th><th></th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of aliasRows()">
+          <td><code>{{ row.raw }}</code></td>
+          <td>
+            <input
+              type="text"
+              [ngModel]="row.target ?? ''"
+              (change)="updateAliasTarget(row.raw, $any($event.target).value)"
+              placeholder="(ignored)" />
+          </td>
+          <td><button class="btn-danger" (click)="removeAlias(row.raw)">Remove</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #noAliases>
+      <p class="muted">No custom aliases configured. Built-in aliases still apply.</p>
+    </ng-template>
+
+    <details class="ref-block" *ngIf="schema()">
+      <summary>Reference: built-in header aliases ({{ (schema()!.header_aliases | keyvalue).length }})</summary>
+      <div class="alias-ref-grid">
+        <div class="alias-ref-row" *ngFor="let entry of schema()!.header_aliases | keyvalue">
+          <code>{{ entry.key }}</code><span>→</span><code>{{ entry.value ?? '(ignored)' }}</code>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Entity / Target fields                                       -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'targets'">
+    <p class="panel-help">
+      Configure the canonical fields accepted by each entity during bulk import.
+      Required fields are validated on every row.
+    </p>
+
+    <div class="two-col" *ngIf="schema(); else noSchema">
+      <aside class="left-rail">
+        <h3>Entity</h3>
+        <ul class="field-list">
+          <li *ngFor="let t of targetNames()"
+              [class.active]="selectedTarget() === t"
+              (click)="selectTarget(t)">
+            <span class="field-name">{{ t }}</span>
+            <span class="count-badge">{{ (schema()!.targets[t].fields || []).length }}</span>
+          </li>
+        </ul>
+      </aside>
+
+      <div class="right-pane" *ngIf="currentTarget() as t">
+        <div class="pane-header">
+          <h3>{{ selectedTarget() }}</h3>
+          <span class="muted">
+            id: <code>{{ t.id_field }}</code> · prefix: <code>{{ t.prefix }}</code> · table: <code>{{ t.table }}</code>
+          </span>
+        </div>
+
+        <h4>Fields</h4>
+        <table class="grid-table">
+          <thead><tr><th>Field</th><th>Required</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let f of targetFieldsDraft()">
+              <td><code>{{ f }}</code></td>
+              <td>
+                <input type="checkbox"
+                       [checked]="targetRequiredDraft().includes(f)"
+                       (change)="toggleRequired(f)" />
+              </td>
+              <td>
+                <button class="btn-danger"
+                        [disabled]="f === t.id_field"
+                        [title]="f === t.id_field ? 'Cannot remove the ID field' : ''"
+                        (click)="removeTargetField(f)">Remove</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <form class="inline-form" (submit)="$event.preventDefault(); addTargetField()">
+          <input type="text"
+                 placeholder="Add new canonical field…"
+                 [ngModel]="newTargetField()"
+                 (ngModelChange)="newTargetField.set($event)"
+                 name="ntf" />
+          <button type="submit" class="btn-primary" [disabled]="!newTargetField().trim()">Add field</button>
+        </form>
+
+        <div class="actions-row">
+          <button class="btn-primary" (click)="persistTargetFields()" [disabled]="saving()">Save changes</button>
+          <button class="btn-secondary" (click)="resetTargetFields()" [disabled]="saving()">Reset to defaults</button>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #noSchema>
+      <p class="muted">Loading entity schema…</p>
+    </ng-template>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Feature flags                                                -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'features'">
+    <p class="panel-help">Toggle high-level feature flags surfaced under <code>features</code>.</p>
+
+    <div class="toggle-grid">
+      <label class="toggle-row" *ngFor="let k of featureKeys()">
+        <input type="checkbox" [checked]="featureValue(k)" (change)="toggleFeature(k)" />
+        <span class="toggle-label">{{ k }}</span>
+        <span class="toggle-tag" [class.on]="featureValue(k)">{{ featureValue(k) ? 'on' : 'off' }}</span>
+      </label>
+      <p class="muted" *ngIf="featureKeys().length === 0">No feature flags defined in config.yaml.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Raw section JSON editor                                      -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'sections'">
+    <p class="panel-help">
+      Edit any editable section as JSON. Use this for keys not covered by the dedicated tabs
+      (e.g. CORS origins, log level, parsing settings).
+    </p>
+
+    <div class="two-col">
+      <aside class="left-rail">
+        <h3>Section</h3>
+        <ul class="field-list">
+          <li *ngFor="let s of settings()?.editable_sections || []"
+              [class.active]="selectedSection() === s"
+              (click)="selectSection(s)">
+            <span class="field-name">{{ s }}</span>
+          </li>
+        </ul>
+      </aside>
+
+      <div class="right-pane" *ngIf="selectedSection() as sec">
+        <div class="pane-header">
+          <h3>{{ sec }}</h3>
+        </div>
+        <textarea
+          class="json-editor"
+          rows="20"
+          spellcheck="false"
+          [ngModel]="sectionDraft()"
+          (ngModelChange)="sectionDraft.set($event)"></textarea>
+        <div class="error-text" *ngIf="sectionDraftError()">{{ sectionDraftError() }}</div>
+        <div class="actions-row">
+          <button class="btn-primary" (click)="saveSectionDraft()" [disabled]="saving()">Save</button>
+          <button class="btn-secondary" (click)="selectSection(sec)" [disabled]="saving()">Revert</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Read-only sections                                           -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'readonly'">
+    <p class="panel-help">
+      These sections cannot be changed from the UI (they contain runtime-critical data or secrets).
+    </p>
+    <div *ngFor="let s of settings()?.read_only_sections || []" class="ro-section">
+      <h3>{{ s }}</h3>
+      <pre class="json-readonly">{{ readOnlyJson(s) }}</pre>
+    </div>
+  </section>
+</div>

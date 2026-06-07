@@ -367,6 +367,15 @@ def main():
     except Exception as e:
         print(f"[ERROR] Error provisioning master admin account: {e}")
         print("[WARNING] Continuing without master admin account...")
+
+    # Start bundled Ollama VLM sidecar (best-effort; falls back silently if
+    # the binary or pre-pulled qwen2.5vl:7b blobs aren't shipped in this build).
+    if os.environ.get("SAKURA_DISABLE_OLLAMA_SIDECAR", "false").lower() != "true":
+        try:
+            from src.infrastructure.ollama_sidecar import ensure_ollama_running
+            ensure_ollama_running()
+        except Exception as e:
+            print(f"[WARNING] Ollama sidecar not started: {e}")
     
     # Get configuration
     host = os.environ.get('HOST', '0.0.0.0')

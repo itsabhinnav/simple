@@ -19,7 +19,7 @@ export const TEST_CASE_MULTI_VALUE_FIELDS = [
   'region',
   'brand',
   'vehicle_variant',
-  'vehicle_mode',
+  'vehicle_specification',
   'env_dependency',
   'testsuite_type',
 ] as const;
@@ -38,7 +38,6 @@ export interface TestCase {
   id?: number;
   test_case_id: string;
   title?: string;
-  description?: string;
   vehicle_model?: string;
   severity?: string;
 
@@ -49,7 +48,8 @@ export interface TestCase {
   region?: MultiValue;
   brand?: MultiValue;
   vehicle_variant?: MultiValue;
-  vehicle_mode?: MultiValue;
+  /** Engine / powertrain class (Common / ICE / HEV / PHEV / EV). Multi-value. */
+  vehicle_specification?: MultiValue;
   env_dependency?: MultiValue;
   testsuite_type?: MultiValue;
 
@@ -60,7 +60,6 @@ export interface TestCase {
   procedure?: string;
   expected_behavior?: string;
   test_type?: string;
-  vehicle_specification?: string;
   requirement_type?: string;
   /** "Yes" / "No" — single-select dropdown driven by config.yaml. */
   regulation?: string;
@@ -76,7 +75,6 @@ export interface TestCase {
 export interface TestCaseCreateRequest {
   test_case_id: string;
   title?: string;
-  description?: string;
   vehicle_model?: string;
   severity?: string;
 
@@ -87,7 +85,7 @@ export interface TestCaseCreateRequest {
   region?: MultiValue;
   brand?: MultiValue;
   vehicle_variant?: MultiValue;
-  vehicle_mode?: MultiValue;
+  vehicle_specification?: MultiValue;
   env_dependency?: MultiValue;
   testsuite_type?: MultiValue;
 
@@ -98,7 +96,6 @@ export interface TestCaseCreateRequest {
   procedure?: string;
   expected_behavior?: string;
   test_type?: string;
-  vehicle_specification?: string;
   requirement_type?: string;
   regulation?: string;
   priority?: string;
@@ -119,7 +116,7 @@ export interface TestCaseDropdowns {
   region: string[];
   brand: string[];
   vehicle_variant: string[];
-  vehicle_mode: string[];
+  vehicle_specification: string[];
   env_dependency: string[];
   regulation: string[];
   priority: string[];

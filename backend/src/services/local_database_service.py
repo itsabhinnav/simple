@@ -78,12 +78,16 @@ class LocalDatabaseService:
             # Create test_cases table. NOTE: when adding new columns here, also
             # add them to `_test_case_column_additions` below so existing
             # databases get the columns via ALTER TABLE on the next startup.
+            # Fresh databases get the post-June-2026 shape: no `description`
+            # (use `test_objective` instead) and no `vehicle_mode`
+            # (`vehicle_specification` is now multi-value and absorbs that role).
+            # Existing databases keep the old columns intact — see the migration
+            # block below for how legacy data is forwarded onto the new columns.
             create_test_cases_table = f"""
                 CREATE TABLE IF NOT EXISTS {test_cases_table} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     test_case_id TEXT UNIQUE NOT NULL,
                     title TEXT,
-                    description TEXT,
                     vehicle_model TEXT,
                     severity TEXT,
                     reference_document TEXT,
@@ -101,7 +105,6 @@ class LocalDatabaseService:
                     brand TEXT,
                     vehicle_variant TEXT,
                     vehicle_specification TEXT,
-                    vehicle_mode TEXT,
                     env_dependency TEXT,
                     requirement_type TEXT,
                     regulation TEXT,
@@ -243,18 +246,27 @@ class LocalDatabaseService:
             # newer columns. SQLite < 3.35 does not support `ADD COLUMN IF NOT
             # EXISTS`, so we ask the table for its current columns first and
             # only run ALTER for columns that are missing.
+            #
+            # `description` and `vehicle_mode` were retired in June 2026; we
+            # don't add them on fresh DBs but do leave any existing copies in
+            # place so the one-shot migration below can copy their data into
+            # the canonical replacement columns before they fall out of the
+            # API surface.
             self._add_missing_columns(
                 test_cases_table,
                 {
                     "title": "TEXT",
-                    "description": "TEXT",
                     "vehicle_model": "TEXT",
                     "severity": "TEXT",
-                    # `vehicle_mode` joined the schema later (Common/EV/HEV/ICE/PHEV
-                    # multi-select). Existing DBs need an ALTER to gain the column.
-                    "vehicle_mode": "TEXT",
+                    "vehicle_specification": "TEXT",
                 },
             )
+
+            # One-shot data migration: forward retired columns onto their
+            # replacements when the new columns are still empty. Idempotent —
+            # subsequent runs will find the destination already populated and
+            # be a no-op.
+            self._migrate_retired_test_case_columns(test_cases_table)
             
             # Initialize database version if not exists
             self.execute_query("""
@@ -308,7 +320,60 @@ class LocalDatabaseService:
                 conn.close()
         except Exception as exc:
             logger.warning(f"Migration: column-addition check failed for {table_name}: {exc}")
-    
+
+    def _migrate_retired_test_case_columns(self, table_name: str) -> None:
+        """Forward data from retired columns onto their replacements.
+
+        The June 2026 schema removed two columns from the API surface but we
+        don't physically drop them in SQLite (DROP COLUMN landed in 3.35 and
+        not all environments ship a recent build). Instead, on every startup
+        we copy:
+
+            description    -> test_objective         when test_objective IS NULL
+            vehicle_mode   -> vehicle_specification  when vehicle_specification IS NULL
+
+        After the copy the legacy columns are still present on disk but the
+        repository's _hydrate_row strips them from every response, so they
+        become invisible to the API.
+
+        Operation is idempotent: subsequent runs hit the IS NULL guard and
+        no-op once every row has been migrated.
+        """
+        try:
+            conn = sqlite3.connect(str(self.local_db_path))
+            try:
+                cursor = conn.cursor()
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                existing = {row[1] for row in cursor.fetchall()}
+
+                migrations = [
+                    ("description", "test_objective"),
+                    ("vehicle_mode", "vehicle_specification"),
+                ]
+                for legacy, canonical in migrations:
+                    if legacy not in existing or canonical not in existing:
+                        continue
+                    cursor.execute(
+                        f"UPDATE {table_name} "
+                        f"SET {canonical} = {legacy} "
+                        f"WHERE ({canonical} IS NULL OR {canonical} = '') "
+                        f"  AND {legacy} IS NOT NULL "
+                        f"  AND {legacy} <> ''"
+                    )
+                    moved = cursor.rowcount
+                    if moved:
+                        logger.info(
+                            f"Migration: copied {moved} row(s) "
+                            f"{table_name}.{legacy} -> {table_name}.{canonical}"
+                        )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning(
+                f"Migration: retired-column copy failed for {table_name}: {exc}"
+            )
+
     def get_database_version(self) -> int:
         """Get the current database version"""
         try:

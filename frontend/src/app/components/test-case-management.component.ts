@@ -65,10 +65,28 @@ import { SplitViewComponent } from './split-view.component';
         </div>
       </header>
 
-      <!-- Loading State -->
-      <div *ngIf="isLoading()" class="loading-container">
-        <div class="spinner"></div>
-        <p>Loading test cases...</p>
+      <!-- Loading State (skeleton) -->
+      <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading test cases">
+        <div class="skeleton-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <span class="skeleton-text is-title"></span>
+            <span class="skeleton-text is-pill"></span>
+          </div>
+        </div>
+        <div class="skeleton-grid">
+          <div class="skeleton-card" *ngFor="let _ of [1,2,3,4,5,6]">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="skeleton-circle is-sm"></span>
+              <span class="skeleton-text is-md"></span>
+            </div>
+            <span class="skeleton-text is-lg"></span>
+            <span class="skeleton-text"></span>
+            <div style="display:flex;gap:8px;">
+              <span class="skeleton-text is-pill"></span>
+              <span class="skeleton-text is-pill"></span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Error State -->
@@ -448,11 +466,12 @@ import { SplitViewComponent } from './split-view.component';
               <tr>
                 <th>Test Case ID</th>
                 <th>Title</th>
-                <th>Vehicle Model</th>
-                <th>Severity</th>
+                <th>Feature</th>
+                <th>Vehicle Variant</th>
+                <th>Vehicle Specification</th>
                 <th>Type</th>
                 <th>Priority</th>
-                <th>Feature</th>
+                <th>Severity</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -460,15 +479,16 @@ import { SplitViewComponent } from './split-view.component';
               <tr *ngFor="let tc of pagedTestCases()" (click)="navigateToDetail(tc.test_case_id)" style="cursor: pointer;">
                 <td><strong>{{ tc.test_case_id }}</strong></td>
                 <td>{{ tc.title || tc.test_objective || '-' }}</td>
-                <td>{{ tc.vehicle_model || '-' }}</td>
+                <td>{{ mv(tc.feature) }}</td>
+                <td>{{ mv(tc.vehicle_variant) }}</td>
+                <td>{{ mv(tc.vehicle_specification) }}</td>
+                <td><span class="type-badge">{{ tc.test_type || '-' }}</span></td>
+                <td><span class="priority-badge" [class]="getPriorityClass(tc.priority)">{{ tc.priority || 'P3' }}</span></td>
                 <td>
                   <span class="severity-badge" [class]="getSeverityClass(tc.severity)">
                     {{ tc.severity || '-' }}
                   </span>
                 </td>
-                <td><span class="type-badge">{{ tc.test_type || '-' }}</span></td>
-                <td><span class="priority-badge" [class]="getPriorityClass(tc.priority)">{{ tc.priority || 'P3' }}</span></td>
-                <td>{{ mv(tc.feature) }}</td>
                 <td (click)="$event.stopPropagation()">
                   <div class="actions">
                     <button class="btn-edit" (click)="navigateToDetailEdit(tc.test_case_id)" title="Edit" aria-label="Edit">
@@ -507,15 +527,15 @@ import { SplitViewComponent } from './split-view.component';
               </span>
             </div>
             <h3 class="card-title">{{ tc.title || tc.test_objective || 'Test Case' }}</h3>
-            <p class="card-description" *ngIf="tc.vehicle_model">🚗 {{ tc.vehicle_model }}<span *ngIf="tc.severity"> · {{ tc.severity }}</span></p>
+            <p class="card-description" *ngIf="vehicleSummary(tc) as v">{{ v }}<span *ngIf="tc.severity"> · {{ tc.severity }}</span></p>
             <p class="card-description" *ngIf="mv(tc.feature, '') as f">Feature: {{ f }}</p>
-            <p class="card-description" *ngIf="tc.description || tc.preconditions">{{ tc.description || tc.preconditions }}</p>
+            <p class="card-description" *ngIf="tc.test_objective || tc.preconditions">{{ tc.test_objective || tc.preconditions }}</p>
             
             <div class="card-footer">
               <span class="status-badge" [class]="getTypeClass(tc.test_type)">
                 {{ tc.test_type || 'N/A' }}
               </span>
-              <span class="assignee" *ngIf="mv(tc.feature, '') as f">👤 {{ f }}</span>
+              <span class="assignee" *ngIf="mv(tc.feature, '') as f">{{ f }}</span>
             </div>
             <div class="card-actions" (click)="$event.stopPropagation()">
               <button class="btn-edit" (click)="navigateToDetailEdit(tc.test_case_id)" title="Edit" aria-label="Edit">
@@ -787,9 +807,9 @@ import { SplitViewComponent } from './split-view.component';
   `,
   styles: [`
     .test-case-management-container {
-      max-width: 1400px;
+      max-width: 100%;
       margin: 0 auto;
-      padding: 20px;
+      padding: 20px 24px;
     }
 
     .management-header {
@@ -1888,7 +1908,7 @@ import { SplitViewComponent } from './split-view.component';
       background: #f1f3f4;
       padding: 2px 6px;
       border-radius: 4px;
-      font-family: 'Menlo', 'Consolas', monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
     }
     .mapping-table select {
@@ -2068,6 +2088,28 @@ export class TestCaseManagementComponent implements OnInit {
     return text === '' ? placeholder : text;
   }
 
+  /**
+   * Compose a single-line vehicle label for the grid card.
+   *
+   * Priority:
+   *   variant + specification (the structured fields the post-Jun-2026 schema uses)
+   *   → variant alone
+   *   → specification alone
+   *   → vehicle_model (legacy free-text fallback for pre-multi-value rows)
+   *
+   * Returns null when nothing is set so the *ngIf hides the line entirely
+   * instead of showing a placeholder.
+   */
+  vehicleSummary(tc: any): string | null {
+    const variant = TestCaseService.mvDisplay(tc?.vehicle_variant);
+    const spec = TestCaseService.mvDisplay(tc?.vehicle_specification);
+    if (variant && spec) return `${variant} · ${spec}`;
+    if (variant) return variant;
+    if (spec) return spec;
+    if (tc?.vehicle_model) return tc.vehicle_model;
+    return null;
+  }
+
   // Signals for reactive state management
   testCases = signal<TestCase[]>([]);
   isLoading = signal(false);
@@ -2090,8 +2132,9 @@ export class TestCaseManagementComponent implements OnInit {
         (testCase.test_objective && testCase.test_objective.toLowerCase().includes(term)) ||
         (testCase.procedure && testCase.procedure.toLowerCase().includes(term)) ||
         (testCase.title && testCase.title.toLowerCase().includes(term)) ||
-        (testCase.description && testCase.description.toLowerCase().includes(term)) ||
         (testCase.vehicle_model && testCase.vehicle_model.toLowerCase().includes(term)) ||
+        TestCaseService.mvDisplay(testCase.vehicle_variant).toLowerCase().includes(term) ||
+        TestCaseService.mvDisplay(testCase.vehicle_specification).toLowerCase().includes(term) ||
         TestCaseService.mvDisplay(testCase.brand).toLowerCase().includes(term)
       );
     }
@@ -2282,7 +2325,6 @@ export class TestCaseManagementComponent implements OnInit {
         Validators.pattern(/^[A-Z]{2}_[A-Z_]+_\d+$/)
       ]],
       title: [''],
-      description: [''],
       vehicle_model: [''],
       severity: [''],
       feature: [''],
@@ -2301,7 +2343,6 @@ export class TestCaseManagementComponent implements OnInit {
       brand: [''],
       vehicle_variant: [''],
       vehicle_specification: [''],
-      vehicle_mode: [''],
       env_dependency: [''],
       requirement_type: [''],
       regulation: [''],
@@ -2793,7 +2834,7 @@ export class TestCaseManagementComponent implements OnInit {
           // Fall back to a sensible hard-coded list if the endpoint is
           // unreachable — the user can still pick from these.
           this.importFields.set([
-            'test_case_id', 'title', 'description', 'vehicle_model', 'severity',
+            'test_case_id', 'title', 'vehicle_model', 'severity',
             'feature', 'priority', 'test_type', 'region', 'brand',
             'vehicle_variant', 'vehicle_specification', 'env_dependency',
             'test_objective', 'preconditions', 'procedure', 'expected_behavior',
@@ -2954,7 +2995,6 @@ export class TestCaseManagementComponent implements OnInit {
     this.testCaseForm.patchValue({
       test_case_id: testCase.test_case_id,
       title: testCase.title || '',
-      description: testCase.description || '',
       vehicle_model: testCase.vehicle_model || '',
       severity: testCase.severity || '',
       feature: TestCaseService.mvDisplay(testCase.feature),
@@ -2972,8 +3012,7 @@ export class TestCaseManagementComponent implements OnInit {
       dr_id: testCase.dr_id || '',
       brand: TestCaseService.mvDisplay(testCase.brand),
       vehicle_variant: TestCaseService.mvDisplay(testCase.vehicle_variant),
-      vehicle_specification: testCase.vehicle_specification || '',
-      vehicle_mode: TestCaseService.mvDisplay((testCase as any).vehicle_mode),
+      vehicle_specification: TestCaseService.mvDisplay(testCase.vehicle_specification),
       env_dependency: TestCaseService.mvDisplay(testCase.env_dependency),
       requirement_type: testCase.requirement_type || '',
       regulation: testCase.regulation || '',
@@ -3004,7 +3043,6 @@ export class TestCaseManagementComponent implements OnInit {
         const updateData: TestCaseUpdateRequest = {
           test_case_id: formData.test_case_id,
           title: formData.title,
-          description: formData.description,
           vehicle_model: formData.vehicle_model,
           severity: formData.severity,
           feature: formData.feature,
@@ -3023,7 +3061,6 @@ export class TestCaseManagementComponent implements OnInit {
           brand: formData.brand,
           vehicle_variant: formData.vehicle_variant,
           vehicle_specification: formData.vehicle_specification,
-          vehicle_mode: formData.vehicle_mode,
           env_dependency: formData.env_dependency,
           requirement_type: formData.requirement_type,
           regulation: formData.regulation,
@@ -3054,7 +3091,6 @@ export class TestCaseManagementComponent implements OnInit {
       const createData: TestCaseCreateRequest = {
         test_case_id: formData.test_case_id,
         title: formData.title,
-        description: formData.description,
         vehicle_model: formData.vehicle_model,
         severity: formData.severity,
         feature: formData.feature,
@@ -3073,7 +3109,6 @@ export class TestCaseManagementComponent implements OnInit {
         brand: formData.brand,
         vehicle_variant: formData.vehicle_variant,
         vehicle_specification: formData.vehicle_specification,
-        vehicle_mode: formData.vehicle_mode,
         env_dependency: formData.env_dependency,
         requirement_type: formData.requirement_type,
         regulation: formData.regulation,

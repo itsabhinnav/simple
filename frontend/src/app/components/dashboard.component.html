@@ -1,9 +1,29 @@
 <div class="landing-container">
-  <!-- Loading State -->
-  <div *ngIf="!authReady()" class="loading-overlay">
-    <div class="spinner"></div>
-    <p>{{ 'dashboard.loading' | translate }}</p>
-  </div>
+  <!-- Loading State (skeleton) -->
+  <section *ngIf="!authReady()" class="skeleton-page dashboard-section" aria-busy="true" aria-label="Loading dashboard">
+    <div class="skeleton-card">
+      <span class="skeleton-text is-title"></span>
+      <span class="skeleton-text is-lg"></span>
+      <span class="skeleton-text is-md"></span>
+    </div>
+    <div class="skeleton-grid">
+      <div class="skeleton-card" *ngFor="let _ of [1,2,3,4]">
+        <span class="skeleton-text is-sm"></span>
+        <span class="skeleton-text is-title"></span>
+        <span class="skeleton-text is-md"></span>
+      </div>
+    </div>
+    <div class="skeleton-grid" style="grid-template-columns: 2fr 1fr;">
+      <div class="skeleton-card">
+        <span class="skeleton-text is-md"></span>
+        <span class="skeleton-block is-lg"></span>
+      </div>
+      <div class="skeleton-card">
+        <span class="skeleton-text is-md"></span>
+        <span class="skeleton-block"></span>
+      </div>
+    </div>
+  </section>
   
   <!-- Auth Section: only on /login route -->
   <section class="auth-section" *ngIf="authReady() && !authed()">
@@ -198,212 +218,378 @@
 
   <!-- Dashboard Section (shown after login) -->
   <section class="dashboard-section" *ngIf="authReady() && authed()">
-    <div class="dashboard-wrap">
+    <div class="db-dashboard">
 
-      <!-- Stat tiles - wide horizontal layout -->
-      <div class="stats-grid">
-
-        <!-- Specifications -->
-        <div class="stat-tile stat-tile--specs stat-tile--no-link"
-             role="group">
-          <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon" aria-hidden="true">📑</span>
-          </div>
-          <div class="stat-tile-main">
-            <div class="stat-tile-top">
-              <div class="stat-tile-headings">
-                <div class="stat-tile-title">{{ 'dashboard.specifications' | translate }}</div>
-                <div class="stat-tile-subtitle">Source documents</div>
-              </div>
-              <div class="stat-tile-value">{{ specsCount() }}</div>
-            </div>
-
-            <div class="stat-tile-chips stat-tile-chips--specs">
-              <span class="chip chip--info">
-                <span class="chip-label">Formats</span>
-                <span class="chip-value">XLSX · XLSM · CSV · DOCX</span>
-              </span>
-            </div>
-          </div>
-          <div class="stat-tile-cta stat-tile-cta--split">
-            <a class="cta-link" routerLink="/specs">
-              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-              <span class="cta-arrow">→</span>
-            </a>
-            <a class="cta-import" routerLink="/specs/import" title="Smart Import wizard">
-              <span class="import-icon" aria-hidden="true">⬆</span>
-              {{ 'dashboard.import' | translate }}
-            </a>
+      <!-- ====================== HERO BAND ====================== -->
+      <header class="db-hero">
+        <div class="db-hero-greet">
+          <div class="db-hero-mark" aria-hidden="true">🌸</div>
+          <div class="db-hero-text">
+            <h1 class="db-hero-title">Welcome back, {{ getCurrentUsername() }}</h1>
+            <p class="db-hero-sub">Your engineering workspace at a glance — coverage, workflow health, and recent activity.</p>
           </div>
         </div>
-
-        <!-- Requirements -->
-        <div class="stat-tile stat-tile--requirements stat-tile--no-link" role="group">
-          <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon">📋</span>
+        <div class="db-hero-pulse">
+          <div class="db-pulse">
+            <span class="db-pulse-num">{{ totalAssets() }}</span>
+            <span class="db-pulse-lbl">Total artifacts</span>
           </div>
-          <div class="stat-tile-main">
-            <div class="stat-tile-top">
-              <div class="stat-tile-headings">
-                <div class="stat-tile-title">{{ 'dashboard.requirements' | translate }}</div>
-                <div class="stat-tile-subtitle">Acceptance criteria & specs</div>
-              </div>
-              <div class="stat-tile-value">{{ requirementsCount() }}</div>
-            </div>
-
-            <div class="stat-tile-chips" *ngIf="requirementPriorityBreakdown().length > 0">
-              <span
-                *ngFor="let row of requirementPriorityBreakdown()"
-                class="chip"
-                [class]="'chip--' + row.key.toLowerCase()">
-                <span class="chip-label">{{ row.key }}</span>
-                <span class="chip-value">{{ row.count }}</span>
-              </span>
-              <span
-                *ngFor="let row of requirementStatusBreakdown()"
-                class="chip chip--status"
-                [attr.data-status]="row.key">
-                <span class="chip-dot"></span>
-                <span class="chip-label">{{ row.key }}</span>
-                <span class="chip-value">{{ row.count }}</span>
-              </span>
-            </div>
-            <div class="stat-tile-chips stat-tile-chips--empty" *ngIf="requirementPriorityBreakdown().length === 0">
-              <span class="empty-hint">No requirements yet.</span>
-            </div>
+          <div class="db-pulse db-pulse--accent">
+            <span class="db-pulse-num">{{ coveragePercent() }}<small>%</small></span>
+            <span class="db-pulse-lbl">Requirements covered</span>
           </div>
-          <div class="stat-tile-cta stat-tile-cta--split">
-            <a class="cta-link" routerLink="/requirements">
-              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-              <span class="cta-arrow">→</span>
-            </a>
-            <a class="cta-import" routerLink="/requirements/import" title="Smart Import wizard">
-              <span class="import-icon" aria-hidden="true">⬆</span>
-              {{ 'dashboard.import' | translate }}
-            </a>
+          <div class="db-pulse" [attr.data-tier]="qualityTier()">
+            <span class="db-pulse-num">{{ qualityScore() }}</span>
+            <span class="db-pulse-lbl">Quality score</span>
           </div>
         </div>
+      </header>
 
-        <!-- Designs -->
-        <div class="stat-tile stat-tile--designs stat-tile--no-link" role="group">
-          <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon" aria-hidden="true">🎨</span>
-          </div>
-          <div class="stat-tile-main">
-            <div class="stat-tile-top">
-              <div class="stat-tile-headings">
-                <div class="stat-tile-title">{{ 'dashboard.designs' | translate }}</div>
-                <div class="stat-tile-subtitle">Mockups & visual specs</div>
-              </div>
-              <div class="stat-tile-value">{{ designTicketsCount() }}</div>
-            </div>
+      <!-- ====================== KPI STRIP ====================== -->
+      <div class="db-kpi-row">
 
-            <div class="stat-tile-chips" *ngIf="designStatusBreakdown().length > 0">
-              <span
-                *ngFor="let row of designStatusBreakdown()"
-                class="chip chip--status"
-                [attr.data-status]="row.key">
-                <span class="chip-dot"></span>
-                <span class="chip-label">{{ row.key }}</span>
-                <span class="chip-value">{{ row.count }}</span>
-              </span>
-            </div>
-            <div class="stat-tile-chips stat-tile-chips--empty" *ngIf="designStatusBreakdown().length === 0">
-              <span class="empty-hint">No design tickets yet.</span>
-            </div>
+        <a class="db-kpi db-kpi--specs" routerLink="/specs">
+          <div class="db-kpi-head">
+            <span class="db-kpi-icon">📑</span>
+            <span class="db-kpi-label">{{ 'dashboard.specifications' | translate }}</span>
           </div>
-          <div class="stat-tile-cta stat-tile-cta--split">
-            <a class="cta-link" routerLink="/design-tickets">
-              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-              <span class="cta-arrow">→</span>
-            </a>
-            <a class="cta-import" routerLink="/design-tickets/import" title="Smart Import wizard">
-              <span class="import-icon" aria-hidden="true">⬆</span>
-              {{ 'dashboard.import' | translate }}
-            </a>
+          <div class="db-kpi-value">{{ specsCount() }}</div>
+          <div class="db-kpi-foot">
+            <span class="db-kpi-meta">Source docs</span>
+            <a class="db-kpi-act" routerLink="/specs/import" (click)="$event.stopPropagation()">⬆ Import</a>
           </div>
-        </div>
+        </a>
 
-        <!-- Test Cases -->
-        <div class="stat-tile stat-tile--testcases stat-tile--no-link" role="group">
-          <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon">🧪</span>
+        <a class="db-kpi db-kpi--reqs" routerLink="/requirements">
+          <div class="db-kpi-head">
+            <span class="db-kpi-icon">📋</span>
+            <span class="db-kpi-label">{{ 'dashboard.requirements' | translate }}</span>
           </div>
-          <div class="stat-tile-main">
-            <div class="stat-tile-top">
-              <div class="stat-tile-headings">
-                <div class="stat-tile-title">{{ 'dashboard.test_cases' | translate }}</div>
-                <div class="stat-tile-subtitle">Verification scenarios</div>
-              </div>
-              <div class="stat-tile-value">{{ testCasesCount() }}</div>
-            </div>
+          <div class="db-kpi-value">{{ requirementsCount() }}</div>
+          <div class="db-kpi-foot">
+            <span class="db-kpi-meta">{{ coveragePercent() }}% covered</span>
+            <a class="db-kpi-act" routerLink="/requirements/import" (click)="$event.stopPropagation()">⬆ Import</a>
+          </div>
+        </a>
 
-            <div class="stat-tile-chips" *ngIf="testCasePriorityBreakdown().length > 0">
-              <span
-                *ngFor="let row of testCasePriorityBreakdown()"
-                class="chip"
-                [class]="'chip--' + row.key.toLowerCase()">
-                <span class="chip-label">{{ row.key }}</span>
-                <span class="chip-value">{{ row.count }}</span>
-              </span>
-              <span
-                *ngFor="let row of testCaseTypeBreakdown()"
-                class="chip chip--type"
-                [attr.data-type]="row.key">
-                <span class="chip-dot"></span>
-                <span class="chip-label">{{ row.key }}</span>
-                <span class="chip-value">{{ row.count }}</span>
-              </span>
-            </div>
-            <div class="stat-tile-chips stat-tile-chips--empty" *ngIf="testCasePriorityBreakdown().length === 0">
-              <span class="empty-hint">No test cases yet.</span>
-            </div>
+        <a class="db-kpi db-kpi--designs" routerLink="/design-tickets">
+          <div class="db-kpi-head">
+            <span class="db-kpi-icon">🎨</span>
+            <span class="db-kpi-label">{{ 'dashboard.designs' | translate }}</span>
           </div>
-          <div class="stat-tile-cta stat-tile-cta--split">
-            <a class="cta-link" routerLink="/test-cases">
-              <span class="cta-label">{{ 'dashboard.view_all' | translate }}</span>
-              <span class="cta-arrow">→</span>
-            </a>
-            <a class="cta-import" routerLink="/test-cases/import" title="Smart Import wizard">
-              <span class="import-icon" aria-hidden="true">⬆</span>
-              {{ 'dashboard.import' | translate }}
-            </a>
+          <div class="db-kpi-value">{{ designTicketsCount() }}</div>
+          <div class="db-kpi-foot">
+            <span class="db-kpi-meta">{{ designLinkedPercent() }}% linked</span>
+            <a class="db-kpi-act" routerLink="/design-tickets/import" (click)="$event.stopPropagation()">⬆ Import</a>
           </div>
-        </div>
+        </a>
 
-        <!-- Admin Only: User Management -->
-        <a *ngIf="isAdmin()" routerLink="/users" class="stat-tile stat-tile--admin">
-          <div class="stat-tile-icon-block">
-            <span class="stat-tile-icon">👥</span>
+        <a class="db-kpi db-kpi--tests" routerLink="/test-cases">
+          <div class="db-kpi-head">
+            <span class="db-kpi-icon">🧪</span>
+            <span class="db-kpi-label">{{ 'dashboard.test_cases' | translate }}</span>
           </div>
-          <div class="stat-tile-main">
-            <div class="stat-tile-top">
-              <div class="stat-tile-headings">
-                <div class="stat-tile-title">{{ 'dashboard.user_management' | translate }}</div>
-                <div class="stat-tile-subtitle">Roles, access & permissions</div>
-              </div>
-              <div class="stat-tile-value stat-tile-value--text">
-                {{ 'dashboard.admin' | translate }}
-              </div>
-            </div>
-            <div class="stat-tile-chips">
-              <span class="chip chip--admin">
-                <span class="chip-dot"></span>
-                <span class="chip-label">Admin-only</span>
-              </span>
-              <span class="chip chip--info">
-                <span class="chip-label">Logged in as</span>
-                <span class="chip-value">{{ getCurrentUsername() }}</span>
-              </span>
-            </div>
-          </div>
-          <div class="stat-tile-cta">
-            <span class="cta-label">{{ 'dashboard.manage_users' | translate }}</span>
-            <span class="cta-arrow">→</span>
+          <div class="db-kpi-value">{{ testCasesCount() }}</div>
+          <div class="db-kpi-foot">
+            <span class="db-kpi-meta">Verification scenarios</span>
+            <a class="db-kpi-act" routerLink="/test-cases/import" (click)="$event.stopPropagation()">⬆ Import</a>
           </div>
         </a>
 
       </div>
+
+      <!-- ====================== MAIN ANALYTICS GRID ====================== -->
+      <div class="db-analytics-grid">
+
+        <!-- Coverage / verification donuts -->
+        <article class="db-card db-card--coverage">
+          <header class="db-card-head">
+            <h2 class="db-card-title">Traceability &amp; Coverage</h2>
+            <a class="db-card-link" routerLink="/requirements">View matrix →</a>
+          </header>
+          <div class="db-donuts">
+
+            <!-- Coverage donut (single arc) -->
+            <div class="db-donut-cell">
+              <svg class="db-donut" viewBox="0 0 100 100" aria-label="Requirement coverage donut">
+                <circle class="db-donut-track" cx="50" cy="50" r="42"/>
+                <circle class="db-donut-arc"
+                        cx="50" cy="50" r="42"
+                        [attr.stroke-dasharray]="(coveragePercent() / 100) * donutCircumference + ' ' + donutCircumference"
+                        stroke="#10b981"
+                        transform="rotate(-90 50 50)"/>
+                <text class="db-donut-num" x="50" y="48">{{ coveragePercent() }}%</text>
+                <text class="db-donut-cap" x="50" y="62">covered</text>
+              </svg>
+              <div class="db-donut-meta">
+                <span class="db-donut-title">Requirements ↔ Tests</span>
+                <span class="db-donut-sub">Linked via test associations</span>
+              </div>
+            </div>
+
+            <!-- Test type segmented donut -->
+            <div class="db-donut-cell">
+              <svg class="db-donut" viewBox="0 0 100 100" aria-label="Tests by verification type">
+                <circle class="db-donut-track" cx="50" cy="50" r="42"/>
+                <circle *ngFor="let seg of testTypeDonut()"
+                        cx="50" cy="50" r="42"
+                        fill="none" stroke-width="14"
+                        [attr.stroke]="seg.color"
+                        [attr.stroke-dasharray]="seg.length + ' ' + (donutCircumference - seg.length)"
+                        [attr.stroke-dashoffset]="seg.offset"
+                        transform="rotate(-90 50 50)"/>
+                <text class="db-donut-num" x="50" y="48">{{ testCasesCount() }}</text>
+                <text class="db-donut-cap" x="50" y="62">tests</text>
+              </svg>
+              <div class="db-donut-meta">
+                <span class="db-donut-title">Verification mix</span>
+                <ul class="db-legend" *ngIf="testTypeDonut().length > 0">
+                  <li *ngFor="let seg of testTypeDonut()">
+                    <span class="db-legend-dot" [style.background]="seg.color"></span>
+                    <span class="db-legend-lbl">{{ seg.label }}</span>
+                    <span class="db-legend-val">{{ seg.percent }}%</span>
+                  </li>
+                </ul>
+                <span class="db-donut-sub" *ngIf="testTypeDonut().length === 0">No test cases yet.</span>
+              </div>
+            </div>
+
+          </div>
+        </article>
+
+        <!-- Quality gauge -->
+        <article class="db-card db-card--gauge" [attr.data-tier]="qualityTier()">
+          <header class="db-card-head">
+            <h2 class="db-card-title">Project Quality</h2>
+            <span class="db-card-pill">live</span>
+          </header>
+          <div class="db-gauge">
+            <svg viewBox="0 0 200 120" class="db-gauge-svg" aria-label="Quality gauge">
+              <path class="db-gauge-track"
+                    d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none" stroke="#e5e7eb" stroke-width="14" stroke-linecap="round"/>
+              <path class="db-gauge-arc"
+                    d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none" stroke-width="14" stroke-linecap="round"
+                    [attr.stroke-dasharray]="(qualityScore() / 100) * 251.3 + ' 251.3'"/>
+            </svg>
+            <div class="db-gauge-num">{{ qualityScore() }}</div>
+            <div class="db-gauge-cap">out of 100</div>
+          </div>
+          <ul class="db-gauge-breakdown">
+            <li>
+              <span class="db-bd-lbl">Workflow advanced</span>
+              <span class="db-bd-val">{{ requirementStatusBar().length > 0 ? 'tracking' : '—' }}</span>
+            </li>
+            <li>
+              <span class="db-bd-lbl">Coverage</span>
+              <span class="db-bd-val">{{ coveragePercent() }}%</span>
+            </li>
+            <li>
+              <span class="db-bd-lbl">Designs implemented</span>
+              <span class="db-bd-val">{{ designLinkedPercent() }}%</span>
+            </li>
+          </ul>
+        </article>
+
+      </div>
+
+      <!-- ====================== SECONDARY GRID ====================== -->
+      <div class="db-grid-3">
+
+        <!-- Workflow status panels (stacked horizontal bars per entity) -->
+        <article class="db-card db-card--status">
+          <header class="db-card-head">
+            <h2 class="db-card-title">Workflow Status</h2>
+          </header>
+
+          <div class="db-stack-row">
+            <div class="db-stack-head">
+              <span class="db-stack-name">Requirements</span>
+              <span class="db-stack-total">{{ requirementsCount() }}</span>
+            </div>
+            <div class="db-stack-bar" *ngIf="requirementStatusBar().length > 0">
+              <span *ngFor="let s of requirementStatusBar()"
+                    class="db-stack-seg"
+                    [style.width.%]="s.percent"
+                    [style.background]="s.color"
+                    [attr.title]="s.label + ': ' + s.count + ' (' + s.percent + '%)'"></span>
+            </div>
+            <div class="db-stack-bar db-stack-bar--empty" *ngIf="requirementStatusBar().length === 0">
+              <span class="db-stack-empty">No data yet</span>
+            </div>
+            <ul class="db-stack-legend" *ngIf="requirementStatusBar().length > 0">
+              <li *ngFor="let s of requirementStatusBar()">
+                <span class="db-legend-dot" [style.background]="s.color"></span>
+                <span class="db-legend-lbl">{{ s.label }}</span>
+                <span class="db-legend-val">{{ s.count }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="db-stack-row">
+            <div class="db-stack-head">
+              <span class="db-stack-name">Designs</span>
+              <span class="db-stack-total">{{ designTicketsCount() }}</span>
+            </div>
+            <div class="db-stack-bar" *ngIf="designStatusBar().length > 0">
+              <span *ngFor="let s of designStatusBar()"
+                    class="db-stack-seg"
+                    [style.width.%]="s.percent"
+                    [style.background]="s.color"
+                    [attr.title]="s.label + ': ' + s.count + ' (' + s.percent + '%)'"></span>
+            </div>
+            <div class="db-stack-bar db-stack-bar--empty" *ngIf="designStatusBar().length === 0">
+              <span class="db-stack-empty">No data yet</span>
+            </div>
+            <ul class="db-stack-legend" *ngIf="designStatusBar().length > 0">
+              <li *ngFor="let s of designStatusBar()">
+                <span class="db-legend-dot" [style.background]="s.color"></span>
+                <span class="db-legend-lbl">{{ s.label }}</span>
+                <span class="db-legend-val">{{ s.count }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="db-stack-row">
+            <div class="db-stack-head">
+              <span class="db-stack-name">Test types</span>
+              <span class="db-stack-total">{{ testCasesCount() }}</span>
+            </div>
+            <div class="db-stack-bar" *ngIf="testTypeBar().length > 0">
+              <span *ngFor="let s of testTypeBar()"
+                    class="db-stack-seg"
+                    [style.width.%]="s.percent"
+                    [style.background]="s.color"
+                    [attr.title]="s.label + ': ' + s.count + ' (' + s.percent + '%)'"></span>
+            </div>
+            <div class="db-stack-bar db-stack-bar--empty" *ngIf="testTypeBar().length === 0">
+              <span class="db-stack-empty">No data yet</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Activity feed -->
+        <article class="db-card db-card--activity">
+          <header class="db-card-head">
+            <h2 class="db-card-title">Recent Activity</h2>
+            <span class="db-card-pill">{{ combinedActivity().length }}</span>
+          </header>
+
+          <ul class="db-activity" *ngIf="combinedActivity().length > 0">
+            <li *ngFor="let item of combinedActivity()" class="db-activity-item">
+              <a [routerLink]="item.route" class="db-activity-link">
+                <span class="db-activity-bullet" [style.background]="item.color"></span>
+                <span class="db-activity-icon">{{ item.icon }}</span>
+                <span class="db-activity-body">
+                  <span class="db-activity-id">{{ item.id }}</span>
+                  <span class="db-activity-title">{{ item.title }}</span>
+                  <span class="db-activity-meta">
+                    <span class="db-activity-tag">{{ item.kind }}</span>
+                    <span *ngIf="item.meta" class="db-activity-tag db-activity-tag--ghost">{{ item.meta }}</span>
+                    <span class="db-activity-when">{{ formatRelativeTime(item.ts) }}</span>
+                  </span>
+                </span>
+              </a>
+            </li>
+          </ul>
+
+          <div class="db-empty" *ngIf="combinedActivity().length === 0">
+            <span class="db-empty-icon">🗒️</span>
+            <span class="db-empty-text">No activity yet — create your first artifact to get started.</span>
+          </div>
+        </article>
+
+        <!-- Priority distribution -->
+        <article class="db-card db-card--priority">
+          <header class="db-card-head">
+            <h2 class="db-card-title">Priority Mix</h2>
+            <span class="db-card-sub">Reqs vs Tests</span>
+          </header>
+
+          <ul class="db-priority">
+            <li *ngFor="let row of priorityDistribution()" class="db-priority-row">
+              <span class="db-priority-key" [style.color]="row.color">{{ row.key }}</span>
+              <div class="db-priority-bars">
+                <div class="db-priority-track">
+                  <span class="db-priority-fill db-priority-fill--req"
+                        [style.width.%]="row.reqWidth"
+                        [style.background]="row.color"></span>
+                </div>
+                <div class="db-priority-track">
+                  <span class="db-priority-fill db-priority-fill--test"
+                        [style.width.%]="row.testWidth"
+                        [style.background]="row.color"
+                        [style.opacity]="0.55"></span>
+                </div>
+              </div>
+              <span class="db-priority-counts">
+                <span class="db-priority-num">{{ row.req }}</span>
+                <span class="db-priority-sep">/</span>
+                <span class="db-priority-num db-priority-num--ghost">{{ row.test }}</span>
+              </span>
+            </li>
+          </ul>
+          <div class="db-priority-legend">
+            <span><span class="db-legend-dot" style="background:#0f172a"></span> Requirements</span>
+            <span><span class="db-legend-dot" style="background:#0f172a;opacity:.55"></span> Test cases</span>
+          </div>
+        </article>
+
+      </div>
+
+      <!-- ====================== WORKSPACE NAV ====================== -->
+      <div class="db-nav-grid">
+        <a routerLink="/specs" class="db-nav-tile db-nav-tile--specs">
+          <span class="db-nav-icon">📑</span>
+          <span class="db-nav-text">
+            <span class="db-nav-title">{{ 'dashboard.specifications' | translate }}</span>
+            <span class="db-nav-sub">XLSX · CSV · DOCX sources</span>
+          </span>
+          <span class="db-nav-arrow">→</span>
+        </a>
+        <a routerLink="/requirements" class="db-nav-tile db-nav-tile--reqs">
+          <span class="db-nav-icon">📋</span>
+          <span class="db-nav-text">
+            <span class="db-nav-title">{{ 'dashboard.requirements' | translate }}</span>
+            <span class="db-nav-sub">Acceptance criteria</span>
+          </span>
+          <span class="db-nav-arrow">→</span>
+        </a>
+        <a routerLink="/design-tickets" class="db-nav-tile db-nav-tile--designs">
+          <span class="db-nav-icon">🎨</span>
+          <span class="db-nav-text">
+            <span class="db-nav-title">{{ 'dashboard.designs' | translate }}</span>
+            <span class="db-nav-sub">Mockups &amp; visual specs</span>
+          </span>
+          <span class="db-nav-arrow">→</span>
+        </a>
+        <a routerLink="/test-cases" class="db-nav-tile db-nav-tile--tests">
+          <span class="db-nav-icon">🧪</span>
+          <span class="db-nav-text">
+            <span class="db-nav-title">{{ 'dashboard.test_cases' | translate }}</span>
+            <span class="db-nav-sub">Verification scenarios</span>
+          </span>
+          <span class="db-nav-arrow">→</span>
+        </a>
+        <a routerLink="/split-view" class="db-nav-tile db-nav-tile--split">
+          <span class="db-nav-icon">🔀</span>
+          <span class="db-nav-text">
+            <span class="db-nav-title">Split View</span>
+            <span class="db-nav-sub">Side-by-side traceability</span>
+          </span>
+          <span class="db-nav-arrow">→</span>
+        </a>
+        <a *ngIf="isAdmin()" routerLink="/users" class="db-nav-tile db-nav-tile--admin">
+          <span class="db-nav-icon">👥</span>
+          <span class="db-nav-text">
+            <span class="db-nav-title">{{ 'dashboard.user_management' | translate }}</span>
+            <span class="db-nav-sub">Roles &amp; permissions · {{ getCurrentUsername() }}</span>
+          </span>
+          <span class="db-nav-arrow">→</span>
+        </a>
+      </div>
+
     </div>
   </section>
 

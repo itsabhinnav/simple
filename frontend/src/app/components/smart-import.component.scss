@@ -9,7 +9,7 @@
   --c-muted-2:   #94a3b8;
   --c-border:    #e2e8f0;
   --c-border-strong: #cbd5e1;
-  --c-bg:        #f8fafc;
+  --c-bg:        #ffffff;
   --c-card:      #ffffff;
   --c-accent:    #2563eb;
   --c-accent-soft:#eff6ff;
@@ -23,11 +23,14 @@
   --shadow-1:    0 1px 2px rgba(15,23,42,.04);
 }
 .import-page {
-  max-width: 1080px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 28px 28px 96px;
   color: var(--c-fg);
-  font: 400 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  font-weight: var(--fw-regular);
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.005em;
@@ -103,6 +106,20 @@ code { font: 12px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, 
 .ai-controls .checkbox input { accent-color: var(--c-accent); }
 .ai-controls .small { font-size: 11px; }
 .ai-controls .muted { color: var(--c-muted); }
+
+.preset-group { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+                border: 1px solid var(--c-border); border-radius: 6px; background: #fff;
+                margin: 0; }
+.preset-group legend { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+                       color: var(--c-muted); padding: 0 6px; }
+.preset-group .radio.inline { display: inline-flex; align-items: center; gap: 6px;
+                              padding: 4px 10px; margin: 0; background: var(--c-bg);
+                              border-radius: 999px; font-size: 12px; cursor: pointer;
+                              border-color: var(--c-border); }
+.preset-group .radio.inline.checked { background: var(--c-accent-soft); border-color: var(--c-accent);
+                                       color: var(--c-fg); }
+.preset-group .radio.inline strong { font-weight: 600; font-size: 12px; }
+.preset-group .radio.inline .muted { color: var(--c-muted); margin-left: 4px; }
 
 .ai-insight { padding: 10px 14px; background: var(--c-accent-soft); border: 1px solid #c7d2fe;
               border-radius: var(--radius); font-size: 13px; margin-bottom: 14px;

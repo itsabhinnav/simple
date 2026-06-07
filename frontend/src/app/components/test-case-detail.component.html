@@ -52,10 +52,30 @@
     </div>
   </header>
 
-  <!-- Loading State -->
-  <div *ngIf="isLoading()" class="loading-container">
-    <div class="spinner"></div>
-    <p>Loading test case…</p>
+  <!-- Loading State (skeleton) -->
+  <div *ngIf="isLoading()" class="skeleton-page" aria-busy="true" aria-label="Loading test case">
+    <div class="skeleton-card">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="skeleton-circle"></span>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <span class="skeleton-text is-sm"></span>
+          <span class="skeleton-text is-title"></span>
+        </div>
+        <span class="skeleton-text is-pill"></span>
+      </div>
+      <span class="skeleton-text is-lg"></span>
+      <span class="skeleton-text"></span>
+    </div>
+    <div class="skeleton-card">
+      <span class="skeleton-text is-xl"></span>
+      <span class="skeleton-text"></span>
+      <span class="skeleton-text"></span>
+      <span class="skeleton-text is-md"></span>
+    </div>
+    <div class="skeleton-card">
+      <span class="skeleton-text is-xl"></span>
+      <span class="skeleton-block"></span>
+    </div>
   </div>
 
   <!-- Error State -->
@@ -208,38 +228,7 @@
       <!-- MAIN COLUMN -->
       <main class="content-main">
 
-        <!-- Description -->
-        <article class="section-card section-card--description">
-          <header class="section-card-header">
-            <span class="section-icon">📝</span>
-            <div>
-              <h3 class="section-title">Description</h3>
-              <p class="section-subtitle">Plain-language summary of what this test covers</p>
-            </div>
-          </header>
-          <div *ngIf="!isEditing('description'); else editDescription"
-               class="section-view inline-edit-view"
-               (click)="startEdit('description')"
-               title="Click to edit">
-            <p *ngIf="testCase()?.description; else emptyDescription" class="section-view-text">{{ testCase()?.description }}</p>
-            <ng-template #emptyDescription>
-              <span class="inline-edit-placeholder">Click to add a plain-language description…</span>
-            </ng-template>
-            <span class="inline-edit-pencil">✎</span>
-          </div>
-          <ng-template #editDescription>
-            <textarea
-              data-edit-field="description"
-              class="section-textarea"
-              [value]="testCase()?.description || ''"
-              (input)="onFieldChange('description', $any($event.target).value)"
-              (blur)="stopEdit()"
-              (keydown)="onEditKeydown($event, true)"
-              placeholder="Plain-language description of what this test covers…"></textarea>
-          </ng-template>
-        </article>
-
-        <!-- Test Objective -->
+        <!-- Test Objective (replaces the retired Description block — June 2026) -->
         <article class="section-card section-card--objective">
           <header class="section-card-header">
             <span class="section-icon">🎯</span>
@@ -556,11 +545,11 @@
             <ng-container *ngFor="let group of [
               { field: 'feature',         label: '🎯 Feature',          options: dropdowns()?.feature || [] },
               { field: 'region',          label: '🌍 Region',           options: dropdowns()?.region || [] },
-              { field: 'brand',           label: '🏷️ Brand',           options: dropdowns()?.brand || [] },
-              { field: 'vehicle_variant', label: '🚗 Vehicle Variant',  options: dropdowns()?.vehicle_variant || [] },
-              { field: 'vehicle_mode',    label: '⚡ Vehicle Mode',     options: dropdowns()?.vehicle_mode || [] },
-              { field: 'env_dependency',  label: '🔌 Env Dependency',   options: dropdowns()?.env_dependency || [] },
-              { field: 'testsuite_type',  label: '📚 Test Suite Type',  options: dropdowns()?.testsuite_type || [] }
+              { field: 'brand',                 label: '🏷️ Brand',                  options: dropdowns()?.brand || [] },
+              { field: 'vehicle_variant',       label: '🚗 Vehicle Variant',         options: dropdowns()?.vehicle_variant || [] },
+              { field: 'vehicle_specification', label: '⚙️ Vehicle Specification',   options: dropdowns()?.vehicle_specification || [] },
+              { field: 'env_dependency',        label: '🔌 Env Dependency',          options: dropdowns()?.env_dependency || [] },
+              { field: 'testsuite_type',        label: '📚 Test Suite Type',         options: dropdowns()?.testsuite_type || [] }
             ]">
               <div class="side-field">
                 <label class="side-label">{{ group.label }}</label>

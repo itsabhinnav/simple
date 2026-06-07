@@ -9,15 +9,26 @@ logger = get_logger(__name__)
 
 
 def _register_all() -> None:
-    """Register the three built-in VLM provider adapters."""
+    """Register the four built-in VLM provider adapters."""
     registry = get_vlm_registry()
 
+    from src.implementations.llm._base import resolve_config
     from src.implementations.llm.ollama_provider import OllamaProvider
     from src.implementations.llm.openai_provider import OpenAIProvider
     from src.implementations.llm.anthropic_provider import AnthropicProvider
 
     if not registry.has("ollama"):
         registry.register("ollama", lambda: OllamaProvider())
+    if not registry.has("ollama-lite"):
+        # "Speed" preset — same Ollama daemon, smaller VLM (default qwen2.5vl:3b).
+        # Reads parsing.vlm.providers.ollama.lite_model with a sensible fallback so
+        # CPU-only deployments can trade quality for ~2-3x throughput.
+        registry.register(
+            "ollama-lite",
+            lambda: OllamaProvider(
+                model=resolve_config("ollama", "lite_model", default="qwen2.5vl:3b")
+            ),
+        )
     if not registry.has("openai"):
         registry.register("openai", lambda: OpenAIProvider())
     if not registry.has("anthropic"):

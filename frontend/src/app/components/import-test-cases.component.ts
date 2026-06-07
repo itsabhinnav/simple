@@ -545,7 +545,7 @@ const HISTORY_LIMIT = 8;
       --shadow-1:    0 1px 2px rgba(15,23,42,.04);
     }
     .import-page {
-      max-width: 1080px;
+      max-width: 100%;
       margin: 0 auto;
       padding: 28px 28px 96px;
       color: var(--c-fg);
@@ -1057,7 +1057,7 @@ export class ImportTestCasesComponent implements OnInit {
       },
       error: () => {
         this.importFields.set([
-          'test_case_id', 'title', 'description', 'vehicle_model', 'severity',
+          'test_case_id', 'title', 'vehicle_model', 'severity',
           'feature', 'priority', 'test_type', 'region', 'brand', 'vehicle_variant',
           'vehicle_specification', 'env_dependency', 'test_objective', 'preconditions',
           'procedure', 'expected_behavior', 'associated_requirement_id', 'screen_id',

@@ -76,6 +76,16 @@
   color: #475569;
 }
 
+// Inline hint that disambiguates Vehicle Variant (program code) from
+// Vehicle Specification (engine class). Stays subdued so the label still
+// reads as the dominant element.
+.side-card .side-label .side-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  margin-left: 4px;
+}
+
 // =============================================================
 // Alerts (error / success) — modern, readable
 // =============================================================

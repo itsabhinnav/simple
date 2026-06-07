@@ -76,9 +76,13 @@
               </a>
             </div>
           </div>
-          <a *ngIf="currentUser() && currentUser()!.role === 'admin'" routerLink="/users" class="admin-link-header" title="User Management">
+          <a *ngIf="currentUser()" routerLink="/users" class="admin-link-header" title="User Management">
             <span class="admin-icon">👥</span>
             <span>{{ 'nav.users' | translate }}</span>
+          </a>
+          <a *ngIf="currentUser()" routerLink="/admin/settings" class="admin-link-header" title="Admin Settings">
+            <span class="admin-icon">⚙️</span>
+            <span>Settings</span>
           </a>
           <!-- Debug: Show current user role -->
           <span *ngIf="currentUser()" style="font-size: 10px; color: #999;">(Role: {{ currentUser()!.role || 'none' }})</span>
@@ -100,28 +104,6 @@
       </div>
     </div>
   </header>
-  
-  <!-- Quick Actions Bar (Below Navbar) -->
-  <div class="quick-actions-global" *ngIf="currentUser() && isDashboardPage()">
-    <div class="quick-actions-bar">
-      <button class="action-btn" (click)="createRequirement()">
-        <span class="action-icon">+</span>
-        <span>{{ 'nav.new_requirement' | translate }}</span>
-      </button>
-      <button class="action-btn" (click)="createTestCase()">
-        <span class="action-icon">+</span>
-        <span>{{ 'nav.new_testcase' | translate }}</span>
-      </button>
-      <button class="action-btn secondary" routerLink="/requirements">
-        <span>📋</span>
-        <span>{{ 'nav.all_requirements' | translate }}</span>
-      </button>
-      <button class="action-btn secondary" routerLink="/test-cases">
-        <span>🧪</span>
-        <span>{{ 'nav.all_testcases' | translate }}</span>
-      </button>
-    </div>
-  </div>
   
   <main class="app-main">
     <router-outlet></router-outlet>

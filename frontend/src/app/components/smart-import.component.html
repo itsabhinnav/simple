@@ -94,6 +94,21 @@
             <option *ngFor="let p of providers()" [ngValue]="p">{{ p }}</option>
           </select>
         </label>
+        <fieldset class="preset-group" *ngIf="isOllamaProvider()">
+          <legend>Local model</legend>
+          <label class="radio inline" [class.checked]="qualityPreset() === 'quality'">
+            <input type="radio" name="qualityPreset"
+                   [checked]="qualityPreset() === 'quality'"
+                   (change)="qualityPreset.set('quality')">
+            <span><strong>Quality</strong><span class="muted small"> · qwen2.5vl:7b (~6 GB)</span></span>
+          </label>
+          <label class="radio inline" [class.checked]="qualityPreset() === 'speed'">
+            <input type="radio" name="qualityPreset"
+                   [checked]="qualityPreset() === 'speed'"
+                   (change)="qualityPreset.set('speed')">
+            <span><strong>Speed</strong><span class="muted small"> · qwen2.5vl:3b (~3 GB)</span></span>
+          </label>
+        </fieldset>
         <label class="checkbox">
           <input type="checkbox" [checked]="enableVisual()" (change)="enableVisual.set($any($event.target).checked)">
           <span>Render page snapshots (LibreOffice)</span>

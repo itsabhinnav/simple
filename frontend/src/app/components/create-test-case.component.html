@@ -138,22 +138,7 @@
 
       <main class="content-main">
 
-        <!-- Description -->
-        <article class="section-card">
-          <header class="section-card-header">
-            <span class="section-icon">📝</span>
-            <div>
-              <h3 class="section-title">Test Description</h3>
-              <p class="section-subtitle">Plain-language summary of what this test covers.</p>
-            </div>
-          </header>
-          <textarea
-            class="section-textarea"
-            formControlName="description"
-            placeholder="Describe the scenario, the user, and the area of the product under test…"></textarea>
-        </article>
-
-        <!-- Test Objective -->
+        <!-- Test Objective (replaces the retired Description field — June 2026) -->
         <article class="section-card">
           <header class="section-card-header">
             <span class="section-icon">🎯</span>
@@ -289,16 +274,16 @@
             </div>
 
             <div class="side-field">
-              <label class="side-label">🚗 Vehicle Variant</label>
+              <label class="side-label">🚗 Vehicle Variant <span class="side-hint">(program code, e.g. ABC1)</span></label>
               <ng-container
                 *ngTemplateOutlet="optionMulti; context: { field: 'vehicle_variant', options: dropdowns()?.vehicle_variant || [] }">
               </ng-container>
             </div>
 
             <div class="side-field">
-              <label class="side-label">⚡ Vehicle Mode</label>
+              <label class="side-label">⚙️ Vehicle Specification <span class="side-hint">(engine type)</span></label>
               <ng-container
-                *ngTemplateOutlet="optionMulti; context: { field: 'vehicle_mode', options: dropdowns()?.vehicle_mode || [] }">
+                *ngTemplateOutlet="optionMulti; context: { field: 'vehicle_specification', options: dropdowns()?.vehicle_specification || [] }">
               </ng-container>
             </div>
 
