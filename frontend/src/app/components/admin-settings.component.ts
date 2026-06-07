@@ -7,10 +7,12 @@ import {
   AdminSettingsResponse,
   ImportSchemaResponse,
   ImportTargetSchema,
+  LlmConfigResponse,
+  LlmTestResponse,
 } from '../services/admin.service';
 import { TestCaseService } from '../services/test-case.service';
 
-type TabId = 'dropdowns' | 'multiValue' | 'features' | 'aliases' | 'targets' | 'sections' | 'readonly';
+type TabId = 'dropdowns' | 'multiValue' | 'features' | 'aliases' | 'targets' | 'llm' | 'sections' | 'readonly';
 
 interface AliasRow { raw: string; target: string | null; }
 
@@ -72,6 +74,20 @@ export class AdminSettingsComponent implements OnInit {
   targetRequiredDraft = signal<string[]>([]);
   newTargetField = signal<string>('');
 
+  // --- LLM tab state ---
+  llm = signal<LlmConfigResponse | null>(null);
+  llmDraft = signal<Record<string, Record<string, string>>>({});
+  llmDefault = signal<string>('');
+  llmTesting = signal<Record<string, boolean>>({});
+  llmTestResult = signal<Record<string, LlmTestResponse | null>>({});
+
+  llmProviderNames = computed<string[]>(() => {
+    const l = this.llm();
+    if (!l) return [];
+    const names = new Set<string>([...l.registered, ...Object.keys(l.providers || {}), ...Object.keys(l.schema || {})]);
+    return [...names].sort();
+  });
+
   // --- Sections (raw JSON editor) tab state ---
   selectedSection = signal<string>('');
   sectionDraft = signal<string>('');
@@ -113,6 +129,101 @@ export class AdminSettingsComponent implements OnInit {
         }
       },
       error: () => { /* leave schema null; tab will show message */ }
+    });
+    this.loadLlm();
+  }
+
+  // ----------------------------------------------------------------
+  // LLM tab
+  // ----------------------------------------------------------------
+  loadLlm(): void {
+    this.admin.getLlmConfig().subscribe({
+      next: cfg => {
+        this.llm.set(cfg);
+        this.llmDefault.set(cfg.default || '');
+        const draft: Record<string, Record<string, string>> = {};
+        for (const name of Object.keys(cfg.schema || {})) {
+          const fields = cfg.schema[name] || [];
+          const current = (cfg.providers || {})[name] || {};
+          draft[name] = {};
+          for (const f of fields) draft[name][f] = (current[f] ?? '').toString();
+        }
+        // Also surface any provider that's registered but not in schema map.
+        for (const name of cfg.registered) {
+          if (!draft[name]) draft[name] = {};
+        }
+        this.llmDraft.set(draft);
+      },
+      error: err => this.flash('err', err?.message || 'Failed to load LLM config'),
+    });
+  }
+
+  llmFieldsFor(name: string): string[] {
+    return this.llm()?.schema?.[name] || [];
+  }
+
+  llmDraftValue(name: string, field: string): string {
+    return this.llmDraft()[name]?.[field] ?? '';
+  }
+
+  updateLlmDraft(name: string, field: string, value: string): void {
+    const all = { ...this.llmDraft() };
+    const per = { ...(all[name] || {}) };
+    per[field] = value;
+    all[name] = per;
+    this.llmDraft.set(all);
+  }
+
+  apiKeyState(name: string): { env: string; set: boolean } | null {
+    return this.llm()?.api_keys?.[name] ?? null;
+  }
+
+  saveLlm(): void {
+    this.saving.set(true);
+    const providers: Record<string, Record<string, string>> = {};
+    for (const [name, fields] of Object.entries(this.llmDraft())) {
+      const cleaned: Record<string, string> = {};
+      for (const [k, v] of Object.entries(fields)) {
+        if (v !== '' && v != null) cleaned[k] = v;
+      }
+      if (Object.keys(cleaned).length > 0) providers[name] = cleaned;
+    }
+    this.admin.updateLlmConfig({ default: this.llmDefault(), providers }).subscribe({
+      next: () => {
+        this.flash('ok', 'LLM configuration saved');
+        this.loadLlm();
+        // Bubble changes into the global parsing section state so the
+        // Advanced tab reflects the new values without a full reload.
+        this.reload();
+      },
+      error: err => this.flash('err', err?.message || 'Save failed'),
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  testLlm(name: string): void {
+    const testing = { ...this.llmTesting() };
+    testing[name] = true;
+    this.llmTesting.set(testing);
+    const results = { ...this.llmTestResult() };
+    results[name] = null;
+    this.llmTestResult.set(results);
+    this.admin.testLlmProvider(name).subscribe({
+      next: res => {
+        const r = { ...this.llmTestResult() };
+        r[name] = res;
+        this.llmTestResult.set(r);
+      },
+      error: err => {
+        const r = { ...this.llmTestResult() };
+        r[name] = { success: false, message: err?.message || 'Test failed' };
+        this.llmTestResult.set(r);
+      },
+      complete: () => {
+        const t = { ...this.llmTesting() };
+        t[name] = false;
+        this.llmTesting.set(t);
+      }
     });
   }
 

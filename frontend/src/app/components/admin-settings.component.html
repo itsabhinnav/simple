@@ -22,6 +22,7 @@
     <button class="tab" [class.active]="activeTab() === 'multiValue'" (click)="setTab('multiValue')">Multi-Value Fields</button>
     <button class="tab" [class.active]="activeTab() === 'aliases'" (click)="setTab('aliases')">Column Mapping</button>
     <button class="tab" [class.active]="activeTab() === 'targets'" (click)="setTab('targets')">Entity Fields</button>
+    <button class="tab" [class.active]="activeTab() === 'llm'" (click)="setTab('llm')">LLM Providers</button>
     <button class="tab" [class.active]="activeTab() === 'features'" (click)="setTab('features')">Feature Flags</button>
     <button class="tab" [class.active]="activeTab() === 'sections'" (click)="setTab('sections')">Advanced</button>
     <button class="tab" [class.active]="activeTab() === 'readonly'" (click)="setTab('readonly')">Read-only</button>
@@ -238,6 +239,77 @@
     <ng-template #noSchema>
       <p class="muted">Loading entity schema…</p>
     </ng-template>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- LLM / VLM providers                                          -->
+  <!-- ============================================================ -->
+  <section class="tab-panel" *ngIf="activeTab() === 'llm'">
+    <p class="panel-help">
+      Configure the Vision-Language Model providers used by the parsing pipeline. Settings persist to
+      <code>parsing.vlm</code> in <code>config.yaml</code>. API keys are <strong>never</strong> stored here
+      — set them as environment variables (e.g. <code>OPENAI_API_KEY</code>) on the backend host.
+    </p>
+
+    <div class="llm-default-row" *ngIf="llm() as l">
+      <label>
+        <strong>Default provider</strong>
+        <select [ngModel]="llmDefault()" (ngModelChange)="llmDefault.set($event)" [disabled]="saving()">
+          <option *ngFor="let p of llmProviderNames()" [value]="p">{{ p }}</option>
+        </select>
+      </label>
+      <div class="llm-default-meta">
+        Registered: <code>{{ l.registered.join(', ') || '(none)' }}</code>
+      </div>
+    </div>
+
+    <div class="llm-grid" *ngIf="llm() as l">
+      <article class="llm-card" *ngFor="let name of llmProviderNames()">
+        <header class="llm-card-head">
+          <h3>{{ name }}</h3>
+          <div class="llm-card-tags">
+            <span class="toggle-tag" [class.on]="llmDefault() === name">{{ llmDefault() === name ? 'default' : '' }}</span>
+            <span class="toggle-tag" *ngIf="apiKeyState(name) as ks" [class.on]="ks.set">
+              {{ ks.env }}: {{ ks.set ? 'set' : 'missing' }}
+            </span>
+          </div>
+        </header>
+
+        <div class="llm-fields">
+          <label *ngFor="let f of llmFieldsFor(name)" class="llm-field">
+            <span class="llm-field-label">{{ f }}</span>
+            <input
+              type="text"
+              [value]="llmDraftValue(name, f)"
+              (input)="updateLlmDraft(name, f, $any($event.target).value)"
+              [placeholder]="f === 'base_url' ? 'http://localhost:11434' : ''" />
+          </label>
+          <p class="muted" *ngIf="llmFieldsFor(name).length === 0">
+            No editable fields for this provider.
+          </p>
+        </div>
+
+        <footer class="llm-card-actions">
+          <button class="btn-secondary" (click)="testLlm(name)" [disabled]="llmTesting()[name]">
+            {{ llmTesting()[name] ? 'Testing…' : 'Test connection' }}
+          </button>
+          <div class="llm-test-result"
+               *ngIf="llmTestResult()[name] as tr"
+               [class.ok]="tr.success"
+               [class.err]="!tr.success">
+            {{ tr.message }}
+            <div class="muted" *ngIf="tr.data?.models?.length">
+              <strong>Available models:</strong> {{ tr.data!.models!.join(', ') }}
+            </div>
+          </div>
+        </footer>
+      </article>
+    </div>
+
+    <div class="actions-row">
+      <button class="btn-primary" (click)="saveLlm()" [disabled]="saving()">Save LLM settings</button>
+      <button class="btn-secondary" (click)="loadLlm()" [disabled]="saving()">Reload</button>
+    </div>
   </section>
 
   <!-- ============================================================ -->

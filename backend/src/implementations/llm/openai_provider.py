@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import json
+from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -102,3 +103,89 @@ class OpenAIProvider(VLMProvider):
             f"Schema hint: {schema_hint}"
         )
         return coerce_json(self._call(image_path, prompt, system=system))
+
+    def _text_model(self) -> str:
+        return resolve_config("openai", "text_model", default=None) or self._model
+
+    def chat_text(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> str:
+        msgs: list[Dict[str, Any]] = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.extend(messages or [])
+        payload = {
+            "model": self._text_model(),
+            "messages": msgs,
+            "temperature": float(kwargs.get("temperature", 0.2)),
+        }
+        try:
+            data = self._post_chat(payload)
+            choices = data.get("choices") or []
+            if not choices:
+                return ""
+            return str(choices[0].get("message", {}).get("content", ""))
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"OpenAI unreachable: {exc}", self._text_model(), exc)
+
+    def _embedding_model(self) -> str:
+        return resolve_config("openai", "embedding_model", default="text-embedding-3-small")
+
+    def embed_text(self, texts: List[str], **kwargs: Any) -> List[List[float]]:
+        if not texts:
+            return []
+        url = f"{self._base_url.rstrip('/')}/embeddings"
+        headers = {"Authorization": f"Bearer {self._api_key()}", "Content-Type": "application/json"}
+        payload = {"model": self._embedding_model(), "input": list(texts)}
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as exc:
+            raise VLMProviderError(self.name(), f"OpenAI HTTP {exc.response.status_code}", self._embedding_model(), exc)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"OpenAI unreachable: {exc}", self._embedding_model(), exc)
+        items = data.get("data") or []
+        return [[float(x) for x in (item.get("embedding") or [])] for item in items]
+
+    def embedding_dimension(self) -> Optional[int]:
+        dim = resolve_config("openai", "embedding_dimension", default=None)
+        try:
+            return int(dim) if dim is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def chat_text_stream(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> Iterator[str]:
+        msgs: list[Dict[str, Any]] = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.extend(messages or [])
+        payload = {
+            "model": self._text_model(),
+            "messages": msgs,
+            "temperature": float(kwargs.get("temperature", 0.2)),
+            "stream": True,
+        }
+        url = f"{self._base_url.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {self._api_key()}", "Content-Type": "application/json"}
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                with client.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
+                    for raw in response.iter_lines():
+                        line = raw.strip() if isinstance(raw, str) else raw.decode("utf-8", "ignore").strip()
+                        if not line or not line.startswith("data:"):
+                            continue
+                        body = line[5:].strip()
+                        if body == "[DONE]":
+                            break
+                        try:
+                            obj = json.loads(body)
+                        except json.JSONDecodeError:
+                            continue
+                        delta = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                        if delta:
+                            yield str(delta)
+        except httpx.HTTPStatusError as exc:
+            raise VLMProviderError(self.name(), f"OpenAI HTTP {exc.response.status_code}", self._text_model(), exc)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"OpenAI unreachable: {exc}", self._text_model(), exc)

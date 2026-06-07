@@ -188,6 +188,198 @@ class AdminController:
             }), 500
 
     @require_admin
+    def get_llm_config(self) -> Dict[str, Any]:
+        """GET /api/admin/llm — current VLM/LLM provider configuration.
+
+        Aggregates three views so the admin UI can render a single page:
+          * ``providers``: per-provider connection settings sourced from
+            ``parsing.vlm.providers.*`` in config.yaml.
+          * ``registered``: providers that registered themselves at boot
+            (``get_vlm_registry().list_providers()``) — these are the
+            valid choices for ``default``.
+          * ``default``: currently active default provider.
+          * ``api_keys``: which API key env vars are populated (boolean
+            only — values are never sent to the client).
+        """
+        try:
+            from src.interfaces.llm_provider import get_vlm_registry
+            import os
+            mgr = get_config_manager()
+            providers_cfg = mgr.get_config("parsing.vlm.providers", {}) or {}
+            registry = get_vlm_registry()
+            api_key_envs = {
+                "openai": "OPENAI_API_KEY",
+                "anthropic": "ANTHROPIC_API_KEY",
+            }
+            api_keys: Dict[str, Dict[str, Any]] = {}
+            for prov, env in api_key_envs.items():
+                api_keys[prov] = {"env": env, "set": bool(os.environ.get(env))}
+            return jsonify({
+                "success": True,
+                "data": {
+                    "default": mgr.get_config("parsing.vlm.default_provider", "ollama"),
+                    "registered": registry.list_providers(),
+                    "providers": providers_cfg,
+                    "api_keys": api_keys,
+                    "schema": {
+                        "ollama": ["base_url", "model", "lite_model"],
+                        "openai": ["base_url", "model"],
+                        "anthropic": ["base_url", "model"],
+                    },
+                },
+            }), 200
+        except Exception as e:
+            logger.error(f"Failed to load LLM config: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to load LLM config",
+                "message": str(e),
+            }), 500
+
+    @require_admin
+    def update_llm_config(self) -> Dict[str, Any]:
+        """PUT /api/admin/llm — update default + per-provider settings.
+
+        Body shape::
+
+            {
+              "default": "ollama",
+              "providers": {
+                 "ollama": {"base_url": "...", "model": "...", "lite_model": "..."},
+                 "openai": {"base_url": "...", "model": "..."},
+                 "anthropic": {"base_url": "...", "model": "..."}
+              }
+            }
+
+        Any provider entry omitted from the body is left untouched in
+        config.yaml (the deep-merge writer in ConfigurationManager will
+        leave sibling keys alone). The running VLM registry's default is
+        also swapped in-process so the next parsing request picks up the
+        change without a server restart.
+        """
+        try:
+            payload = request.get_json(silent=True) or {}
+            mgr = get_config_manager()
+            parsing = dict(mgr.get_config("parsing", {}) or {})
+            vlm = dict(parsing.get("vlm") or {})
+            providers = dict(vlm.get("providers") or {})
+
+            new_default = payload.get("default")
+            if isinstance(new_default, str) and new_default.strip():
+                vlm["default_provider"] = new_default.strip().lower()
+
+            incoming_providers = payload.get("providers") or {}
+            if isinstance(incoming_providers, dict):
+                for name, cfg in incoming_providers.items():
+                    if not isinstance(cfg, dict):
+                        continue
+                    existing = dict(providers.get(name) or {})
+                    for key, value in cfg.items():
+                        if value is None:
+                            continue
+                        existing[key] = value
+                    providers[name] = existing
+
+            vlm["providers"] = providers
+            parsing["vlm"] = vlm
+            ok = mgr.set_section("parsing", parsing)
+            if not ok:
+                return jsonify({
+                    "success": False,
+                    "error": "Save failed",
+                    "message": "Could not persist LLM config to config.yaml",
+                }), 500
+
+            # Apply the new default to the live registry singleton so the
+            # next parsing call uses it without requiring a restart.
+            try:
+                from src.interfaces.llm_provider import get_vlm_registry, VLMProviderError
+                registry = get_vlm_registry()
+                desired_default = vlm.get("default_provider")
+                if desired_default and registry.has(desired_default):
+                    registry.set_default(desired_default)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Could not apply new default VLM in-process: {exc}")
+
+            return jsonify({
+                "success": True,
+                "message": "LLM configuration saved",
+                "data": {
+                    "default": vlm.get("default_provider"),
+                    "providers": vlm.get("providers"),
+                },
+            }), 200
+        except Exception as e:
+            logger.error(f"Failed to save LLM config: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to save LLM config",
+                "message": str(e),
+            }), 500
+
+    @require_admin
+    def test_llm_provider(self, name: str) -> Dict[str, Any]:
+        """POST /api/admin/llm/test/<name> — best-effort connectivity check.
+
+        For Ollama we hit ``GET /api/tags`` on the configured ``base_url``.
+        For OpenAI / Anthropic we only verify the API-key env var is set
+        (no outbound call) since the production network restrictor blocks
+        external hosts by design.
+        """
+        try:
+            name_key = (name or "").lower().strip()
+            mgr = get_config_manager()
+            providers_cfg = mgr.get_config("parsing.vlm.providers", {}) or {}
+            cfg = providers_cfg.get(name_key) or {}
+            if name_key == "ollama" or name_key == "ollama-lite":
+                import httpx
+                base = cfg.get("base_url") or "http://localhost:11434"
+                try:
+                    with httpx.Client(timeout=5.0) as client:
+                        resp = client.get(f"{base.rstrip('/')}/api/tags")
+                    if resp.status_code != 200:
+                        return jsonify({
+                            "success": False,
+                            "error": "Provider unreachable",
+                            "message": f"GET /api/tags returned HTTP {resp.status_code}",
+                        }), 200
+                    body = resp.json() if resp.text else {}
+                    models = [m.get("name") for m in (body.get("models") or []) if isinstance(m, dict)]
+                    return jsonify({
+                        "success": True,
+                        "message": f"Ollama reachable at {base}",
+                        "data": {"models": models, "configured_model": cfg.get("model")},
+                    }), 200
+                except Exception as exc:
+                    return jsonify({
+                        "success": False,
+                        "error": "Provider unreachable",
+                        "message": str(exc),
+                    }), 200
+            elif name_key in ("openai", "anthropic"):
+                import os
+                env_var = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}[name_key]
+                set_ok = bool(os.environ.get(env_var))
+                return jsonify({
+                    "success": set_ok,
+                    "message": f"{env_var} {'is set' if set_ok else 'is NOT set'}",
+                    "data": {"env_var": env_var, "set": set_ok, "model": cfg.get("model")},
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "Unknown provider",
+                    "message": f"No connectivity check implemented for '{name}'",
+                }), 400
+        except Exception as e:
+            logger.error(f"LLM test failed for {name}: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "LLM test failed",
+                "message": str(e),
+            }), 500
+
+    @require_admin
     def get_import_schema(self) -> Dict[str, Any]:
         """GET /api/admin/import-schema — expose the bulk import contract
         (canonical fields per entity + alias dictionary) so the admin UI
@@ -232,6 +424,9 @@ def create_admin_blueprint() -> Blueprint:
     admin_bp.route('/settings', methods=['GET'])(controller.get_settings)
     admin_bp.route('/settings/<section>', methods=['PUT'])(controller.update_section)
     admin_bp.route('/import-schema', methods=['GET'])(controller.get_import_schema)
+    admin_bp.route('/llm', methods=['GET'])(controller.get_llm_config)
+    admin_bp.route('/llm', methods=['PUT'])(controller.update_llm_config)
+    admin_bp.route('/llm/test/<name>', methods=['POST'])(controller.test_llm_provider)
     
     return admin_bp
 

@@ -17,6 +17,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { SpecManagementComponent } from './components/spec-management.component';
 import { AdminSettingsComponent } from './components/admin-settings.component';
+import { AssistantComponent } from './components/assistant.component';
 import { APP_SETTINGS } from './app-settings';
 
 // When auth is disabled, /login and /forgot-password are meaningless. Redirect
@@ -59,5 +60,6 @@ export const routes: Routes = [
   { path: 'specs', component: SpecManagementComponent, canActivate: [AuthGuard] },
   { path: 'specs/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'specifications' } },
   { path: 'split-view', component: SplitViewComponent, canActivate: [AuthGuard] },
+  { path: 'assistant', component: AssistantComponent, canActivate: [AuthGuard] },
   { path: '**', redirectTo: '' }
 ];

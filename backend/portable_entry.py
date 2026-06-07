@@ -117,6 +117,22 @@ def _prepare_environment() -> None:
     db_path = _seed_database(resource_dir, app_data_dir)
     os.environ["SAKURA_LOCAL_DB_PATH"] = str(db_path)
 
+    # Ollama runtime + pre-pulled model blobs (only present when the build
+    # was produced with `python build_portable.py --with-ollama`). Pointing
+    # the sidecar at these paths via env vars short-circuits its lookup
+    # chain and lets it spawn the daemon without a PATH probe.
+    ollama_binary = "ollama.exe" if os.name == "nt" else "ollama"
+    bundled_ollama_exe = resource_dir / "resources" / "ollama" / ollama_binary
+    if bundled_ollama_exe.is_file():
+        os.environ.setdefault("SAKURA_OLLAMA_EXE", str(bundled_ollama_exe))
+    bundled_models = resource_dir / "resources" / "ollama" / "models"
+    if bundled_models.is_dir():
+        # Ollama only needs read access to the models tree, so pointing
+        # OLLAMA_MODELS directly at the (read-only) bundle avoids a multi-
+        # GB copy on first launch. Manifest writes are scoped under
+        # OLLAMA_HOME (we don't set it, so Ollama keeps them in $HOME).
+        os.environ.setdefault("OLLAMA_MODELS", str(bundled_models))
+
     # CD into the writable app dir so any other relative paths the backend
     # writes to (logs, uploads, etc.) land somewhere users can read.
     os.chdir(app_data_dir)

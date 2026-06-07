@@ -145,6 +145,27 @@ To prepare the installer payload, run
 vendors `ollama.exe` and the model blobs into `backend/resources/ollama/`
 which the sidecar's lookup chain prefers over `PATH`.
 
+#### PyInstaller portable build with Ollama bundled
+
+`build_portable.py` accepts `--with-ollama` to fold the staged
+`backend/resources/ollama/` (binary + model blobs) into the PyInstaller
+payload. End-to-end:
+
+```bash
+# 1. Stage ollama.exe + the qwen2.5vl model blobs:
+pwsh backend/scripts/prepare_ollama_resources.ps1
+
+# 2. Build the portable distribution with the runtime + models embedded:
+python build_portable.py --with-ollama
+```
+
+`portable_entry.py` exports `SAKURA_OLLAMA_EXE` and `OLLAMA_MODELS`
+pointing at the extracted resources, so the in-process sidecar finds the
+daemon without touching `PATH` and the user gets a fully offline first
+launch. Use **one-folder mode** (the default) when bundling models —
+`--onefile` works but extracts multi-GB blobs into the temp dir on every
+launch, adding 30–60 s of cold-start.
+
 ### Add a new VLM provider
 
 1. Create `src/implementations/llm/my_provider.py` exposing a class that

@@ -1,4 +1,4 @@
-﻿# Sakura Unified Configuration
+# Sakura Unified Configuration
 # This is the single source of truth for all application configuration.
 #
 # Remote/Git database sync has been removed. The application runs in
@@ -32,7 +32,7 @@ database:
   connection_pool_size: 10
   connection_timeout: 30
   ssl_enabled: false
-  ssl_cert_path: null
+  ssl_cert_path:
 
   # Table names
   table_names:
@@ -56,7 +56,6 @@ authentication:
     - system
     - administrator
     - sa
-
   min_password_length: 8
   require_special_chars: true
   require_numbers: true
@@ -71,7 +70,7 @@ server:
   mock_server_port: 8080
 
   cors_origins:
-    - "*"
+    - '*'
   cors_methods:
     - GET
     - POST
@@ -80,7 +79,6 @@ server:
   cors_headers:
     - Content-Type
     - Authorization
-
   rate_limit_enabled: true
   rate_limit_requests: 100
   rate_limit_window: 3600  # 1 hour
@@ -89,7 +87,7 @@ server:
 logging:
   level: DEBUG
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file_path: null
+  file_path:
   max_file_size: 10485760  # 10MB
   backup_count: 5
   enable_console: true
@@ -102,7 +100,7 @@ features:
   user_management: true
   test_case_management: true
   requirement_management: true
-  advanced_logging: false
+  advanced_logging: true
 
 # Hybrid Document Parsing
 parsing:
@@ -113,7 +111,7 @@ parsing:
     providers:
       ollama:
         base_url: http://localhost:11434
-        model: llava:7b
+        model: qwen2.5vl:3b
       openai:
         base_url: https://api.openai.com/v1
         model: gpt-4o-mini
@@ -166,12 +164,9 @@ test_case_dropdowns:
     - EU
     - APAC
   brand:
-    - Ford
-    - GM
-    - Tesla
-    - Toyota
-    - Honda
-    - Volvo
+    - Nissan
+    - Inifiniti
+    - Mitsubishi
   vehicle_variant:
     - PZ1D
     - P33A
@@ -191,8 +186,8 @@ test_case_dropdowns:
     - Bench
     - Vehicle
   regulation:
-    - "Yes"
-    - "No"
+    - true
+    - false
   priority:
     - P1
     - P2
@@ -205,9 +200,6 @@ test_case_dropdowns:
     - Smoke
     - Performance
     - Acceptance
-
-# Network Restrictions
-# Loopback only - remote/git DB sync is permanently removed.
 network:
   allowed_hosts:
     - localhost

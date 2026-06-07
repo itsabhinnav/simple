@@ -62,6 +62,37 @@ class VLMProvider(ABC):
     def extract_structured(self, image_path: str, prompt: str, schema_hint: Dict[str, Any]) -> Dict[str, Any]:
         """Extract structured data from the image guided by a schema hint."""
 
+    # ------------------------------------------------------------------
+    # Text-only chat capability (used by the in-app NL assistant).
+    # Concrete adapters override this; the base implementation raises so
+    # callers can fall back to a different provider gracefully.
+    # ------------------------------------------------------------------
+    def chat_text(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> str:
+        """Non-streaming text chat. ``messages`` is a list of
+        ``{"role": "user"|"assistant"|"system", "content": str}`` dicts.
+        Returns the assistant reply as a plain string.
+        """
+        raise VLMProviderError(self.name(), "chat_text not implemented for this provider")
+
+    def chat_text_stream(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any):
+        """Streaming variant — yields text chunks. Default implementation
+        falls back to the non-streaming call and yields a single chunk so
+        adapters can be added incrementally without breaking callers."""
+        yield self.chat_text(messages, system=system, **kwargs)
+
+    def embed_text(self, texts: List[str], **kwargs: Any) -> List[List[float]]:
+        """Return one embedding vector per input text. Adapters that don't
+        support embeddings (e.g. Anthropic) should leave this raising so the
+        VectorIndexService can transparently fall back to a different
+        provider configured under ``assistant.rag.embedding_provider``."""
+        raise VLMProviderError(self.name(), "embed_text not implemented for this provider")
+
+    def embedding_dimension(self) -> Optional[int]:
+        """Return the dimension of vectors produced by ``embed_text``, or
+        None if unknown ahead of time (the index will infer it from the
+        first batch)."""
+        return None
+
     def invoke(self, request: VLMRequest) -> VLMResponse:
         """Generic invocation that defaults to extract_structured."""
         schema_hint = request.schema_hint or {}

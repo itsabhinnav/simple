@@ -76,6 +76,10 @@
               </a>
             </div>
           </div>
+          <a *ngIf="currentUser()" routerLink="/assistant" class="admin-link-header" title="Sakura AI">
+            <span class="admin-icon">💬</span>
+            <span>Sakura AI</span>
+          </a>
           <a *ngIf="currentUser()" routerLink="/users" class="admin-link-header" title="User Management">
             <span class="admin-icon">👥</span>
             <span>{{ 'nav.users' | translate }}</span>

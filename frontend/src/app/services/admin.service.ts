@@ -26,6 +26,33 @@ export interface ImportSchemaResponse {
   header_aliases: Record<string, string | null>;
 }
 
+export interface LlmProviderConfig {
+  base_url?: string;
+  model?: string;
+  lite_model?: string;
+  [key: string]: any;
+}
+
+export interface LlmConfigResponse {
+  default: string;
+  registered: string[];
+  providers: Record<string, LlmProviderConfig>;
+  api_keys: Record<string, { env: string; set: boolean }>;
+  schema: Record<string, string[]>;
+}
+
+export interface LlmConfigUpdatePayload {
+  default?: string;
+  providers?: Record<string, LlmProviderConfig>;
+}
+
+export interface LlmTestResponse {
+  success: boolean;
+  message?: string;
+  data?: { models?: string[]; configured_model?: string; env_var?: string; set?: boolean };
+  error?: string;
+}
+
 interface ApiEnvelope<T> {
   success: boolean;
   message?: string;
@@ -68,6 +95,34 @@ export class AdminService {
       }),
       catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to load schema'))))
     );
+  }
+
+  getLlmConfig(): Observable<LlmConfigResponse> {
+    return this.http.get<ApiEnvelope<LlmConfigResponse>>(`${this.baseUrl}/llm`).pipe(
+      map(r => {
+        if (!r.success || !r.data) throw new Error(r.message || r.error || 'Failed to load LLM config');
+        return r.data;
+      }),
+      catchError(err => throwError(() => new Error(this.extractError(err, 'Failed to load LLM config'))))
+    );
+  }
+
+  updateLlmConfig(payload: LlmConfigUpdatePayload): Observable<LlmConfigResponse> {
+    return this.http.put<ApiEnvelope<{ default: string; providers: Record<string, LlmProviderConfig> }>>(`${this.baseUrl}/llm`, payload).pipe(
+      map(r => {
+        if (!r.success || !r.data) throw new Error(r.message || r.error || 'Save failed');
+        return { ...r.data, registered: [], api_keys: {}, schema: {} } as unknown as LlmConfigResponse;
+      }),
+      catchError(err => throwError(() => new Error(this.extractError(err, 'Save failed'))))
+    );
+  }
+
+  testLlmProvider(name: string): Observable<LlmTestResponse> {
+    return this.http
+      .post<LlmTestResponse>(`${this.baseUrl}/llm/test/${encodeURIComponent(name)}`, {})
+      .pipe(
+        catchError(err => throwError(() => new Error(this.extractError(err, 'Connectivity test failed'))))
+      );
   }
 
   private extractError(err: any, fallback: string): string {

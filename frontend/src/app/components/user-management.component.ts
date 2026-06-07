@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
-import { BulkImportResult, UserService, User, UserCreateRequest, UserUpdateRequest } from '../services/user.service';
+import { UserService, User, UserCreateRequest, UserUpdateRequest } from '../services/user.service';
 import { AuthService } from '../services/auth.service';
 
 @Component({
@@ -58,77 +58,6 @@ import { AuthService } from '../services/auth.service';
         <p>{{ error() }}</p>
         <button (click)="loadUsers()" class="retry-btn">Retry</button>
       </div>
-
-      <!-- Bulk Import -->
-      <section *ngIf="!isLoading()" class="import-panel">
-        <div class="import-header">
-          <div>
-            <h2>Bulk Import</h2>
-            <p>Specs, requirements, test cases, and design tickets</p>
-          </div>
-          <span class="import-count" *ngIf="selectedImportFiles().length">
-            {{ selectedImportFiles().length }} file{{ selectedImportFiles().length === 1 ? '' : 's' }}
-          </span>
-        </div>
-
-        <div class="import-controls">
-          <label class="import-field">
-            <span>Data type</span>
-            <select class="form-select" [(ngModel)]="bulkImportTarget">
-              <option value="auto">Auto by sheet name</option>
-              <option value="specifications">Specifications</option>
-              <option value="requirements">Requirements</option>
-              <option value="test_cases">Test Cases</option>
-              <option value="design_tickets">Design Tickets</option>
-            </select>
-          </label>
-
-          <label class="file-picker">
-            <input
-              type="file"
-              accept=".xlsx,.xlsm"
-              multiple
-              (change)="onBulkImportFilesSelected($event)">
-            <i class="icon-upload"></i>
-            Choose Excel files
-          </label>
-
-          <button
-            type="button"
-            class="btn-import"
-            (click)="runBulkImport()"
-            [disabled]="isImporting() || selectedImportFiles().length === 0">
-            <span *ngIf="isImporting()" class="spinner-small"></span>
-            Import
-          </button>
-        </div>
-
-        <div class="selected-files" *ngIf="selectedImportFiles().length">
-          <span *ngFor="let file of selectedImportFiles()">{{ file.name }}</span>
-        </div>
-
-        <div class="import-error" *ngIf="importError()">{{ importError() }}</div>
-
-        <div class="import-result" *ngIf="importResult() as result">
-          <div class="result-totals">
-            <span><strong>{{ result.totals.created }}</strong> created</span>
-            <span><strong>{{ result.totals.skipped }}</strong> skipped</span>
-            <span><strong>{{ result.totals.failed }}</strong> failed</span>
-          </div>
-
-          <div class="result-files">
-            <div class="result-file" *ngFor="let file of result.files">
-              <strong>{{ file.file }}</strong>
-              <span>{{ file.created }} created, {{ file.skipped }} skipped, {{ file.failed }} failed</span>
-              <ul *ngIf="file.errors.length">
-                <li *ngFor="let item of file.errors.slice(0, 5)">
-                  {{ item.sheet ? item.sheet + ' - ' : '' }}{{ item.row ? 'Row ' + item.row + ': ' : '' }}{{ item.error }}
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- Users Table -->
       <div *ngIf="!isLoading() && !error()" class="table-container">
@@ -455,155 +384,6 @@ import { AuthService } from '../services/auth.service';
       border: 1px solid var(--color-gray-300);
       border-radius: var(--border-radius);
       padding: var(--spacing-lg);
-    }
-
-    .import-panel {
-      background: var(--color-gray-100);
-      border: 1px solid var(--color-gray-300);
-      border-radius: var(--border-radius);
-      padding: var(--spacing-lg);
-      margin-bottom: var(--spacing-lg);
-    }
-
-    .import-header {
-      display: flex;
-      justify-content: space-between;
-      gap: var(--spacing-md);
-      align-items: flex-start;
-      margin-bottom: var(--spacing-md);
-    }
-
-    .import-header h2 {
-      margin: 0 0 4px;
-      color: var(--color-primary);
-      font-size: 1.15rem;
-    }
-
-    .import-header p {
-      margin: 0;
-      color: var(--color-primary-lighter);
-      font-size: 13px;
-    }
-
-    .import-count {
-      color: var(--color-primary);
-      background: var(--color-gray-200);
-      border: 1px solid var(--color-gray-300);
-      border-radius: var(--border-radius-sm);
-      padding: 6px 10px;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    .import-controls {
-      display: grid;
-      grid-template-columns: minmax(220px, 280px) minmax(220px, 1fr) auto;
-      gap: var(--spacing-md);
-      align-items: end;
-    }
-
-    .import-field span {
-      display: block;
-      color: #333;
-      font-weight: 500;
-      margin-bottom: 5px;
-    }
-
-    .file-picker {
-      min-height: 42px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--spacing-sm);
-      padding: 10px 14px;
-      border: 1px dashed var(--color-gray-400);
-      border-radius: var(--border-radius-sm);
-      color: var(--color-primary);
-      background: var(--color-gray-200);
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .file-picker input {
-      display: none;
-    }
-
-    .btn-import {
-      min-height: 42px;
-      padding: 10px 18px;
-      background: var(--color-primary);
-      color: var(--color-gray-100);
-      border: 1px solid var(--color-primary);
-      border-radius: var(--border-radius-sm);
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .btn-import:disabled {
-      background: var(--color-gray-400);
-      border-color: var(--color-gray-400);
-      cursor: not-allowed;
-    }
-
-    .selected-files {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: var(--spacing-md);
-    }
-
-    .selected-files span {
-      background: var(--color-gray-200);
-      border: 1px solid var(--color-gray-300);
-      border-radius: var(--border-radius-sm);
-      padding: 5px 8px;
-      font-size: 12px;
-    }
-
-    .import-error {
-      color: #c62828;
-      margin-top: var(--spacing-md);
-      font-weight: 500;
-    }
-
-    .import-result {
-      margin-top: var(--spacing-md);
-      border-top: 1px solid var(--color-gray-300);
-      padding-top: var(--spacing-md);
-    }
-
-    .result-totals {
-      display: flex;
-      gap: var(--spacing-md);
-      flex-wrap: wrap;
-      margin-bottom: var(--spacing-md);
-    }
-
-    .result-totals span {
-      background: var(--color-gray-200);
-      border: 1px solid var(--color-gray-300);
-      border-radius: var(--border-radius-sm);
-      padding: 6px 10px;
-    }
-
-    .result-files {
-      display: grid;
-      gap: 10px;
-    }
-
-    .result-file {
-      border: 1px solid var(--color-gray-300);
-      border-radius: var(--border-radius-sm);
-      padding: 10px;
-      display: grid;
-      gap: 4px;
-    }
-
-    .result-file ul {
-      margin: 6px 0 0;
-      padding-left: 18px;
-      color: #c62828;
-      font-size: 12px;
     }
 
     .table-header {
@@ -941,13 +721,6 @@ import { AuthService } from '../services/auth.service';
     .icon-edit::before { content: "✏️"; }
     .icon-delete::before { content: "🗑️"; }
     .icon-close::before { content: "✕"; }
-    .icon-upload::before { content: "UPLOAD"; }
-
-    @media (max-width: 800px) {
-      .import-controls {
-        grid-template-columns: 1fr;
-      }
-    }
   `]
 })
 export class UserManagementComponent implements OnInit {
@@ -965,14 +738,9 @@ export class UserManagementComponent implements OnInit {
   isSubmitting = signal(false);
   showDeleteModal = signal(false);
   isDeleting = signal(false);
-  isImporting = signal(false);
-  selectedImportFiles = signal<File[]>([]);
-  importResult = signal<BulkImportResult | null>(null);
-  importError = signal<string | null>(null);
   userToDelete = signal<User | null>(null);
   currentEditingUser = signal<User | null>(null);
   searchTerm = '';
-  bulkImportTarget = 'auto';
 
   userForm: FormGroup;
 
@@ -1182,37 +950,6 @@ export class UserManagementComponent implements OnInit {
         const errorMessage = err.error?.message || err.error?.error || 'Failed to delete user';
         this.error.set(errorMessage);
         this.isDeleting.set(false);
-      }
-    });
-  }
-
-  onBulkImportFilesSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    this.selectedImportFiles.set(Array.from(input.files || []));
-    this.importResult.set(null);
-    this.importError.set(null);
-  }
-
-  runBulkImport() {
-    const files = this.selectedImportFiles();
-    if (!files.length) {
-      this.importError.set('Select at least one Excel file');
-      return;
-    }
-
-    this.isImporting.set(true);
-    this.importError.set(null);
-    this.importResult.set(null);
-
-    this.userService.bulkImport(this.bulkImportTarget, files).subscribe({
-      next: (result) => {
-        this.importResult.set(result);
-        this.isImporting.set(false);
-      },
-      error: (err) => {
-        console.error('Bulk import failed:', err);
-        this.importError.set(err.error?.message || err.message || 'Bulk import failed');
-        this.isImporting.set(false);
       }
     });
   }

@@ -403,6 +403,66 @@ def get_parsing_service():
     return _parsing_singleton("parsing_service", _factory)
 
 
+def get_vector_index_service():
+    """Lazily build the RAG vector index service. Returns None if the
+    feature is disabled via ``assistant.rag.enabled: false`` in config."""
+
+    def _factory():
+        from src.services.vector_index_service import VectorIndexService
+
+        if not get_config_manager().get_config("assistant.rag.enabled", True):
+            return None
+
+        return VectorIndexService(
+            requirement_service=get_requirement_service(),
+            test_case_service=get_test_case_service(),
+            design_ticket_service=get_design_ticket_service(),
+            spec_service=get_spec_service(),
+            local_database_service=get_local_database_service(),
+            vlm_registry=get_vlm_registry(),
+        )
+
+    return _parsing_singleton("vector_index_service", _factory)
+
+
+def get_live_indexer():
+    """Return the singleton LiveIndexer thread (or None if RAG is disabled).
+
+    The thread is created lazily and started by ``main.py`` after Flask boot.
+    """
+
+    def _factory():
+        from src.services.vector_index_service import LiveIndexer
+
+        vec = get_vector_index_service()
+        if vec is None:
+            return None
+        cfg = get_config_manager()
+        poll = float(cfg.get_config("assistant.rag.poll_interval_seconds", 15) or 15)
+        delay = float(cfg.get_config("assistant.rag.startup_delay_seconds", 2) or 2)
+        return LiveIndexer(vec, poll_interval_seconds=poll, startup_delay_seconds=delay)
+
+    return _parsing_singleton("live_indexer", _factory)
+
+
+def get_assistant_service():
+    """Lazily build the NL chat assistant service used by /api/assistant/*."""
+
+    def _factory():
+        from src.services.assistant_service import AssistantService
+
+        return AssistantService(
+            requirement_service=get_requirement_service(),
+            test_case_service=get_test_case_service(),
+            design_ticket_service=get_design_ticket_service(),
+            spec_service=get_spec_service(),
+            vlm_registry=get_vlm_registry(),
+            vector_index_service=get_vector_index_service(),
+        )
+
+    return _parsing_singleton("assistant_service", _factory)
+
+
 # Ensure VLM adapters auto-register on import of this module.
 try:  # noqa: SIM105 - best-effort registration on import
     import src.implementations.llm  # noqa: F401

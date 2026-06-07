@@ -299,33 +299,35 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 
 .dashboard-section {
   min-height: calc(100vh - 140px);
-  padding: 28px 24px 56px;
+  padding: 32px 28px 64px;
   background: transparent;
   font-family: var(--font-sans);
-  font-size: var(--fs-base);
+  font-size: var(--fs-md);
+  line-height: 1.55;
   letter-spacing: var(--tracking-compact);
   color: $db-text;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   display: flex;
   justify-content: center;
 }
 
 .db-dashboard {
   width: 100%;
-  max-width: 100%;
+  max-width: 1320px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 /* ---------------- Hero band ---------------- */
 .db-hero {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 28px;
+  gap: 32px;
   align-items: center;
-  padding: 24px 28px;
-  background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 50%, #ecfdf5 100%);
+  padding: 32px 36px;
+  background: $db-surface;
   border: 1px solid $db-border;
   border-radius: $db-radius-lg;
   box-shadow: $db-shadow-sm;
@@ -334,71 +336,71 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-hero-greet {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
   min-width: 0;
 }
 
 .db-hero-mark {
-  font-size: 38px;
-  width: 64px; height: 64px;
+  font-size: 34px;
+  width: 60px; height: 60px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #ffffff;
-  border: 1px solid $db-border;
-  border-radius: 18px;
-  box-shadow: $db-shadow-sm;
+  background: $db-surface-alt;
+  border: 1px solid $db-border-soft;
+  border-radius: 16px;
   flex-shrink: 0;
 }
 
 .db-hero-title {
-  font-size: 22px;
+  font-size: var(--fs-2xl);
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
   margin: 0;
   color: $db-text;
 }
 
 .db-hero-sub {
-  margin: 4px 0 0;
-  font-size: 13.5px;
+  margin: 6px 0 0;
+  font-size: var(--fs-md);
+  line-height: 1.5;
   color: $db-muted;
-  letter-spacing: -0.002em;
+  letter-spacing: 0;
 }
 
 .db-hero-pulse {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .db-pulse {
-  min-width: 130px;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(4px);
+  min-width: 148px;
+  padding: 14px 18px;
+  background: $db-surface-alt;
   border: 1px solid $db-border-soft;
-  border-radius: 14px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   transition: transform 0.18s ease, border-color 0.18s ease;
 
   &:hover { transform: translateY(-1px); border-color: #c7d2fe; }
 
   .db-pulse-num {
-    font-size: 24px;
+    font-size: var(--fs-2xl);
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
 
-    small { font-size: 14px; font-weight: 600; color: $db-muted; margin-left: 1px; }
+    small { font-size: var(--fs-md); font-weight: 600; color: $db-muted; margin-left: 2px; }
   }
   .db-pulse-lbl {
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: $db-muted;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
   }
 
   &--accent .db-pulse-num { color: #047857; }
@@ -411,17 +413,17 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-kpi-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  gap: 16px;
 }
 
 .db-kpi {
   background: $db-surface;
   border: 1px solid $db-border;
   border-radius: $db-radius-md;
-  padding: 18px 20px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   text-decoration: none;
   color: $db-text;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
@@ -452,12 +454,12 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-kpi-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .db-kpi-icon {
-  font-size: 18px;
-  width: 34px; height: 34px;
+  font-size: 20px;
+  width: 38px; height: 38px;
   display: inline-flex; align-items: center; justify-content: center;
   background: $db-surface-alt;
   border: 1px solid $db-border-soft;
@@ -470,17 +472,17 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-kpi-label {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: $db-muted;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .db-kpi-value {
-  font-size: 38px;
+  font-size: var(--fs-4xl);
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.035em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -489,23 +491,23 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px dashed $db-border-soft;
-  padding-top: 10px;
+  border-top: 1px solid $db-border-soft;
+  padding-top: 12px;
   margin-top: auto;
 }
 
 .db-kpi-meta {
-  font-size: 12px;
+  font-size: var(--fs-base);
   color: $db-muted;
   font-weight: 500;
 }
 
 .db-kpi-act {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: $db-accent;
   text-decoration: none;
-  padding: 4px 10px;
+  padding: 5px 12px;
   background: $db-accent-soft;
   border: 1px solid #bfdbfe;
   border-radius: 999px;
@@ -519,10 +521,10 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   background: $db-surface;
   border: 1px solid $db-border;
   border-radius: $db-radius-md;
-  padding: 20px 22px;
+  padding: 24px 26px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   box-shadow: $db-shadow-sm;
 }
 
@@ -534,15 +536,16 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-card-title {
-  font-size: 14.5px;
+  font-size: var(--fs-lg);
   font-weight: 700;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
   margin: 0;
   color: $db-text;
 }
 
 .db-card-link {
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: $db-accent;
   text-decoration: none;
@@ -551,11 +554,11 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-card-pill {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 3px 9px;
+  padding: 4px 10px;
   background: #f1f5f9;
   border: 1px solid $db-border-soft;
   border-radius: 999px;
@@ -563,37 +566,36 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-card-sub {
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: $db-muted;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
 /* ---------------- Analytics grid (donuts + gauge) ---------------- */
 .db-analytics-grid {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 14px;
+  gap: 18px;
 }
 
-.db-card--coverage { min-height: 250px; }
+.db-card--coverage { min-height: 260px; }
 
 .db-donuts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 18px;
 }
 
 .db-donut-cell {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 8px 4px;
-  border: 1px dashed $db-border-soft;
-  border-radius: $db-radius-sm;
+  padding: 18px 20px;
+  border: 1px solid $db-border-soft;
+  border-radius: $db-radius-md;
   background: $db-surface-alt;
-  padding: 14px 16px;
 }
 
 .db-donut {
@@ -614,7 +616,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-donut-num {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   fill: $db-text;
   text-anchor: middle;
@@ -624,31 +626,33 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-donut-cap {
-  font-size: 7.5px;
+  font-size: 8px;
   fill: $db-muted;
   text-anchor: middle;
   dominant-baseline: middle;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   font-weight: 600;
 }
 
 .db-donut-meta {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .db-donut-title {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: $db-text;
+  letter-spacing: -0.005em;
 }
 
 .db-donut-sub {
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: $db-muted;
+  line-height: 1.5;
 }
 
 /* ---------------- Generic legend ---------------- */
@@ -658,13 +662,13 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 
   li {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11.5px;
+    gap: 10px;
+    font-size: var(--fs-sm);
     color: $db-text;
   }
 
@@ -673,7 +677,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-legend-dot {
-  width: 9px; height: 9px;
+  width: 10px; height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-block;
@@ -713,20 +717,20 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   bottom: 4px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 36px;
+  font-size: 40px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
   color: $db-text;
 }
 
 .db-gauge-cap {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: $db-muted;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   font-weight: 600;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .db-gauge-breakdown {
@@ -736,15 +740,15 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   border-top: 1px solid $db-border-soft;
-  padding-top: 12px;
+  padding-top: 14px;
 
   li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12.5px;
+    font-size: var(--fs-base);
   }
 
   .db-bd-lbl { color: $db-muted; }
@@ -755,23 +759,23 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-grid-3 {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 14px;
+  gap: 18px;
 }
 
 /* Workflow stacked bars */
 .db-stack-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 
-  + .db-stack-row { padding-top: 12px; border-top: 1px solid $db-border-soft; }
+  + .db-stack-row { padding-top: 16px; border-top: 1px solid $db-border-soft; }
 }
 
 .db-stack-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 12.5px;
+  font-size: var(--fs-base);
 
   .db-stack-name { font-weight: 700; color: $db-text; }
   .db-stack-total { font-weight: 700; color: $db-muted; font-variant-numeric: tabular-nums; }
@@ -803,7 +807,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-stack-empty {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: $db-faint;
   font-style: italic;
 }
@@ -814,13 +818,13 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 6px 14px;
 
   li {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--fs-sm);
     color: $db-muted;
   }
 
@@ -844,9 +848,9 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-activity-link {
   display: grid;
   grid-template-columns: 4px auto 1fr;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
-  padding: 10px 8px;
+  padding: 12px 10px;
   text-decoration: none;
   color: $db-text;
   border-radius: $db-radius-sm;
@@ -868,38 +872,39 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-activity-icon {
-  font-size: 18px;
-  width: 30px;
-  height: 30px;
+  font-size: 20px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: $db-surface-alt;
   border: 1px solid $db-border-soft;
-  border-radius: 8px;
+  border-radius: 9px;
   flex-shrink: 0;
 }
 
 .db-activity-body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .db-activity-id {
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: $db-faint;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   font-family: var(--font-mono);
 }
 
 .db-activity-title {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: $db-text;
+  letter-spacing: -0.005em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -907,17 +912,17 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 
 .db-activity-meta {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
 }
 
 .db-activity-tag {
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 7px;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
   border-radius: 999px;
   background: $db-accent-soft;
   color: $db-accent;
@@ -931,23 +936,23 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-activity-when {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: $db-faint;
   margin-left: auto;
 }
 
 .db-empty {
-  padding: 32px 16px;
+  padding: 36px 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 8px;
+  gap: 10px;
   color: $db-muted;
-  font-size: 13px;
+  font-size: var(--fs-md);
 
-  .db-empty-icon { font-size: 28px; opacity: 0.7; }
-  .db-empty-text { max-width: 240px; line-height: 1.4; }
+  .db-empty-icon { font-size: 32px; opacity: 0.7; }
+  .db-empty-text { max-width: 260px; line-height: 1.5; }
 }
 
 /* Priority distribution bars */
@@ -968,7 +973,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-priority-key {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 800;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
@@ -996,7 +1001,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-priority-counts {
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: $db-text;
@@ -1010,12 +1015,12 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 
 .db-priority-legend {
   display: flex;
-  gap: 16px;
-  font-size: 11px;
+  gap: 18px;
+  font-size: var(--fs-sm);
   color: $db-muted;
   font-weight: 600;
   border-top: 1px solid $db-border-soft;
-  padding-top: 10px;
+  padding-top: 12px;
 
   span { display: inline-flex; align-items: center; gap: 6px; }
 }
@@ -1024,15 +1029,15 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-nav-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 
 .db-nav-tile {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
-  padding: 14px 16px;
+  padding: 18px 20px;
   background: $db-surface;
   border: 1px solid $db-border;
   border-radius: $db-radius-md;
@@ -1050,10 +1055,10 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-nav-icon {
-  font-size: 20px;
-  width: 38px; height: 38px;
+  font-size: 22px;
+  width: 42px; height: 42px;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 10px;
+  border-radius: 11px;
   flex-shrink: 0;
   border: 1px solid $db-border-soft;
 
@@ -1068,18 +1073,19 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 .db-nav-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .db-nav-title {
-  font-size: 13.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
+  letter-spacing: -0.005em;
   color: $db-text;
 }
 
 .db-nav-sub {
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: $db-muted;
   white-space: nowrap;
   overflow: hidden;
@@ -1087,7 +1093,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
 .db-nav-arrow {
-  font-size: 16px;
+  font-size: 18px;
   color: $db-faint;
   transition: transform 0.15s ease, color 0.15s ease;
 }
@@ -1115,6 +1121,7 @@ $db-shadow-md:    0 6px 24px rgba(15, 23, 42, 0.06);
   .db-nav-grid { grid-template-columns: 1fr; }
   .db-donut-cell { flex-direction: column; align-items: flex-start; }
   .db-donut { width: 110px; height: 110px; }
-  .db-kpi-value { font-size: 32px; }
+  .db-kpi-value { font-size: var(--fs-3xl); }
+  .db-hero-title { font-size: var(--fs-xl); }
 }
 

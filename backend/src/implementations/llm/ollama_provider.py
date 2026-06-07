@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import json
+from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -74,3 +75,113 @@ class OllamaProvider(VLMProvider):
             f"Schema hint: {schema_hint}"
         )
         return coerce_json(self._call(image_path, prompt, system=system))
+
+    def _text_model(self) -> str:
+        """Resolve the text-chat model, falling back to the VLM if no text-only
+        model is configured. Ollama is happy serving a vision-capable model
+        for pure text, just at higher cost."""
+        return resolve_config("ollama", "text_model", default=None) or self._model
+
+    def chat_text(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> str:
+        url = f"{self._base_url.rstrip('/')}/api/chat"
+        payload: Dict[str, Any] = {
+            "model": self._text_model(),
+            "stream": False,
+            "messages": list(messages or []),
+            "options": {"temperature": float(kwargs.get("temperature", 0.2))},
+        }
+        if system:
+            payload["messages"] = [{"role": "system", "content": system}, *payload["messages"]]
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+            msg = (data.get("message") or {}).get("content", "")
+            return str(msg)
+        except httpx.HTTPStatusError as exc:
+            raise VLMProviderError(self.name(), f"Ollama HTTP {exc.response.status_code}", self._text_model(), exc)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"Ollama unreachable: {exc}", self._text_model(), exc)
+
+    # ------------------------------------------------------------------
+    # Embeddings (used by the RAG vector index)
+    # ------------------------------------------------------------------
+    def _embedding_model(self) -> str:
+        return resolve_config("ollama", "embedding_model", default="nomic-embed-text")
+
+    def embed_text(self, texts: List[str], **kwargs: Any) -> List[List[float]]:
+        if not texts:
+            return []
+        url = f"{self._base_url.rstrip('/')}/api/embed"
+        payload = {"model": self._embedding_model(), "input": list(texts)}
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+            embeddings = data.get("embeddings") or []
+            if embeddings:
+                return [list(map(float, vec)) for vec in embeddings]
+            # /api/embed was added in newer Ollama releases; old daemons only
+            # expose /api/embeddings (singular) which takes one prompt at a
+            # time. Fall back if the new endpoint returned nothing usable.
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise VLMProviderError(self.name(), f"Ollama HTTP {exc.response.status_code}", self._embedding_model(), exc)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"Ollama unreachable: {exc}", self._embedding_model(), exc)
+
+        legacy_url = f"{self._base_url.rstrip('/')}/api/embeddings"
+        out: List[List[float]] = []
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                for text in texts:
+                    resp = client.post(legacy_url, json={"model": self._embedding_model(), "prompt": text})
+                    resp.raise_for_status()
+                    body = resp.json()
+                    vec = body.get("embedding") or []
+                    out.append([float(x) for x in vec])
+        except httpx.HTTPStatusError as exc:
+            raise VLMProviderError(self.name(), f"Ollama HTTP {exc.response.status_code}", self._embedding_model(), exc)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"Ollama unreachable: {exc}", self._embedding_model(), exc)
+        return out
+
+    def embedding_dimension(self) -> Optional[int]:
+        dim = resolve_config("ollama", "embedding_dimension", default=None)
+        try:
+            return int(dim) if dim is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def chat_text_stream(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> Iterator[str]:
+        url = f"{self._base_url.rstrip('/')}/api/chat"
+        payload: Dict[str, Any] = {
+            "model": self._text_model(),
+            "stream": True,
+            "messages": list(messages or []),
+            "options": {"temperature": float(kwargs.get("temperature", 0.2))},
+        }
+        if system:
+            payload["messages"] = [{"role": "system", "content": system}, *payload["messages"]]
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                with client.stream("POST", url, json=payload) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        chunk = (obj.get("message") or {}).get("content", "")
+                        if chunk:
+                            yield chunk
+                        if obj.get("done"):
+                            break
+        except httpx.HTTPStatusError as exc:
+            raise VLMProviderError(self.name(), f"Ollama HTTP {exc.response.status_code}", self._text_model(), exc)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"Ollama unreachable: {exc}", self._text_model(), exc)

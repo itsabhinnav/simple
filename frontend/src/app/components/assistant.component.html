@@ -1,0 +1,234 @@
+<div class="assistant-shell" [class.history-collapsed]="!historyOpen()">
+  <!-- ===================== LEFT RAIL ===================== -->
+  <aside class="rail">
+    <div class="rail-header">
+      <button class="btn-new" (click)="newConversation()">
+        <span class="btn-new-icon">＋</span>
+        <span class="btn-new-label">New chat</span>
+      </button>
+      <button class="rail-toggle" (click)="toggleHistory()" [title]="historyOpen() ? 'Hide history' : 'Show history'">
+        <span aria-hidden="true">{{ historyOpen() ? '‹' : '›' }}</span>
+      </button>
+    </div>
+
+    <div class="rail-body" *ngIf="historyOpen()">
+    <!-- History -->
+    <section class="rail-section history">
+      <header class="section-head">
+        <h3>History</h3>
+        <button class="btn-link" *ngIf="conversations().length > 0" (click)="clearAllConversations()">Clear all</button>
+      </header>
+
+      <div class="history-empty" *ngIf="conversations().length === 0">
+        Past conversations will appear here.
+      </div>
+
+      <ul class="history-list" *ngIf="conversations().length > 0">
+        <li *ngFor="let c of conversations(); trackBy: trackConversation"
+            class="history-item"
+            [class.active]="c.id === activeConversationId()"
+            (click)="loadConversation(c.id)">
+          <div class="history-row" *ngIf="renamingId() !== c.id">
+            <div class="history-title">{{ c.title }}</div>
+            <div class="history-meta">
+              <span>{{ c.messages.length }} msg</span>
+              <span>·</span>
+              <span>{{ relativeTime(c.updatedAt) }}</span>
+            </div>
+            <div class="history-actions">
+              <button class="icon-btn" title="Rename" (click)="startRename(c, $event)">✎</button>
+              <button class="icon-btn danger" title="Delete" (click)="deleteConversation(c.id, $event)">🗑</button>
+            </div>
+          </div>
+          <div class="history-row rename" *ngIf="renamingId() === c.id" (click)="$event.stopPropagation()">
+            <input class="rename-input"
+                   [ngModel]="renameDraft()"
+                   (ngModelChange)="renameDraft.set($event)"
+                   (keydown.enter)="commitRename(c)"
+                   (keydown.escape)="cancelRename()"
+                   (blur)="commitRename(c)"
+                   autofocus />
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Filters -->
+    <section class="rail-section">
+      <header class="section-head"><h3>Search in</h3></header>
+      <ul class="filter-list">
+        <li *ngFor="let k of allKinds">
+          <label class="filter-row">
+            <input type="checkbox" [checked]="kindFilters()[k]" (change)="toggleKind(k)" />
+            <span class="filter-icon">{{ kindIcon[k] }}</span>
+            <span class="filter-label">{{ kindLabel[k] }}</span>
+          </label>
+        </li>
+      </ul>
+    </section>
+
+    <!-- LLM provider -->
+    <section class="rail-section">
+      <header class="section-head"><h3>Model</h3></header>
+      <select class="provider-select"
+              [ngModel]="selectedProvider()"
+              (ngModelChange)="selectedProvider.set($event)">
+        <option *ngFor="let p of providers()" [value]="p">
+          {{ p }}<ng-container *ngIf="p === defaultProvider()"> · default</ng-container>
+        </option>
+        <option *ngIf="providers().length === 0" value="">(none registered)</option>
+      </select>
+    </section>
+
+    <!-- RAG index -->
+    <section class="rail-section">
+      <header class="section-head"><h3>Knowledge index</h3></header>
+      <div class="index-status" [class.is-active]="indexStatus()?.in_progress">
+        <div class="index-row">
+          <span class="index-badge" [attr.data-backend]="indexStatus()?.backend">{{ indexStatus()?.backend || '…' }}</span>
+          <span class="index-sub">{{ indexFreshnessLabel() }}</span>
+        </div>
+        <div class="index-row index-sub" *ngIf="indexStatus()?.embedding_model as model">
+          <span>{{ model }}</span>
+          <span *ngIf="indexStatus()?.dimension as dim">· {{ dim }}d</span>
+        </div>
+        <div class="index-row index-error" *ngIf="indexStatus()?.last_error as err" [title]="err">⚠ {{ err }}</div>
+      </div>
+      <div class="index-actions">
+        <button class="btn-secondary" (click)="reindex(false)" [disabled]="reindexing() || !indexStatus()?.enabled">
+          {{ reindexing() ? 'Indexing…' : 'Reindex' }}
+        </button>
+        <button class="btn-secondary" (click)="reindex(true)" [disabled]="reindexing() || !indexStatus()?.enabled" title="Re-embed every row from scratch">
+          Force
+        </button>
+      </div>
+      <p class="index-msg" *ngIf="reindexMsg() as msg">{{ msg }}</p>
+    </section>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN CHAT ===================== -->
+  <main class="chat">
+    <header class="chat-header">
+      <div class="chat-title">
+        <span class="chat-title-icon">💬</span>
+        <div>
+          <h1>Sakura AI</h1>
+          <p>Ask anything about your requirements, test cases, designs and specs.</p>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        <button class="btn-secondary" (click)="regenerateLast()" [disabled]="isStreaming() || !hasMessages()" title="Regenerate last answer">
+          ↻ Regenerate
+        </button>
+      </div>
+    </header>
+
+    <div class="chat-scroll">
+      <!-- Empty state -->
+      <div *ngIf="!hasMessages()" class="empty-state">
+        <div class="empty-emoji">🌸</div>
+        <h2>Where would you like to start?</h2>
+        <p>Pick a starter prompt or type your own. Answers cite the matching records, and you can re-open every chat later from the History panel.</p>
+        <div class="suggestions">
+          <button class="suggestion" *ngFor="let s of suggested" (click)="pickSuggestion(s)">
+            <span class="suggestion-icon">✨</span>
+            <span class="suggestion-text">{{ s }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div *ngFor="let m of messages(); trackBy: trackMessage"
+           class="msg"
+           [class.is-user]="m.role === 'user'"
+           [class.is-assistant]="m.role === 'assistant'"
+           [class.is-error]="m.error">
+        <div class="msg-avatar" [class.user-avatar]="m.role === 'user'">
+          {{ m.role === 'user' ? '🧑' : '🤖' }}
+        </div>
+        <div class="msg-body">
+          <div class="msg-head">
+            <span class="msg-role">{{ m.role === 'user' ? 'You' : 'Sakura AI' }}</span>
+            <span class="msg-time">{{ relativeTime(m.createdAt) }}</span>
+            <span *ngIf="m.role === 'assistant' && m.provider" class="pill provider-pill">{{ m.provider }}</span>
+            <span *ngIf="m.role === 'assistant' && m.retrievalMode" class="pill mode-pill" [attr.data-mode]="m.retrievalMode">
+              {{ m.retrievalMode }}
+            </span>
+            <span *ngIf="m.role === 'assistant' && m.matchedTerms?.length"
+                  class="pill terms-pill"
+                  [title]="m.matchedTerms!.join(', ')">
+              matched: {{ m.matchedTerms!.slice(0, 3).join(', ') }}<span *ngIf="m.matchedTerms!.length > 3">…</span>
+            </span>
+            <div class="msg-actions" *ngIf="m.role === 'assistant' && !m.streaming && m.content">
+              <button class="icon-btn" (click)="copyMessage(m)" title="Copy">
+                {{ m.copied ? '✓' : '⧉' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="msg-text"
+               *ngIf="m.role === 'assistant'"
+               [innerHTML]="renderAnswer(m.content, m.citations)"
+               (click)="onAnswerClick($event)"></div>
+          <div class="msg-text user-text" *ngIf="m.role === 'user'">{{ m.content }}</div>
+
+          <div *ngIf="m.streaming && !m.content" class="thinking">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+
+          <div *ngIf="m.role === 'assistant' && m.citations?.length" class="citation-block">
+            <div class="citation-head">
+              <span>Sources · {{ m.citations!.length }}</span>
+              <button *ngIf="m.citations!.length > citationLimit"
+                      type="button"
+                      class="citation-toggle"
+                      (click)="toggleCitations(m)">
+                {{ m.citationsExpanded ? 'Show less' : ('Show all (' + m.citations!.length + ')') }}
+              </button>
+            </div>
+            <div class="citation-strip">
+              <button class="citation-chip"
+                      *ngFor="let c of (m.citationsExpanded ? m.citations : (m.citations | slice:0:citationLimit))"
+                      (click)="goToCitation(c)"
+                      [title]="c.title">
+                <span class="chip-icon">{{ kindIcon[c.kind === 'requirement' ? 'requirements' : c.kind === 'test_case' ? 'test_cases' : c.kind === 'design_ticket' ? 'design_tickets' : 'specs'] }}</span>
+                <span class="chip-id">{{ c.id }}</span>
+                <span class="chip-title">{{ c.title }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div #scrollEnd></div>
+    </div>
+
+    <!-- Composer -->
+    <form class="composer" (ngSubmit)="send()">
+      <div class="composer-shell">
+        <textarea
+          #composerInput
+          class="composer-input"
+          rows="1"
+          placeholder="Ask anything…"
+          [value]="input()"
+          (input)="onInputChange($any($event.target).value, $any($event.target))"
+          (keydown)="onInputKeydown($event)"
+          [disabled]="isStreaming()"
+          name="assistantInput"></textarea>
+        <div class="composer-bottom">
+          <span class="composer-hint">
+            <kbd>↵</kbd> send · <kbd>⇧</kbd>+<kbd>↵</kbd> newline
+          </span>
+          <div class="composer-buttons">
+            <button type="button" class="btn-stop" *ngIf="isStreaming()" (click)="stop()">Stop</button>
+            <button type="submit" class="btn-send" [disabled]="isStreaming() || !input().trim()" title="Send (↵)">
+              <span class="send-arrow">↑</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </main>
+</div>

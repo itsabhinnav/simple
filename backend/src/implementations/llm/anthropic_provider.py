@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -108,3 +108,31 @@ class AnthropicProvider(VLMProvider):
             f"Schema hint: {schema_hint}"
         )
         return coerce_json(self._call(image_path, prompt, system=system))
+
+    def _text_model(self) -> str:
+        return resolve_config("anthropic", "text_model", default=None) or self._model
+
+    def chat_text(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> str:
+        normalized = [
+            {"role": m.get("role", "user"), "content": [{"type": "text", "text": str(m.get("content", ""))}]}
+            for m in (messages or [])
+            if m.get("role") in ("user", "assistant") and m.get("content")
+        ]
+        payload: Dict[str, Any] = {
+            "model": self._text_model(),
+            "max_tokens": int(kwargs.get("max_tokens", 1024)),
+            "messages": normalized,
+            "temperature": float(kwargs.get("temperature", 0.2)),
+        }
+        if system:
+            payload["system"] = system
+        try:
+            data = self._post_messages(payload)
+            content = data.get("content") or []
+            text_parts = [chunk.get("text", "") for chunk in content if chunk.get("type") == "text"]
+            return "".join(text_parts)
+        except _RETRYABLE as exc:
+            raise VLMProviderError(self.name(), f"Anthropic unreachable: {exc}", self._text_model(), exc)
+
+    def chat_text_stream(self, messages: List[Dict[str, Any]], system: Optional[str] = None, **kwargs: Any) -> Iterator[str]:
+        yield self.chat_text(messages, system=system, **kwargs)
