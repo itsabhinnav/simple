@@ -66,8 +66,8 @@ def test_providers_catalog_has_default(client):
     assert payload["success"] is True
     assert "default" in payload["data"]
     assert isinstance(payload["data"]["providers"], list)
-    # ollama/openai/anthropic auto-register on import.
-    assert {"ollama", "openai", "anthropic"}.issubset(set(payload["data"]["providers"]))
+    # ollama/ollama-lite auto-register on import.
+    assert {"ollama", "ollama-lite"}.issubset(set(payload["data"]["providers"]))
 
 
 def test_targets_catalog_lists_all_four(client):

@@ -158,8 +158,8 @@ class TestAuthEndpoints:
         signup_data = {
             "username": "newuser",
             "email": "newuser@test.com",
-            "password": "password123",
-            "secret_key": "secret123",
+            "password": "password123456",
+            "secret_key": "secret1234567",
             "git_token": "git_token_for_newuser_123456789",
             "first_name": "New",
             "last_name": "User",
@@ -185,8 +185,8 @@ class TestAuthEndpoints:
         signup_data = {
             "username": "newuser_notoken",
             "email": "newuser_notoken@test.com",
-            "password": "password123",
-            "secret_key": "secret123",
+            "password": "password123456",
+            "secret_key": "secret1234567",
             "first_name": "NoToken",
             "last_name": "User",
             "role": "user"
@@ -290,8 +290,8 @@ class TestAuthEndpoints:
         signup_data = {
             "username": "flowuser",
             "email": "flowuser@test.com",
-            "password": "flowpass123",
-            "secret_key": "secret123",
+            "password": "flowpass123456",
+            "secret_key": "secret1234567",
             "git_token": "git_token_for_flowuser_123456789",
             "first_name": "Flow",
             "last_name": "User"
@@ -306,7 +306,7 @@ class TestAuthEndpoints:
         # Now login with the same credentials
         login_data = {
             "username": "flowuser",
-            "password": "flowpass123"
+            "password": "flowpass123456"
         }
         
         response = client.post('/api/auth/login', json=login_data, content_type='application/json')
