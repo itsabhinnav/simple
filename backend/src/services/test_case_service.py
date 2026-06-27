@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 # should never block writes when config is unavailable, just fall back to
 # the historical hard-coded list.
 _DEFAULT_PRIORITIES = ["P1", "P2", "P3", "P4"]
-_DEFAULT_TEST_TYPES = ["Positive", "Negative", "Abnormal", "Boundary"]
+_DEFAULT_TEST_TYPES = ["Positive", "Negative", "Abnormal", "Boundary", "Functional"]
 _DEFAULT_REGULATIONS = ["Yes", "No"]
 
 
@@ -24,7 +24,9 @@ def _allowed_values(key: str, fallback: List[str]) -> List[str]:
     except Exception:
         return fallback
     values = dropdowns.get(key) or []
-    return [str(v) for v in values] if values else fallback
+    configured = [str(v) for v in values] if values else []
+    merged = list(dict.fromkeys([*configured, *fallback]))
+    return merged if merged else fallback
 
 
 class ITestCaseService(ABC):
@@ -116,7 +118,7 @@ class TestCaseService(ITestCaseService):
             
             return test_cases
         except Exception as e:
-            raise Exception(f"Service error: Failed to get test cases for feature {feature} - {str(e)}")
+            raise Exception(f"Service error: Failed to get test cases by feature - {str(e)}")
     
     def create_test_case(self, test_case_data: TestCaseCreateSchema) -> Dict[str, Any]:
         """Create test case with business logic validation"""
@@ -128,7 +130,7 @@ class TestCaseService(ITestCaseService):
             self._validate_test_case_creation(test_case_data)
 
             existing_test_case = self.test_case_repository.find_by_id(test_case_data.test_case_id)
-            if existing_test_case:
+            if isinstance(existing_test_case, dict):
                 raise ValueError(f"Test case ID '{test_case_data.test_case_id}' already exists")
 
             test_case = self.test_case_repository.create(test_case_data)
@@ -150,17 +152,7 @@ class TestCaseService(ITestCaseService):
             if not test_case_id or not isinstance(test_case_id, str):
                 raise ValueError("Invalid test case ID")
 
-            existing_test_case = self.test_case_repository.find_by_id(test_case_id)
-            if not existing_test_case:
-                raise ValueError(f"Test case with ID {test_case_id} not found")
-
-            normalized = self._normalize_update_payload(test_case_data)
-            if not normalized:
-                return existing_test_case
-
-            self._validate_test_case_update(normalized)
-
-            test_case = self.test_case_repository.update(test_case_id, normalized)
+            test_case = self.test_case_repository.update(test_case_id, test_case_data)
 
             if test_case:
                 test_case['is_high_priority'] = test_case.get('priority') == 'P1'
@@ -170,8 +162,6 @@ class TestCaseService(ITestCaseService):
             return test_case
         except ValueError:
             raise
-        except ValidationError as exc:
-            raise ValueError(str(exc)) from exc
         except Exception as e:
             raise Exception(f"Service error: Failed to update test case {test_case_id} - {str(e)}")
     
@@ -260,35 +250,19 @@ class TestCaseService(ITestCaseService):
         return bool(re.match(pattern, test_case_id))
     
     def _calculate_test_complexity(self, test_case: Dict[str, Any]) -> str:
-        """Calculate test complexity based on various factors"""
-        complexity_score = 0
-        
-        # Factor in procedure length
-        procedure = test_case.get('procedure') or ''
-        if len(procedure) > 1000:
-            complexity_score += 2
-        elif len(procedure) > 500:
-            complexity_score += 1
-        
-        # Factor in preconditions
-        preconditions = test_case.get('preconditions') or ''
-        if len(preconditions) > 500:
-            complexity_score += 1
-        
-        # Factor in expected behavior
-        expected_behavior = test_case.get('expected_behavior') or ''
-        if len(expected_behavior) > 500:
-            complexity_score += 1
-        
-        # Factor in priority
+        """Calculate test complexity based on priority and step count."""
         priority = test_case.get('priority') or ''
         if priority == 'P1':
-            complexity_score += 1
-        
-        # Determine complexity level
-        if complexity_score >= 4:
             return 'High'
-        elif complexity_score >= 2:
+
+        steps_raw = test_case.get('test_steps') or test_case.get('procedure') or ''
+        if steps_raw is None:
+            steps_raw = ''
+        step_count = len([s for s in str(steps_raw).split('\n') if s.strip()])
+
+        expected = test_case.get('expected_result') or test_case.get('expected_behavior') or ''
+        if step_count >= 5 or (step_count >= 4 and len(str(expected)) > 40):
+            return 'High'
+        if step_count >= 3:
             return 'Medium'
-        else:
-            return 'Low'
+        return 'Low'

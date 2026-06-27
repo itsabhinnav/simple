@@ -86,6 +86,20 @@ class EnvironmentConfigSource(ConfigurationSource):
     def is_available(self) -> bool:
         """Environment variables are always available"""
         return True
+
+    def has_config(self, key: str) -> bool:
+        """Return True when the key is present in the environment."""
+        env_key = f"{self.prefix}{key}" if self.prefix else key
+        return key in os.environ or env_key in os.environ
+
+    def get_config(self, key: str, default: Optional[Any] = None) -> Any:
+        """Return a single environment variable by key."""
+        if key in os.environ:
+            return self._convert_value(os.environ[key])
+        env_key = f"{self.prefix}{key}" if self.prefix else key
+        if env_key in os.environ:
+            return self._convert_value(os.environ[env_key])
+        return default
     
     def _convert_value(self, value: str) -> Union[str, int, float, bool, List[str]]:
         """Convert string value to appropriate type"""
@@ -260,6 +274,28 @@ class FileConfigSource(ConfigurationSource):
         """Check if file is available"""
         return self.file_path.exists()
 
+    def file_exists(self) -> bool:
+        """Return whether the backing configuration file exists."""
+        return self.file_path.exists()
+
+    def has_config(self, key: str) -> bool:
+        return self._get_nested_value(self.load_config(), key) is not None
+
+    def get_config(self, key: str, default: Optional[Any] = None) -> Any:
+        value = self._get_nested_value(self.load_config(), key)
+        return value if value is not None else default
+
+    @staticmethod
+    def _get_nested_value(config: Dict[str, Any], key: str) -> Any:
+        keys = key.split(".")
+        value: Any = config
+        for part in keys:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                return None
+        return value
+
 
 class DatabaseConfigSource(ConfigurationSource):
     """Configuration source from database"""
@@ -333,19 +369,23 @@ class DatabaseConfigSource(ConfigurationSource):
 class ConfigurationManager(IConfigurationProvider):
     """Centralized configuration manager"""
     
-    def __init__(self, environment: str = None):
+    def __init__(self, environment: str = None, initialize_defaults: bool = False):
         self.environment = environment or os.getenv("ENVIRONMENT", "development")
         self.sources: List[ConfigurationSource] = []
         self._config_cache: Dict[str, Any] = {}
         self._base_config: Optional[ApplicationConfig] = None
-        
-        # Initialize with default sources
-        self._initialize_default_sources()
+
+        if initialize_defaults:
+            self._initialize_default_sources()
     
     def _initialize_default_sources(self):
         """Initialize default configuration sources"""
-        # Environment variables (highest priority)
         self.add_source(EnvironmentConfigSource())
+
+        config_file = os.environ.get("CONFIG_FILE")
+        if config_file and Path(config_file).exists():
+            self.add_source(FileConfigSource(config_file))
+            return
 
         # File-based configuration - ONLY use config.yaml (unified configuration)
         config_candidates = [
@@ -388,14 +428,18 @@ class ConfigurationManager(IConfigurationProvider):
             logger.warning(f"Configuration source not available: {type(source).__name__}")
     
     def get_config(self, key: str, default: Any = None) -> Any:
-        """Get configuration value with fallback chain"""
-        # Check cache first
+        """Get configuration value from the first source that defines it."""
         if key in self._config_cache:
             return self._config_cache[key]
-        
-        # Try sources in reverse order (last added has highest priority)
-        for source in reversed(self.sources):
+
+        for source in self.sources:
             try:
+                if hasattr(source, "has_config") and hasattr(source, "get_config"):
+                    if source.has_config(key):
+                        value = source.get_config(key)
+                        self._config_cache[key] = value
+                        return value
+                    continue
                 config = source.load_config()
                 value = self._get_nested_value(config, key)
                 if value is not None:
@@ -403,14 +447,13 @@ class ConfigurationManager(IConfigurationProvider):
                     return value
             except Exception as e:
                 logger.warning(f"Failed to load config from {type(source).__name__}: {e}")
-        
-        # Try base configuration
+
         if self._base_config:
             value = self._get_nested_value(self._base_config.to_dict(), key)
             if value is not None:
                 self._config_cache[key] = value
                 return value
-        
+
         return default
     
     def set_config(self, key: str, value: Any) -> bool:
@@ -575,14 +618,18 @@ class ConfigurationManager(IConfigurationProvider):
         features = self.get_config("features", {})
         return features.get(feature_name, False)
     
-    def get_table_name(self, table_type: str) -> str:
-        """Get table name for a specific type"""
-        table_names = self.get_config("database.table_names", {})
-        return table_names.get(table_type, table_type)
+    def get_table_name(self, table_key: str, default: Optional[str] = None) -> str:
+        """Get table name for a specific type."""
+        configured = self.get_config(f"database.table_names.{table_key}")
+        if configured is not None:
+            return configured
+        if default is not None:
+            return default
+        return table_key
     
-    def get_database_name(self) -> str:
+    def get_database_name(self, default: str = "sakura.db") -> str:
         """Get database name"""
-        return self.get_config("database.name", "sakura_db")
+        return self.get_config("database.name", default)
     
     def get_storage_provider(self) -> str:
         """Get storage provider type"""
@@ -661,20 +708,38 @@ class ConfigurationManager(IConfigurationProvider):
         return url
 
 
-# Global configuration manager instance
-config_manager = ConfigurationManager()
+_config_manager: Optional[ConfigurationManager] = None
+
+
+def _ensure_config_file_source(manager: ConfigurationManager) -> None:
+    """Append CONFIG_FILE source when the env var points at an existing file."""
+    config_file = os.environ.get("CONFIG_FILE")
+    if not config_file:
+        return
+    resolved = str(Path(config_file).resolve())
+    for source in manager.sources:
+        if isinstance(source, FileConfigSource):
+            if str(source.file_path.resolve()) == resolved or str(source.file_path) == config_file:
+                return
+    file_source = FileConfigSource(config_file)
+    if file_source.file_exists():
+        manager.add_source(file_source)
 
 
 def get_config_manager() -> ConfigurationManager:
-    """Get the global configuration manager"""
-    return config_manager
+    """Get the global configuration manager (lazy singleton)."""
+    global _config_manager
+    if _config_manager is None:
+        _config_manager = ConfigurationManager(initialize_defaults=True)
+    _ensure_config_file_source(_config_manager)
+    return _config_manager
 
 
 def get_config_value(key: str, default: Any = None) -> Any:
     """Convenience function to get configuration value"""
-    return config_manager.get_config(key, default)
+    return get_config_manager().get_config(key, default)
 
 
 def set_config_value(key: str, value: Any) -> bool:
     """Convenience function to set configuration value"""
-    return config_manager.set_config(key, value)
+    return get_config_manager().set_config(key, value)

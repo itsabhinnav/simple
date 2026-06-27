@@ -241,7 +241,9 @@ def create_test_user_data():
         "email": "test@example.com",
         "first_name": "Test",
         "last_name": "User",
-        "role": "user"
+        "role": "user",
+        "password": "testpassword123",
+        "secret_key": "testsecretkey123",
     }
 
 def create_test_case_data():

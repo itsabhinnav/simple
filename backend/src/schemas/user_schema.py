@@ -28,7 +28,7 @@ class UserSchema(BaseModel):
     email: str = Field(..., pattern=EMAIL_PATTERN, max_length=254)
     first_name: Optional[str] = Field(None, max_length=50)
     last_name: Optional[str] = Field(None, max_length=50)
-    role: Optional[str] = Field(None, max_length=20)
+    role: Optional[str] = Field(default="user", max_length=20)
     password_hash: Optional[str] = None  # Never expose this in responses
     secret_key_hash: Optional[str] = None  # Never expose this in responses
     git_token_encrypted: Optional[str] = None  # Encrypted Git token, never expose

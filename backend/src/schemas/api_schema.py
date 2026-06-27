@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 
 
 class DatabaseQuerySchema(BaseModel):
@@ -11,11 +10,12 @@ class DatabaseQuerySchema(BaseModel):
 
 class DatabaseInfoSchema(BaseModel):
     """Schema for database information response"""
-    name: str
-    size: int
-    last_modified: datetime
+    database_name: str
+    file_path: str
+    file_size: int
+    last_modified: int
     tables: List[str]
-    row_counts: Dict[str, int]
+    table_count: int
 
 
 class ErrorResponseSchema(BaseModel):

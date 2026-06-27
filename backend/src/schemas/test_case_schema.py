@@ -44,7 +44,6 @@ MULTI_VALUE_FIELDS = (
     "reference_document",
     "associated_requirement_id",
     "screen_id",
-    "feature",
     "region",
     "brand",
     "vehicle_variant",
@@ -95,6 +94,8 @@ class _TestCaseFieldsMixin(BaseModel):
     """
 
     title: Optional[str] = Field(None, max_length=500)
+    test_name: Optional[str] = Field(None, max_length=500)
+    description: Optional[str] = Field(None, max_length=10000)
     vehicle_model: Optional[str] = Field(None, max_length=200)
     severity: Optional[str] = Field(None, max_length=50)
 
@@ -102,7 +103,7 @@ class _TestCaseFieldsMixin(BaseModel):
     reference_document: MultiValue = None
     associated_requirement_id: MultiValue = None
     screen_id: MultiValue = None
-    feature: MultiValue = None
+    feature: Optional[str] = Field(None, max_length=500)
     region: MultiValue = None
     brand: MultiValue = None
     vehicle_variant: MultiValue = None
@@ -116,7 +117,9 @@ class _TestCaseFieldsMixin(BaseModel):
     test_objective: Optional[str] = Field(None, max_length=10000)
     preconditions: Optional[str] = Field(None, max_length=5000)
     procedure: Optional[str] = Field(None, max_length=10000)
+    test_steps: Optional[str] = Field(None, max_length=10000)
     expected_behavior: Optional[str] = Field(None, max_length=5000)
+    expected_result: Optional[str] = Field(None, max_length=5000)
     test_type: Optional[str] = Field(None, max_length=50)
     requirement_type: Optional[str] = Field(None, max_length=50)
     regulation: Optional[str] = Field(None, max_length=10)  # "Yes"/"No"
@@ -148,9 +151,14 @@ class _TestCaseFieldsMixin(BaseModel):
         if legacy_mode is not None and not data.get("vehicle_specification"):
             data["vehicle_specification"] = legacy_mode
 
-        legacy_description = data.pop("description", None)
+        legacy_description = data.get("description")
         if legacy_description is not None and not data.get("test_objective"):
             data["test_objective"] = legacy_description
+
+        if not data.get("test_name") and data.get("title"):
+            data["test_name"] = data["title"]
+        elif not data.get("title") and data.get("test_name"):
+            data["title"] = data["test_name"]
 
         return data
 
@@ -163,11 +171,16 @@ class TestCaseSchema(_TestCaseFieldsMixin):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    model_config = {"extra": "ignore"}
+
 
 class TestCaseCreateSchema(_TestCaseFieldsMixin):
     """Payload accepted by ``POST /api/test-cases``."""
 
     test_case_id: str = Field(..., min_length=1, max_length=100)
+    test_name: str = Field(..., min_length=1, max_length=500)
+
+    model_config = {"extra": "ignore"}
 
 
 class TestCaseUpdateSchema(_TestCaseFieldsMixin):

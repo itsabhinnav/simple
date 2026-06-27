@@ -16,6 +16,13 @@ limiter = Limiter(
 
 def setup_error_handlers(app: Flask) -> None:
     """Setup global error handlers for the Flask application"""
+
+    @app.after_request
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
     
     @app.errorhandler(400)
     def bad_request(error):
@@ -165,13 +172,22 @@ def setup_request_validation(app: Flask) -> None:
     @app.before_request
     def validate_request():
         """Validate incoming requests"""
-        # OPTIONS requests are handled by Flask-CORS
         if request.method == 'OPTIONS':
             return
         
-        # Validate Content-Type for POST/PUT requests. File import endpoints use multipart forms.
         content_type = request.content_type or ''
         is_multipart = content_type.startswith('multipart/form-data')
+        if request.method in ['POST', 'PUT'] and 'application/json' in content_type and not is_multipart:
+            if request.data and request.data.strip():
+                try:
+                    request.get_json(force=True)
+                except Exception:
+                    return jsonify({
+                        "success": False,
+                        "error": "Invalid JSON",
+                        "message": "Request body must be valid JSON"
+                    }), 400
+
         if request.method in ['POST', 'PUT'] and request.is_json is False and not is_multipart:
             return jsonify({
                 "success": False,
@@ -188,6 +204,7 @@ def setup_api_documentation(app: Flask) -> None:
         """Return API documentation"""
         return jsonify({
             "success": True,
+            "title": "Sakura API",
             "message": "Sakura API Documentation",
             "version": "1.0.0",
             "endpoints": {

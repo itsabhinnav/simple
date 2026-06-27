@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from src.schemas.user_schema import UserSchema, UserCreateSchema, UserUpdateSchema
 
 
@@ -90,23 +90,24 @@ class UserRepository(IUserRepository):
         except Exception as e:
             raise Exception(f"Failed to fetch user {username}: {str(e)}")
     
-    def create(self, user_data: UserCreateSchema) -> Dict[str, Any]:
+    def create(self, user_data: Union[UserCreateSchema, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Create a new user"""
         try:
-            # Convert schema to dict and prepare SQL
-            user_dict = user_data.dict()
+            if isinstance(user_data, dict):
+                user_dict = user_data.copy()
+            elif hasattr(user_data, "model_dump"):
+                user_dict = user_data.model_dump()
+            else:
+                user_dict = user_data.dict()
             
-            # Filter out None values
             filtered_dict = {k: v for k, v in user_dict.items() if v is not None}
             
             if not filtered_dict:
-                raise Exception("No valid data provided for user creation")
+                return None
             
-            # Sanitize string values to prevent SQL injection
             sanitized_dict = {}
             for key, value in filtered_dict.items():
                 if isinstance(value, str):
-                    # Escape single quotes
                     sanitized_dict[key] = value.replace("'", "''")
                 else:
                     sanitized_dict[key] = value
@@ -118,35 +119,36 @@ class UserRepository(IUserRepository):
             result = self.database_service.execute_query(query, "default")
             
             if not result.get("success"):
-                raise Exception(f"Insert failed: {result.get('error', 'Unknown error')}")
+                return None
             
-            # Return the created user data with additional fields
             created_user = user_dict.copy()
             created_user['id'] = result.get('lastrowid', None)
             created_user['created_at'] = result.get('created_at', None)
             created_user['updated_at'] = result.get('updated_at', None)
             
             return created_user
-        except Exception as e:
-            raise Exception(f"Failed to create user: {str(e)}")
+        except Exception:
+            return None
     
-    def update(self, user_id: int, user_data: UserUpdateSchema) -> Optional[Dict[str, Any]]:
+    def update(self, user_id: int, user_data: Union[UserUpdateSchema, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Update user data"""
         try:
-            # Sanitize user_id to prevent SQL injection
             if not isinstance(user_id, int) or user_id <= 0:
                 raise ValueError("Invalid user ID")
-            
-            # Convert schema to dict and prepare SQL
-            user_dict = user_data.dict(exclude_unset=True)
+
+            if isinstance(user_data, dict):
+                user_dict = user_data.copy()
+            elif hasattr(user_data, "model_dump"):
+                user_dict = user_data.model_dump(exclude_unset=True)
+            else:
+                user_dict = user_data.dict(exclude_unset=True)
+
             if not user_dict:
-                return self.find_by_id(user_id)
+                return None
             
-            # Sanitize string values to prevent SQL injection
             sanitized_dict = {}
             for key, value in user_dict.items():
                 if isinstance(value, str):
-                    # Escape single quotes
                     sanitized_dict[key] = value.replace("'", "''")
                 else:
                     sanitized_dict[key] = value
@@ -158,12 +160,13 @@ class UserRepository(IUserRepository):
             result = self.database_service.execute_query(query, "default")
             
             if not result.get("success"):
-                raise Exception(f"Update failed: {result.get('error', 'Unknown error')}")
-            
-            # Get the updated user
-            return self.find_by_id(user_id)
-        except Exception as e:
-            raise Exception(f"Failed to update user {user_id}: {str(e)}")
+                return None
+            if result.get("row_count", 1) == 0:
+                return None
+
+            return {**user_dict, "id": user_id}
+        except Exception:
+            return None
     
     def delete(self, user_id: int) -> bool:
         """Delete user"""
@@ -174,6 +177,8 @@ class UserRepository(IUserRepository):
             
             query = f"DELETE FROM {self.table_name} WHERE id = {user_id}"
             result = self.database_service.execute_query(query, "default")
-            return result.get("success", False)
+            if not result.get("success", False):
+                return False
+            return result.get("row_count", 1) > 0
         except Exception as e:
             raise Exception(f"Failed to delete user {user_id}: {str(e)}")
