@@ -24,10 +24,18 @@ START_AFTER_SETUP=1
 SKIP_FRONTEND_INSTALL=0
 INSECURE_SSL=0
 CLEAN_BUILD=0
+INTERACTIVE=0
+NON_INTERACTIVE=0
+SKIP_AUDIT=0
+AUDIT_STRICT=0
 for arg in "$@"; do
   case "$arg" in
     --no-start)              START_AFTER_SETUP=0 ;;
     --skip-frontend-install) SKIP_FRONTEND_INSTALL=1 ;;
+    --interactive)           INTERACTIVE=1 ;;
+    --non-interactive)       NON_INTERACTIVE=1 ;;
+    --skip-audit)            SKIP_AUDIT=1 ;;
+    --audit-strict)          AUDIT_STRICT=1 ;;
     # Corporate MITM proxies often present a self-signed cert. --insecure-ssl
     # tells pip to add bootstrap-pypa hosts to --trusted-host and tells npm
     # to disable strict-ssl + Node TLS verification for this run.
@@ -36,6 +44,12 @@ for arg in "$@"; do
     --clean-build)           CLEAN_BUILD=1 ;;
     -h|--help)
       sed -n '2,22p' "$0"
+      echo ""
+      echo "Interactive options:"
+      echo "  --interactive       Force step-by-step setup wizard"
+      echo "  --non-interactive   Skip wizard prompts (use .env.example defaults)"
+      echo "  --skip-audit        Skip pip/npm dependency audit after install"
+      echo "  --audit-strict      Fail setup when audit reports vulnerabilities"
       exit 0
       ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
@@ -45,6 +59,47 @@ done
 log()  { printf '\033[1;36m[sakura]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[sakura]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[sakura]\033[0m %s\n' "$*" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# 0d. Interactive configuration wizard
+# ---------------------------------------------------------------------------
+ENV_FILE="$ROOT_DIR/.env"
+RUN_WIZARD=$INTERACTIVE
+if [ "$NON_INTERACTIVE" -eq 0 ] && [ "$RUN_WIZARD" -eq 0 ] && [ ! -f "$ENV_FILE" ]; then
+  read -r -p "No .env found. Run interactive setup wizard? [Y/n] " ans
+  case "$ans" in
+    [nN]*) RUN_WIZARD=0 ;;
+    *) RUN_WIZARD=1 ;;
+  esac
+fi
+
+if [ "$RUN_WIZARD" -eq 1 ]; then
+  # shellcheck source=scripts/setup-wizard.sh
+  source "$ROOT_DIR/scripts/setup-wizard.sh"
+  if run_sakura_setup_wizard; then
+    write_sakura_env_file "$ENV_FILE"
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+    if [ "$SAKURA_WIZ_DOCKER" -eq 1 ]; then
+      log "Docker LAN mode selected — building stack via docker compose"
+      command -v docker >/dev/null 2>&1 || die "Docker is required for LAN deployment."
+      if [ -x deploy/lan/scripts/generate-tls.sh ]; then
+        bash deploy/lan/scripts/generate-tls.sh "$SAKURA_WIZ_LAN_IP"
+      fi
+      profile_args=()
+      for p in $SAKURA_WIZ_PROFILES; do
+        profile_args+=(--profile "$p")
+      done
+      docker compose "${profile_args[@]}" up -d --build
+      log "Deployment complete: https://${SAKURA_WIZ_LAN_IP}/"
+      exit 0
+    fi
+  else
+    exit 0
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 0. Corporate proxy detection
@@ -256,7 +311,7 @@ if [ ! -s "$STATIC_DIR/index.html" ] && [ -f "$STATIC_DIR/index.csr.html" ]; the
 fi
 
 # ---------------------------------------------------------------------------
-# 4. .env bootstrap
+# 4. .env bootstrap (non-interactive fallback)
 # ---------------------------------------------------------------------------
 if [ ! -f .env ]; then
   if [ -f .env.example ]; then
@@ -275,6 +330,26 @@ if [ ! -f .env ]; then
 fi
 
 log "Setup complete"
+
+# ---------------------------------------------------------------------------
+# 4a. Dependency audit (target system)
+# ---------------------------------------------------------------------------
+if [ "$SKIP_AUDIT" -eq 0 ]; then
+  log "Running dependency audit (pip + npm) — reports/security/"
+  AUDIT_SCRIPT="$ROOT_DIR/scripts/security/audit-dependencies.sh"
+  if [ -x "$AUDIT_SCRIPT" ] || [ -f "$AUDIT_SCRIPT" ]; then
+    chmod +x "$AUDIT_SCRIPT" 2>/dev/null || true
+    AUDIT_ARGS=(--root "$ROOT_DIR" --venv-python "$VENV_PY")
+    [ "$AUDIT_STRICT" -eq 1 ] && AUDIT_ARGS+=(--strict)
+    bash "$AUDIT_SCRIPT" "${AUDIT_ARGS[@]}" || {
+      if [ "$AUDIT_STRICT" -eq 1 ]; then
+        die "Dependency audit failed (--audit-strict). See reports/security/"
+      fi
+    }
+  else
+    warn "Audit script not found at $AUDIT_SCRIPT"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 4b. Optional runtime deps (Smart Import + local VLM)

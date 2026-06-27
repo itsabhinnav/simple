@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.infrastructure.logging_config import get_logger
-from src.interfaces.llm_provider import get_vlm_registry
+from src.interfaces.llm_provider import get_vlm_registry, remote_providers_allowed
 
 logger = get_logger(__name__)
 
@@ -29,10 +29,11 @@ def _register_all() -> None:
                 model=resolve_config("ollama", "lite_model", default="qwen2.5vl:3b")
             ),
         )
-    if not registry.has("openai"):
-        registry.register("openai", lambda: OpenAIProvider())
-    if not registry.has("anthropic"):
-        registry.register("anthropic", lambda: AnthropicProvider())
+    if remote_providers_allowed():
+        if not registry.has("openai"):
+            registry.register("openai", lambda: OpenAIProvider())
+        if not registry.has("anthropic"):
+            registry.register("anthropic", lambda: AnthropicProvider())
 
     try:
         from src.infrastructure.configuration_manager import get_config_manager

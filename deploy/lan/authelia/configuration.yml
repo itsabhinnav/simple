@@ -1,0 +1,33 @@
+---
+theme: dark
+server:
+  host: 0.0.0.0:9091
+  path: ""
+log:
+  level: info
+identity_validation:
+  reset_password:
+    jwt_secret: ${AUTHELIA_JWT_SECRET:?set AUTHELIA_JWT_SECRET in .env}
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+    password:
+      algorithm: argon2id
+access_control:
+  default_policy: deny
+  rules:
+    - domain: "*"
+      policy: one_factor
+session:
+  secret: ${AUTHELIA_SESSION_SECRET:?set AUTHELIA_SESSION_SECRET in .env}
+  expiration: 12h
+  inactivity: 6h
+  cookies:
+    - domain: ${AUTHELIA_COOKIE_DOMAIN:-localhost}
+      authelia_url: https://${AUTHELIA_COOKIE_DOMAIN:-localhost}/authelia
+storage:
+  local:
+    path: /config/db.sqlite3
+notifier:
+  filesystem:
+    filename: /config/notification.txt

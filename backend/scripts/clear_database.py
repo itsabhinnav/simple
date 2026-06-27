@@ -51,7 +51,15 @@ def clear_database(db_path, db_name):
         if confirm != 'DELETE':
             print("\n❌ Operation cancelled.")
             return
-        
+
+        try:
+            from src.services.database_guard import backup_before_destructive
+            snapshot = backup_before_destructive("pre_clear_database", db_path=db_path)
+            if snapshot:
+                print(f"\n💾 Pre-clear backup saved: {snapshot}")
+        except Exception as exc:
+            print(f"\n⚠️  Pre-clear backup failed: {exc}")
+
         # Delete all data from each table
         print("\n🗑️  Deleting data...")
         deleted_count = 0

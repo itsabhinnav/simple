@@ -1,0 +1,22 @@
+title = "Sakura gitleaks config"
+[extend]
+useDefault = true
+
+[[rules]]
+id = "sakura-jwt-secret"
+description = "JWT secret key assignment"
+regex = '''JWT_SECRET_KEY\s*=\s*['"]?[A-Za-z0-9+/=_-]{16,}'''
+tags = ["secret", "jwt"]
+
+[[rules]]
+id = "sakura-encryption-key"
+description = "Fernet encryption key"
+regex = '''ENCRYPTION_KEY\s*=\s*['"]?[A-Za-z0-9+/=_-]{20,}'''
+tags = ["secret", "crypto"]
+
+[[allowlist]]
+paths = [
+  '''\.env\.example$''',
+  '''deploy/lan/authelia/users_database\.yml$''',
+  '''deploy/lan/keycloak/realm-sakura\.json$''',
+]

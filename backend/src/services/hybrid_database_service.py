@@ -12,9 +12,10 @@ service rather than reviving the old git-mirror flow.
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 
 from src.services.local_database_service import LocalDatabaseService
+from src.services.database_backup_service import DatabaseBackupService, is_corruption_error
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -29,8 +30,13 @@ class HybridDatabaseService:
     been removed.
     """
 
-    def __init__(self, local_db_service: LocalDatabaseService):
+    def __init__(
+        self,
+        local_db_service: LocalDatabaseService,
+        backup_service: Optional[DatabaseBackupService] = None,
+    ):
         self.local_db = local_db_service
+        self._backup = backup_service
         # Local-only mode is permanent. The flag is kept (always False) so
         # any external caller that still inspects it doesn't crash.
         self.git_sync_enabled = False
@@ -65,11 +71,46 @@ class HybridDatabaseService:
         try:
             query_upper = query.strip().upper()
             if query_upper.startswith("SELECT"):
-                return self._handle_read_query(query, database_name, use_cache, params)
-            return self._handle_write_query(query, database_name, params)
+                return self._execute_with_recovery(
+                    lambda: self._handle_read_query(query, database_name, use_cache, params)
+                )
+            return self._execute_with_recovery(
+                lambda: self._handle_write_query(query, database_name, params)
+            )
         except Exception as exc:
             logger.error(f"Query execution failed: {exc}")
             return {"success": False, "error": str(exc), "data": []}
+
+    def _execute_with_recovery(self, operation):
+        result = operation()
+        if result.get("success"):
+            return result
+        error = result.get("error", "")
+        if self._backup and (result.get("corruption") or is_corruption_error(error)):
+            if self._backup.attempt_recovery_on_error(error):
+                logger.info("Retrying query after database restore")
+                return operation()
+        return result
+
+    def execute_in_transaction(
+        self,
+        callback: Callable[[Any], Any],
+    ) -> Dict[str, Any]:
+        """Transactional write with a single version bump and cache invalidation."""
+        result = self.local_db.execute_in_transaction(callback)
+        if not result.get("success"):
+            error = result.get("error", "")
+            if self._backup and (result.get("corruption") or is_corruption_error(error)):
+                if self._backup.attempt_recovery_on_error(error):
+                    result = self.local_db.execute_in_transaction(callback)
+            if not result.get("success"):
+                return result
+        try:
+            self.local_db.increment_database_version()
+        except Exception as version_exc:
+            logger.warning("Failed to bump database version after transaction: %s", version_exc)
+        self.local_db.execute_query("DELETE FROM local_cache WHERE cache_key LIKE 'query_%'")
+        return result
 
     def _handle_read_query(
         self,

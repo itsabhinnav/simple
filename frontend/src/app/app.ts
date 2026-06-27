@@ -1,17 +1,24 @@
 import { Component, signal, inject, OnInit, effect, HostListener } from '@angular/core';
-import { RouterOutlet, Router, RouterModule } from '@angular/router';
+import { RouterOutlet, Router, RouterModule, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { AuthService, User } from './services/auth.service';
 import { RequirementService } from './services/requirement.service';
 import { TestCaseService } from './services/test-case.service';
-import { DesignTicketService, DesignTicket } from './services/design-ticket.service';
 import { Requirement } from './services/requirement.service';
 import { TestCase } from './services/test-case.service';
 import { TranslationService } from './services/translation.service';
 import { TranslatePipe } from './services/translate.pipe';
 import { AutoTranslateDirective } from './services/auto-translate.directive';
 import { API_BASE } from './app-settings';
+import { filter } from 'rxjs/operators';
+
+function scrollAppToTop(): void {
+  if (typeof window === 'undefined') return;
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
 
 @Component({
   selector: 'app-root',
@@ -27,7 +34,6 @@ export class App implements OnInit {
   private router = inject(Router);
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
-  private designTicketService = inject(DesignTicketService);
   translationService = inject(TranslationService);
 
   /** Mirror of AuthService.authEnabled so templates can hide login/logout UI. */
@@ -41,7 +47,7 @@ export class App implements OnInit {
   searchQuery = signal('');
   showCreateMenu = signal(false);
   showLangMenu = signal(false);
-  searchResults = signal<(Requirement | TestCase | DesignTicket)[]>([]);
+  searchResults = signal<(Requirement | TestCase)[]>([]);
   showSearchResults = signal(true);
   
   constructor() {
@@ -49,6 +55,12 @@ export class App implements OnInit {
     effect(() => {
       const user = this.authService.getCurrentUser();
       this.currentUser.set(user);
+    });
+
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd)
+    ).subscribe(() => {
+      queueMicrotask(() => scrollAppToTop());
     });
   }
   
@@ -82,7 +94,6 @@ export class App implements OnInit {
       return;
     }
 
-    // Search in requirements, test cases, and design tickets
     this.requirementService.getRequirements().subscribe({
       next: (requirements) => {
         const filteredRequirements = requirements.filter(req =>
@@ -96,27 +107,10 @@ export class App implements OnInit {
             const filteredTestCases = testCases.filter(tc =>
               tc.test_case_id?.toLowerCase().includes(query.toLowerCase()) ||
               tc.test_objective?.toLowerCase().includes(query.toLowerCase()) ||
-              // feature is now multi-value; flatten via mvDisplay() before substring match.
               TestCaseService.mvDisplay(tc.feature).toLowerCase().includes(query.toLowerCase())
             );
             
-            this.designTicketService.getDesignTickets().subscribe({
-              next: (designTickets) => {
-                const filteredDesignTickets = designTickets.filter(dt =>
-                  dt.design_ticket_id?.toLowerCase().includes(query.toLowerCase()) ||
-                  dt.title?.toLowerCase().includes(query.toLowerCase()) ||
-                  dt.description?.toLowerCase().includes(query.toLowerCase()) ||
-                  dt.design_type?.toLowerCase().includes(query.toLowerCase())
-                );
-                
-                this.searchResults.set([...filteredRequirements, ...filteredTestCases, ...filteredDesignTickets]);
-                console.log('Search results:', this.searchResults());
-              },
-              error: (err) => {
-                console.error('Error loading design tickets:', err);
-                this.searchResults.set([...filteredRequirements, ...filteredTestCases]);
-              }
-            });
+            this.searchResults.set([...filteredRequirements, ...filteredTestCases]);
           },
           error: (err) => {
             console.error('Error loading test cases:', err);
@@ -149,7 +143,7 @@ export class App implements OnInit {
     this.showSearchResults.set(true);
   }
 
-  navigateToItem(item: Requirement | TestCase | DesignTicket, event: Event) {
+  navigateToItem(item: Requirement | TestCase, event: Event) {
     event.preventDefault();
     event.stopPropagation();
     
@@ -157,8 +151,6 @@ export class App implements OnInit {
       this.router.navigate(['/requirements', item.requirement_id]);
     } else if ('test_case_id' in item) {
       this.router.navigate(['/test-cases', item.test_case_id]);
-    } else if ('design_ticket_id' in item) {
-      this.router.navigate(['/design-tickets', item.design_ticket_id]);
     }
     this.searchQuery.set('');
     this.searchResults.set([]);
@@ -209,11 +201,6 @@ export class App implements OnInit {
 
   createTestCase() {
     this.router.navigate(['/test-cases/create']);
-    this.closeCreateMenu();
-  }
-
-  createDesignTicket() {
-    this.router.navigate(['/design-tickets/create']);
     this.closeCreateMenu();
   }
 

@@ -48,8 +48,45 @@ jobs:
           cd frontend
           npm run build -- --configuration production
 
-  build-and-push:
+  docker-compose-smoke:
     needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate .env secrets
+        run: |
+          JWT=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))")
+          ENC=$(python3 -c "import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
+          cp .env.example .env
+          sed -i "s|^JWT_SECRET_KEY=.*|JWT_SECRET_KEY=${JWT}|" .env
+          sed -i "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=${ENC}|" .env
+          sed -i "s|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://localhost|" .env
+
+      - name: Generate TLS material
+        run: bash deploy/lan/scripts/generate-tls.sh 127.0.0.1
+
+      - name: Build and start stack
+        run: docker compose --profile parsing up -d --build
+
+      - name: Wait for healthy backend
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1/health >/dev/null 2>&1; then
+              echo "Health OK"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs
+          exit 1
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  build-and-push:
+    needs: [test-backend, test-frontend, docker-compose-smoke]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     permissions:

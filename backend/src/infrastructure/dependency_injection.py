@@ -12,6 +12,7 @@ import asyncio
 from src.services.local_database_service import LocalDatabaseService
 from src.services.postgresql_database_service import PostgresDatabaseService
 from src.services.hybrid_database_service import HybridDatabaseService
+from src.services.database_backup_service import DatabaseBackupService, PeriodicBackupWorker
 from src.repositories.user_repository import IUserRepository, UserRepository
 from src.repositories.test_case_repository import ITestCaseRepository, TestCaseRepository
 from src.services.user_service import IUserService, UserService
@@ -129,6 +130,7 @@ class ApplicationContainer:
 
         # Register primary database service based on configuration
         db_provider = database_config.get("provider", "sqlite")
+        self._db_provider = db_provider
         
         if db_provider == "postgresql":
             logger.info("Using PostgreSQL as the primary database")
@@ -144,6 +146,13 @@ class ApplicationContainer:
                 LocalDatabaseService,
                 factory=lambda: LocalDatabaseService()
             )
+            self.container.register_singleton(
+                DatabaseBackupService,
+                DatabaseBackupService,
+                factory=lambda: DatabaseBackupService(
+                    db_path=self.container.get(LocalDatabaseService).local_db_path,
+                ),
+            )
         
         # Hybrid database service now runs purely against the local SQLite
         # database. Remote/Git mirror was deleted; do not reintroduce it.
@@ -152,6 +161,11 @@ class ApplicationContainer:
             HybridDatabaseService,
             factory=lambda: HybridDatabaseService(
                 local_db_service=self.container.get(LocalDatabaseService),
+                backup_service=(
+                    self.container.get(DatabaseBackupService)
+                    if db_provider != "postgresql"
+                    else None
+                ),
             )
         )
         
@@ -295,6 +309,19 @@ def get_hybrid_database_service() -> HybridDatabaseService:
 def get_local_database_service() -> LocalDatabaseService:
     """Get the local database service."""
     return get_container().container.get(LocalDatabaseService)
+
+
+def get_database_backup_service() -> DatabaseBackupService:
+    """Get the SQLite backup / recovery service."""
+    container = get_container().container
+    if not container.is_registered(DatabaseBackupService):
+        raise RuntimeError("DatabaseBackupService is only available for SQLite deployments")
+    return container.get(DatabaseBackupService)
+
+
+def get_periodic_backup_worker() -> PeriodicBackupWorker:
+    """Return a configured periodic backup worker (not started)."""
+    return PeriodicBackupWorker(get_database_backup_service())
 
 
 def get_user_service() -> IUserService:

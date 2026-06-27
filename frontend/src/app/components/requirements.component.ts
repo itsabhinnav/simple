@@ -16,8 +16,6 @@ export interface Requirement {
   when_action?: string;
   then_result?: string;
   priority: string;
-  status: string;
-  assignee?: string;
   tags?: string;
   feature?: string;
   region?: string;
@@ -44,8 +42,6 @@ export interface RequirementCreateRequest {
   when?: string;
   then?: string;
   priority: string;
-  status: string;
-  assignee?: string;
   tags?: string;
   feature?: string;
   region?: string;
@@ -68,8 +64,6 @@ export interface RequirementUpdateRequest {
   when?: string;
   then?: string;
   priority?: string;
-  status?: string;
-  assignee?: string;
   tags?: string;
   feature?: string;
   region?: string;
@@ -101,15 +95,13 @@ export class RequirementsComponent implements OnInit {
   isLoading = signal(false);
   error = signal<string | null>(null);
   searchTerm = signal<string>('');
-  selectedStatus = signal<string>('all');
   selectedPriority = signal<string>('all');
-  selectedAssignee = signal<string>('all');
   selectedType = signal<string>('all');
   selectedTags = signal<string[]>([]);
   dateFrom = signal<string>('');
   dateTo = signal<string>('');
   hasDescription = signal<'all' | 'with' | 'without'>('all');
-  sortBy = signal<'updated_at' | 'created_at' | 'priority' | 'status' | 'requirement_id' | 'title'>('updated_at');
+  sortBy = signal<'updated_at' | 'created_at' | 'priority' | 'requirement_id' | 'title'>('updated_at');
   sortDir = signal<'asc' | 'desc'>('desc');
   showAdvancedFilters = signal<boolean>(false);
 
@@ -130,8 +122,6 @@ export class RequirementsComponent implements OnInit {
       when_action: [''],
       then_result: [''],
       priority: ['P2', Validators.required],
-      status: ['Draft', Validators.required],
-      assignee: [''],
       tags: ['']
     });
 
@@ -168,7 +158,6 @@ export class RequirementsComponent implements OnInit {
         req.title.toLowerCase().includes(term) ||
         req.requirement_id.toLowerCase().includes(term) ||
         (req.description?.toLowerCase().includes(term) ?? false) ||
-        (req.assignee?.toLowerCase().includes(term) ?? false) ||
         (req.tags?.toLowerCase().includes(term) ?? false) ||
         (req.given?.toLowerCase().includes(term) ?? false) ||
         (req.when_action?.toLowerCase().includes(term) ?? false) ||
@@ -176,19 +165,8 @@ export class RequirementsComponent implements OnInit {
       );
     }
 
-    if (this.selectedStatus() !== 'all') {
-      filtered = filtered.filter(req => req.status === this.selectedStatus());
-    }
-
     if (this.selectedPriority() !== 'all') {
       filtered = filtered.filter(req => req.priority === this.selectedPriority());
-    }
-
-    if (this.selectedAssignee() !== 'all') {
-      const sel = this.selectedAssignee();
-      filtered = sel === '__unassigned__'
-        ? filtered.filter(req => !req.assignee || req.assignee.trim() === '')
-        : filtered.filter(req => req.assignee === sel);
     }
 
     if (this.selectedType() !== 'all') {
@@ -224,15 +202,11 @@ export class RequirementsComponent implements OnInit {
     const sortBy = this.sortBy();
     const dir = this.sortDir() === 'asc' ? 1 : -1;
     const priorityOrder: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
-    const statusOrder: Record<string, number> = { Draft: 1, Approved: 2, Implemented: 3, Tested: 4, Closed: 5 };
     filtered = [...filtered].sort((a, b) => {
       let cmp = 0;
       switch (sortBy) {
         case 'priority':
           cmp = (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99);
-          break;
-        case 'status':
-          cmp = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
           break;
         case 'requirement_id':
           cmp = a.requirement_id.localeCompare(b.requirement_id, undefined, { numeric: true });
@@ -292,9 +266,7 @@ export class RequirementsComponent implements OnInit {
   activeFilterCount(): number {
     let count = 0;
     if (this.searchTerm().trim()) count++;
-    if (this.selectedStatus() !== 'all') count++;
     if (this.selectedPriority() !== 'all') count++;
-    if (this.selectedAssignee() !== 'all') count++;
     if (this.selectedType() !== 'all') count++;
     count += this.selectedTags().length;
     if (this.dateFrom()) count++;
@@ -309,9 +281,7 @@ export class RequirementsComponent implements OnInit {
 
   clearAllFilters() {
     this.searchTerm.set('');
-    this.selectedStatus.set('all');
     this.selectedPriority.set('all');
-    this.selectedAssignee.set('all');
     this.selectedType.set('all');
     this.selectedTags.set([]);
     this.dateFrom.set('');
@@ -322,8 +292,7 @@ export class RequirementsComponent implements OnInit {
   openCreateModal() {
     this.isEditMode.set(false);
     this.requirementForm.reset({
-      priority: 'P2',
-      status: 'Draft'
+      priority: 'P2'
     });
     this.showModal.set(true);
   }
@@ -338,8 +307,6 @@ export class RequirementsComponent implements OnInit {
       when_action: requirement.when_action || '',
       then_result: requirement.then_result || '',
       priority: requirement.priority,
-      status: requirement.status,
-      assignee: requirement.assignee || '',
       tags: requirement.tags || ''
     });
     this.showModal.set(true);
@@ -425,17 +392,6 @@ export class RequirementsComponent implements OnInit {
     });
   }
 
-  getStatusClass(status: string): string {
-    const statusMap: { [key: string]: string } = {
-      'Draft': 'status-draft',
-      'Approved': 'status-active',
-      'Implemented': 'status-progress',
-      'Tested': 'status-review',
-      'Closed': 'status-completed'
-    };
-    return statusMap[status] || 'status-default';
-  }
-
   getPriorityClass(priority: string): string {
     const priorityMap: { [key: string]: string } = {
       'P4': 'priority-low',
@@ -444,13 +400,6 @@ export class RequirementsComponent implements OnInit {
       'P1': 'priority-critical'
     };
     return priorityMap[priority] || 'priority-default';
-  }
-
-  getUniqueAssignees(): string[] {
-    const assignees = this.requirements()
-      .map(req => req.assignee)
-      .filter((assignee): assignee is string => assignee !== undefined && assignee !== null && assignee.trim() !== '');
-    return [...new Set(assignees)].sort((a, b) => a.localeCompare(b));
   }
 
   navigateToDetail(id: number | undefined) {

@@ -1,7 +1,7 @@
 import sqlite3
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from src.infrastructure.configuration_manager import get_config_manager
 from src.infrastructure.logging_config import get_logger
 
@@ -37,13 +37,29 @@ class LocalDatabaseService:
         """Initialize the local database with required tables"""
         try:
             logger.info("Initializing local database...")
-            
-            # Ensure tables exist
-            self.ensure_tables_exist()
-            
+
+            from src.infrastructure.dependency_injection import get_database_backup_service
+            from src.services.database_migration_service import DatabaseMigrationService
+
+            backup_svc = get_database_backup_service()
+            if not backup_svc.ensure_healthy_on_startup():
+                logger.error("Local database failed integrity check and could not be restored")
+
+            if self.local_db_path.exists() and backup_svc.verify_database()[0]:
+                backup_svc.create_backup(reason="pre_migration")
+
+            if not self.ensure_tables_exist():
+                return False
+
+            if not DatabaseMigrationService(self).run_all():
+                logger.warning("Schema migration completed with errors")
+
+            if backup_svc.verify_database()[0]:
+                backup_svc.create_backup(reason="post_migration")
+
             logger.info("Local database initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize local database: {e}")
             return False
@@ -305,55 +321,9 @@ class LocalDatabaseService:
             self.execute_query(create_activity_log_entity_idx, "default")
             self.execute_query(create_activity_log_recent_idx, "default")
 
-            # Pair the design_tickets table with the requirements.design_ticket_id
-            # column the migration script also adds, so the link from a requirement
-            # to its design ticket survives a clean rebuild.
-            self._add_missing_columns(
-                requirements_table,
-                {
-                    "design_ticket_id": "TEXT",
-                    "srs_id": "TEXT",
-                    "feature": "TEXT",
-                    "region": "TEXT",
-                    "brand": "TEXT",
-                    "reference_spec_id": "TEXT",
-                    "reference_spec_version": "TEXT",
-                    "requirement_version": "TEXT",
-                    "verification_method": "TEXT",
-                    "linked_epic_jira_id": "TEXT",
-                    "linked_test_case_ids": "TEXT",
-                    "linked_design_ids": "TEXT",
-                },
-            )
-            
-            # Idempotent column additions for existing databases that pre-date
-            # newer columns. SQLite < 3.35 does not support `ADD COLUMN IF NOT
-            # EXISTS`, so we ask the table for its current columns first and
-            # only run ALTER for columns that are missing.
-            #
-            # `description` and `vehicle_mode` were retired in June 2026; we
-            # don't add them on fresh DBs but do leave any existing copies in
-            # place so the one-shot migration below can copy their data into
-            # the canonical replacement columns before they fall out of the
-            # API surface.
-            self._add_missing_columns(
-                test_cases_table,
-                {
-                    "title": "TEXT",
-                    "vehicle_model": "TEXT",
-                    "severity": "TEXT",
-                    "vehicle_specification": "TEXT",
-                    "reference_spec_id": "TEXT",
-                    "reference_spec_version": "TEXT",
-                },
-            )
+            # Column additions, retired-column forwarding, and NULL defaults
+            # are handled by DatabaseMigrationService.run_all() after this.
 
-            # One-shot data migration: forward retired columns onto their
-            # replacements when the new columns are still empty. Idempotent —
-            # subsequent runs will find the destination already populated and
-            # be a no-op.
-            self._migrate_retired_test_case_columns(test_cases_table)
-            
             # Initialize database version if not exists
             self.execute_query("""
                 INSERT OR IGNORE INTO database_metadata (metadata_key, metadata_value)
@@ -367,98 +337,73 @@ class LocalDatabaseService:
             logger.error(f"Failed to ensure local tables exist: {e}")
             return False
 
-    def _add_missing_columns(self, table_name: str, columns: Dict[str, str]) -> None:
-        """Add columns to an existing table when they do not yet exist.
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.local_db_path), timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 5000")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
 
-        SQLite does not have `ADD COLUMN IF NOT EXISTS`, so we query the
-        existing schema with PRAGMA and only run ALTER for missing columns.
-        Idempotent; safe to run on every startup.
+    def execute_in_transaction(
+        self,
+        callback: Callable[[sqlite3.Connection], Any],
+    ) -> Dict[str, Any]:
+        """Run ``callback(conn)`` inside a single SQLite transaction."""
+        from src.services.database_backup_service import is_corruption_error
 
-        We open a direct sqlite3 connection here because the generic
-        `execute_query` wrapper only fetches rows when the query starts with
-        `SELECT`, so PRAGMA results would otherwise come back empty.
-        """
+        conn = self._connect()
         try:
-            conn = sqlite3.connect(str(self.local_db_path))
-            try:
-                cursor = conn.cursor()
-                cursor.execute(f"PRAGMA table_info({table_name})")
-                existing = {row[1] for row in cursor.fetchall()}  # row[1] is the column name
-                for column, column_type in columns.items():
-                    if column in existing:
-                        continue
-                    try:
-                        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column} {column_type}")
-                        conn.commit()
-                        logger.info(f"Migration: added column {table_name}.{column} ({column_type})")
-                    except sqlite3.OperationalError as alter_exc:
-                        # Either the column already exists (race) or some other
-                        # benign mismatch — log but don't block startup.
-                        if "duplicate column" in str(alter_exc).lower():
-                            logger.debug(
-                                f"Migration: column {table_name}.{column} already exists, skipping"
-                            )
-                        else:
-                            logger.warning(
-                                f"Migration: failed to add column {table_name}.{column}: {alter_exc}"
-                            )
-            finally:
-                conn.close()
+            conn.execute("BEGIN IMMEDIATE")
+            result = callback(conn)
+            conn.commit()
+            return {"success": True, "result": result}
+        except sqlite3.DatabaseError as exc:
+            conn.rollback()
+            msg = str(exc)
+            logger.error("Transaction rolled back: %s", msg)
+            return {
+                "success": False,
+                "error": msg,
+                "corruption": is_corruption_error(msg),
+            }
         except Exception as exc:
-            logger.warning(f"Migration: column-addition check failed for {table_name}: {exc}")
+            conn.rollback()
+            logger.error("Transaction rolled back: %s", exc)
+            return {"success": False, "error": str(exc)}
+        finally:
+            conn.close()
 
-    def _migrate_retired_test_case_columns(self, table_name: str) -> None:
-        """Forward data from retired columns onto their replacements.
+    def execute_transaction(self, queries: List[str]) -> bool:
+        """Execute multiple SQL strings in one transaction (legacy interface)."""
 
-        The June 2026 schema removed two columns from the API surface but we
-        don't physically drop them in SQLite (DROP COLUMN landed in 3.35 and
-        not all environments ship a recent build). Instead, on every startup
-        we copy:
+        def _run(conn: sqlite3.Connection) -> bool:
+            for query in queries:
+                conn.execute(query)
+            return True
 
-            description    -> test_objective         when test_objective IS NULL
-            vehicle_mode   -> vehicle_specification  when vehicle_specification IS NULL
+        result = self.execute_in_transaction(_run)
+        return bool(result.get("success"))
 
-        After the copy the legacy columns are still present on disk but the
-        repository's _hydrate_row strips them from every response, so they
-        become invisible to the API.
+    def backup_database(self, backup_path: str) -> bool:
+        from src.infrastructure.dependency_injection import get_database_backup_service
 
-        Operation is idempotent: subsequent runs hit the IS NULL guard and
-        no-op once every row has been migrated.
-        """
+        path = get_database_backup_service().create_backup(reason="manual")
+        if path is None:
+            return False
         try:
-            conn = sqlite3.connect(str(self.local_db_path))
-            try:
-                cursor = conn.cursor()
-                cursor.execute(f"PRAGMA table_info({table_name})")
-                existing = {row[1] for row in cursor.fetchall()}
+            import shutil
+            shutil.copy2(path, backup_path)
+            return True
+        except OSError:
+            logger.exception("Failed to copy backup to %s", backup_path)
+            return False
 
-                migrations = [
-                    ("description", "test_objective"),
-                    ("vehicle_mode", "vehicle_specification"),
-                ]
-                for legacy, canonical in migrations:
-                    if legacy not in existing or canonical not in existing:
-                        continue
-                    cursor.execute(
-                        f"UPDATE {table_name} "
-                        f"SET {canonical} = {legacy} "
-                        f"WHERE ({canonical} IS NULL OR {canonical} = '') "
-                        f"  AND {legacy} IS NOT NULL "
-                        f"  AND {legacy} <> ''"
-                    )
-                    moved = cursor.rowcount
-                    if moved:
-                        logger.info(
-                            f"Migration: copied {moved} row(s) "
-                            f"{table_name}.{legacy} -> {table_name}.{canonical}"
-                        )
-                conn.commit()
-            finally:
-                conn.close()
-        except Exception as exc:
-            logger.warning(
-                f"Migration: retired-column copy failed for {table_name}: {exc}"
-            )
+    def restore_database(self, backup_path: str) -> bool:
+        from src.infrastructure.dependency_injection import get_database_backup_service
+
+        return get_database_backup_service().restore_from(Path(backup_path))
 
     def get_database_version(self) -> int:
         """Get the current database version"""
@@ -507,18 +452,15 @@ class LocalDatabaseService:
             **kwargs: Additional parameters for compatibility
         """
         try:
-            conn = sqlite3.connect(str(self.local_db_path))
-            conn.row_factory = sqlite3.Row  # Enable column access by name
+            conn = self._connect()
             cursor = conn.cursor()
-            
+
             try:
-                # Execute the query with parameters if provided
                 if params:
                     cursor.execute(query, params)
                 else:
                     cursor.execute(query)
-                
-                # Determine if this is a SELECT query
+
                 if query.strip().upper().startswith('SELECT'):
                     rows = cursor.fetchall()
                     data = [dict(row) for row in rows]
@@ -527,19 +469,26 @@ class LocalDatabaseService:
                         "data": data,
                         "row_count": len(data)
                     }
-                else:
-                    # For INSERT, UPDATE, DELETE
-                    conn.commit()
-                    return {
-                        "success": True,
-                        "row_count": cursor.rowcount,
-                        "lastrowid": cursor.lastrowid
-                    }
-                    
+
+                conn.commit()
+                return {
+                    "success": True,
+                    "row_count": cursor.rowcount,
+                    "lastrowid": cursor.lastrowid
+                }
+
             finally:
                 cursor.close()
                 conn.close()
-                
+
+        except sqlite3.DatabaseError as e:
+            logger.error(f"Local database query failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "data": [],
+                "corruption": "malformed" in str(e).lower() or "corrupt" in str(e).lower(),
+            }
         except Exception as e:
             logger.error(f"Local database query failed: {e}")
             return {
@@ -550,43 +499,7 @@ class LocalDatabaseService:
     
     def _execute_query_with_params(self, query: str, params: tuple = ()) -> Dict[str, Any]:
         """Execute a query with parameters"""
-        try:
-            conn = sqlite3.connect(str(self.local_db_path))
-            conn.row_factory = sqlite3.Row  # Enable column access by name
-            cursor = conn.cursor()
-            
-            try:
-                cursor.execute(query, params)
-                
-                # Determine if this is a SELECT query
-                if query.strip().upper().startswith('SELECT'):
-                    rows = cursor.fetchall()
-                    data = [dict(row) for row in rows]
-                    return {
-                        "success": True,
-                        "data": data,
-                        "row_count": len(data)
-                    }
-                else:
-                    # For INSERT, UPDATE, DELETE
-                    conn.commit()
-                    return {
-                        "success": True,
-                        "row_count": cursor.rowcount,
-                        "lastrowid": cursor.lastrowid
-                    }
-                    
-            finally:
-                cursor.close()
-                conn.close()
-                
-        except Exception as e:
-            logger.error(f"Local database query with params failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "data": []
-            }
+        return self.execute_query(query, "default", params=params)
     
     def get_user_preference(self, user_id: int, preference_key: str) -> Optional[str]:
         """Get a user preference value"""

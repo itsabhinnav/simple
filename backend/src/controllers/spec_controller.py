@@ -168,7 +168,18 @@ class SpecController:
         return original, rel_path
 
     def _try_fetch_external_file(self, spec_id: str, source_url: str) -> Optional[tuple[str, str]]:
-        """Best-effort fetch for direct file links (SharePoint may require auth)."""
+        """Best-effort fetch for direct file links — disabled by default (SAK-040)."""
+        from src.infrastructure.url_safety import spec_url_fetch_allowed, validate_fetch_url
+
+        if not spec_url_fetch_allowed():
+            logger.info("Spec URL fetch disabled (set SAKURA_ALLOW_SPEC_URL_FETCH=true to opt in)")
+            return None
+
+        ok, reason = validate_fetch_url(source_url)
+        if not ok:
+            logger.warning("Rejected spec source_url: %s", reason)
+            return None
+
         try:
             from urllib.request import urlopen, Request
 

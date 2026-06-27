@@ -59,10 +59,12 @@ def test_unknown_default_raises(fresh_registry):
         fresh_registry.set_default("nothing-registered")
 
 
-def test_global_singleton_has_three_builtin_providers():
-    from src.interfaces.llm_provider import get_vlm_registry
+def test_global_singleton_has_local_builtin_providers():
+    from src.interfaces.llm_provider import get_vlm_registry, remote_providers_allowed
     import src.implementations.llm  # noqa: F401 - auto-registers
 
     reg = get_vlm_registry()
     providers = reg.list_providers()
-    assert {"ollama", "openai", "anthropic"}.issubset(set(providers))
+    assert {"ollama", "ollama-lite"}.issubset(set(providers))
+    if remote_providers_allowed():
+        assert {"openai", "anthropic"}.issubset(set(providers))

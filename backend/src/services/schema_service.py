@@ -555,28 +555,18 @@ class SchemaService:
     # Backups
     # ------------------------------------------------------------------
     def create_backup(self) -> Dict[str, Any]:
-        path = self._snapshot()
+        from src.infrastructure.dependency_injection import get_database_backup_service
+
+        path = get_database_backup_service().create_backup(reason="admin_manual")
         if path is None:
             raise SchemaError("Could not create backup")
         size = Path(path).stat().st_size if Path(path).exists() else 0
-        return {"path": path, "size_bytes": size}
+        return {"path": str(path), "size_bytes": size}
 
     def list_backups(self) -> List[Dict[str, Any]]:
-        if not self._backup_dir.exists():
-            return []
-        out: List[Dict[str, Any]] = []
-        for p in sorted(self._backup_dir.glob("sakura_db.*.bak"), reverse=True):
-            try:
-                stat = p.stat()
-                out.append({
-                    "path": str(p),
-                    "name": p.name,
-                    "size_bytes": stat.st_size,
-                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                })
-            except Exception:
-                continue
-        return out
+        from src.infrastructure.dependency_injection import get_database_backup_service
+
+        return get_database_backup_service().list_backups()
 
     # ------------------------------------------------------------------
     # Internals
@@ -638,38 +628,19 @@ class SchemaService:
     def _snapshot(self) -> Optional[str]:
         """Copy the live SQLite file into the backups dir and prune old ones."""
         try:
-            if not self._db_path.exists():
-                return None
-            ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-            target = self._backup_dir / f"sakura_db.{ts}.bak"
-            shutil.copy2(self._db_path, target)
-            # WAL/SHM siblings are best-effort; if missing we skip.
-            for ext in ("-shm", "-wal"):
-                sibling = Path(str(self._db_path) + ext)
-                if sibling.exists():
-                    shutil.copy2(sibling, str(target) + ext)
-            self._prune_backups()
-            return str(target)
+            from src.infrastructure.dependency_injection import get_database_backup_service
+
+            path = get_database_backup_service().create_backup(reason="schema_ddl")
+            return str(path) if path else None
         except Exception:
             logger.exception("Schema backup failed")
             return None
 
     def _prune_backups(self) -> None:
         try:
-            entries = sorted(
-                self._backup_dir.glob("sakura_db.*.bak"),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-            for stale in entries[self.BACKUP_RETENTION:]:
-                try:
-                    stale.unlink(missing_ok=True)
-                    for ext in ("-shm", "-wal"):
-                        sib = Path(str(stale) + ext)
-                        if sib.exists():
-                            sib.unlink(missing_ok=True)
-                except Exception:
-                    continue
+            from src.infrastructure.dependency_injection import get_database_backup_service
+
+            get_database_backup_service()._prune_backups()
         except Exception:
             logger.debug("Backup pruning failed", exc_info=True)
 

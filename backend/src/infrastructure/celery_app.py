@@ -38,6 +38,10 @@ def _enforce_loopback_broker(url: str, label: str) -> str:
     to opt out.
     """
     if os.environ.get("SAKURA_ALLOW_REMOTE_BROKER", "false").lower() == "true":
+        if os.environ.get("ENVIRONMENT", "production").lower() == "production":
+            raise RuntimeError(
+                "SAKURA_ALLOW_REMOTE_BROKER=true is not permitted when ENVIRONMENT=production"
+            )
         return url
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()

@@ -57,7 +57,7 @@
     <section class="rail-section">
       <header class="section-head"><h3>Search in</h3></header>
       <ul class="filter-list">
-        <li *ngFor="let k of allKinds">
+        <li *ngFor="let k of visibleKinds">
           <label class="filter-row">
             <input type="checkbox" [checked]="kindFilters()[k]" (change)="toggleKind(k)" />
             <span class="filter-icon">{{ kindIcon[k] }}</span>
@@ -92,7 +92,6 @@
           <span>{{ model }}</span>
           <span *ngIf="indexStatus()?.dimension as dim">· {{ dim }}d</span>
         </div>
-        <div class="index-row index-error" *ngIf="indexStatus()?.last_error as err" [title]="err">⚠ {{ err }}</div>
       </div>
       <div class="index-actions">
         <button class="btn-secondary" (click)="reindex(false)" [disabled]="reindexing() || !indexStatus()?.enabled">
@@ -113,8 +112,8 @@
       <div class="chat-title">
         <span class="chat-title-icon">💬</span>
         <div>
-          <h1>Sakura AI</h1>
-          <p>Ask anything about your requirements, test cases, designs and specs.</p>
+          <h1>Sakura Search</h1>
+          <p>Ask anything about your requirements, test cases, and specs.</p>
         </div>
       </div>
       <div class="chat-header-actions">
@@ -149,7 +148,7 @@
         </div>
         <div class="msg-body">
           <div class="msg-head">
-            <span class="msg-role">{{ m.role === 'user' ? 'You' : 'Sakura AI' }}</span>
+            <span class="msg-role">{{ m.role === 'user' ? 'You' : 'Sakura Search' }}</span>
             <span class="msg-time">{{ relativeTime(m.createdAt) }}</span>
             <span *ngIf="m.role === 'assistant' && m.provider" class="pill provider-pill">{{ m.provider }}</span>
             <span *ngIf="m.role === 'assistant' && m.retrievalMode" class="pill mode-pill" [attr.data-mode]="m.retrievalMode">
@@ -169,9 +168,10 @@
 
           <div class="msg-text"
                *ngIf="m.role === 'assistant'"
+               data-no-translate
                [innerHTML]="renderAnswer(m.content, m.citations)"
                (click)="onAnswerClick($event)"></div>
-          <div class="msg-text user-text" *ngIf="m.role === 'user'">{{ m.content }}</div>
+          <div class="msg-text user-text" data-no-translate *ngIf="m.role === 'user'">{{ m.content }}</div>
 
           <div *ngIf="m.streaming && !m.content" class="thinking">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>

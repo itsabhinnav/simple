@@ -272,18 +272,6 @@
           </div>
         </a>
 
-        <a class="db-kpi db-kpi--designs" routerLink="/design-tickets">
-          <div class="db-kpi-head">
-            <span class="db-kpi-icon">🎨</span>
-            <span class="db-kpi-label">{{ 'dashboard.designs' | translate }}</span>
-          </div>
-          <div class="db-kpi-value">{{ designTicketsCount() }}</div>
-          <div class="db-kpi-foot">
-            <span class="db-kpi-meta">{{ designLinkedPercent() }}% linked</span>
-            <a class="db-kpi-act" routerLink="/design-tickets/import" (click)="$event.stopPropagation()">⬆ Import</a>
-          </div>
-        </a>
-
         <a class="db-kpi db-kpi--tests" routerLink="/test-cases">
           <div class="db-kpi-head">
             <span class="db-kpi-icon">🧪</span>
@@ -378,16 +366,8 @@
           </div>
           <ul class="db-gauge-breakdown">
             <li>
-              <span class="db-bd-lbl">Workflow advanced</span>
-              <span class="db-bd-val">{{ requirementStatusBar().length > 0 ? 'tracking' : '—' }}</span>
-            </li>
-            <li>
               <span class="db-bd-lbl">Coverage</span>
               <span class="db-bd-val">{{ coveragePercent() }}%</span>
-            </li>
-            <li>
-              <span class="db-bd-lbl">Designs implemented</span>
-              <span class="db-bd-val">{{ designLinkedPercent() }}%</span>
             </li>
           </ul>
         </article>
@@ -400,56 +380,8 @@
         <!-- Workflow status panels (stacked horizontal bars per entity) -->
         <article class="db-card db-card--status">
           <header class="db-card-head">
-            <h2 class="db-card-title">Workflow Status</h2>
+            <h2 class="db-card-title">Test Types</h2>
           </header>
-
-          <div class="db-stack-row">
-            <div class="db-stack-head">
-              <span class="db-stack-name">Requirements</span>
-              <span class="db-stack-total">{{ requirementsCount() }}</span>
-            </div>
-            <div class="db-stack-bar" *ngIf="requirementStatusBar().length > 0">
-              <span *ngFor="let s of requirementStatusBar()"
-                    class="db-stack-seg"
-                    [style.width.%]="s.percent"
-                    [style.background]="s.color"
-                    [attr.title]="s.label + ': ' + s.count + ' (' + s.percent + '%)'"></span>
-            </div>
-            <div class="db-stack-bar db-stack-bar--empty" *ngIf="requirementStatusBar().length === 0">
-              <span class="db-stack-empty">No data yet</span>
-            </div>
-            <ul class="db-stack-legend" *ngIf="requirementStatusBar().length > 0">
-              <li *ngFor="let s of requirementStatusBar()">
-                <span class="db-legend-dot" [style.background]="s.color"></span>
-                <span class="db-legend-lbl">{{ s.label }}</span>
-                <span class="db-legend-val">{{ s.count }}</span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="db-stack-row">
-            <div class="db-stack-head">
-              <span class="db-stack-name">Designs</span>
-              <span class="db-stack-total">{{ designTicketsCount() }}</span>
-            </div>
-            <div class="db-stack-bar" *ngIf="designStatusBar().length > 0">
-              <span *ngFor="let s of designStatusBar()"
-                    class="db-stack-seg"
-                    [style.width.%]="s.percent"
-                    [style.background]="s.color"
-                    [attr.title]="s.label + ': ' + s.count + ' (' + s.percent + '%)'"></span>
-            </div>
-            <div class="db-stack-bar db-stack-bar--empty" *ngIf="designStatusBar().length === 0">
-              <span class="db-stack-empty">No data yet</span>
-            </div>
-            <ul class="db-stack-legend" *ngIf="designStatusBar().length > 0">
-              <li *ngFor="let s of designStatusBar()">
-                <span class="db-legend-dot" [style.background]="s.color"></span>
-                <span class="db-legend-lbl">{{ s.label }}</span>
-                <span class="db-legend-val">{{ s.count }}</span>
-              </li>
-            </ul>
-          </div>
 
           <div class="db-stack-row">
             <div class="db-stack-head">

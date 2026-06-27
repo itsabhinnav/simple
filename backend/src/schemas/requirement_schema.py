@@ -24,8 +24,6 @@ class RequirementSchema(BaseModel):
     when: Optional[str] = None  # When action (DB column: when_action)
     then: Optional[str] = None  # Then expected result (DB column: then_result)
     priority: Optional[str] = Field(None, max_length=20)
-    status: Optional[str] = Field(None, max_length=20)
-    assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
     feature: Optional[str] = Field(None, max_length=100)
     region: Optional[str] = Field(None, max_length=100)
@@ -54,8 +52,6 @@ class RequirementCreateSchema(BaseModel):
     when: Optional[str] = None
     then: Optional[str] = None
     priority: Optional[str] = Field(None, max_length=20)
-    status: Optional[str] = Field('Draft', max_length=20)
-    assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
     feature: Optional[str] = Field(None, max_length=100)
     region: Optional[str] = Field(None, max_length=100)
@@ -85,8 +81,6 @@ class RequirementUpdateSchema(BaseModel):
     when: Optional[str] = None
     then: Optional[str] = None
     priority: Optional[str] = Field(None, max_length=20)
-    status: Optional[str] = Field(None, max_length=20)
-    assignee: Optional[str] = Field(None, max_length=100)
     tags: Optional[str] = None
     feature: Optional[str] = Field(None, max_length=100)
     region: Optional[str] = Field(None, max_length=100)

@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal, OnDestroy, HostListener } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
-import { TestCaseService, TestCase, TestCaseDropdowns } from '../services/test-case.service';
+import { TestCaseService, TestCase, TestCaseDropdowns, TEST_CASE_MULTI_VALUE_FIELDS } from '../services/test-case.service';
 import { RequirementService } from '../services/requirement.service';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
@@ -62,12 +62,31 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
    * clicks, hero <select> dropdowns) all gate on this signal.
    */
   editMode = signal(false);
+  automationEnabled = signal(false);
+  isExecuting = signal(false);
+  executionNotice = signal<string | null>(null);
   /** Dropdown options sourced from `config.yaml > test_case_dropdowns`. */
   dropdowns = signal<TestCaseDropdowns | null>(null);
 
   /** Adapter so the template can render a multi-value field as `chip`s. */
   mvArray(value: any): string[] {
     return TestCaseService.mvArray(value);
+  }
+
+  /** Join multi-value fields for text-input display. */
+  mvDisplay(value: any): string {
+    return TestCaseService.mvDisplay(value);
+  }
+
+  private isMultiValueField(field: string): boolean {
+    return (TEST_CASE_MULTI_VALUE_FIELDS as readonly string[]).includes(field);
+  }
+
+  private normalizeFieldValue(field: string, value: any): any {
+    if (this.isMultiValueField(field)) {
+      return TestCaseService.mvArray(value);
+    }
+    return value;
   }
 
   /** Toggle a value inside a multi-value field and persist the change. */
@@ -86,14 +105,33 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
    */
   toggleEditMode() {
     const next = !this.editMode();
-    this.editMode.set(next);
     if (!next) {
+      this.flushPendingSaves();
       this.stopEdit();
+    }
+    this.editMode.set(next);
+  }
+
+  /** Bypass debounce — call when leaving edit mode or before navigation. */
+  private flushPendingSaves() {
+    const pending = { ...this.pendingFields() };
+    for (const [field, value] of Object.entries(pending)) {
+      this.saveField(field, value);
     }
   }
 
   isMultiSelected(field: string, value: string): boolean {
     return TestCaseService.mvArray((this.testCase() as any)?.[field]).includes(value);
+  }
+
+  /** Dropdown options plus the current DB value when it isn't in config. */
+  dropdownOptions(field: 'priority' | 'test_type' | 'regulation', current?: string): string[] {
+    const configured = [...(this.dropdowns()?.[field] || [])];
+    const cur = (current ?? '').trim();
+    if (cur && !configured.includes(cur)) {
+      return [cur, ...configured];
+    }
+    return configured;
   }
   
   private saveSubject = new Subject<{ field: string; value: any }>();
@@ -127,6 +165,10 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
       next: data => this.dropdowns.set(data),
       error: err => console.error('Failed to load dropdowns', err),
     });
+    this.testCaseService.getAutomationStatus().subscribe({
+      next: status => this.automationEnabled.set(!!status.enabled),
+      error: () => this.automationEnabled.set(false),
+    });
 
     if (typeof window !== 'undefined') {
       window.addEventListener('sakura:activity-reverted', this.onReverted as EventListener);
@@ -150,6 +192,7 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
   @HostListener('window:beforeunload', ['$event'])
   onBeforeUnload(e: BeforeUnloadEvent) {
     if (Object.keys(this.pendingFields()).length > 0) {
+      this.flushPendingSaves();
       e.preventDefault();
       e.returnValue = '';
     }
@@ -248,6 +291,27 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  executeTestCase() {
+    const id = this.testCaseId();
+    if (!id) return;
+    if (!this.automationEnabled()) {
+      this.executionNotice.set('Test automation is disabled in server config.');
+      return;
+    }
+    this.isExecuting.set(true);
+    this.executionNotice.set(null);
+    this.testCaseService.executeTestCase(id).subscribe({
+      next: (result) => {
+        this.executionNotice.set(result.message || 'Execution finished');
+        this.isExecuting.set(false);
+      },
+      error: (err) => {
+        this.executionNotice.set(err?.message || 'Execution failed');
+        this.isExecuting.set(false);
+      },
+    });
+  }
+
   deleteTestCase() {
     if (!this.testCaseId() || !confirm('Are you sure you want to delete this test case?')) {
       return;
@@ -332,83 +396,93 @@ export class TestCaseDetailComponent implements OnInit, OnDestroy {
 
   onFieldChange(field: string, value: any) {
     if (!this.testCase()) return;
-    // Hard-stop in read-only mode so even the hero <select> dropdowns and
-    // multi-pickers can't sneak through a write when Edit isn't pressed.
     if (!this.editMode()) return;
 
+    const normalized = this.normalizeFieldValue(field, value);
     const current = this.testCase()!;
-    this.testCase.set({ ...current, [field]: value });
+    this.testCase.set({ ...current, [field]: normalized });
 
-    // Buffer the edit and persist to localStorage so reloads / errors
-    // can't lose the value the user just typed.
-    const nextPending = { ...this.pendingFields(), [field]: value };
+    const nextPending = { ...this.pendingFields(), [field]: normalized };
     this.pendingFields.set(nextPending);
     if (this.testCaseId()) writeTcPending(this.testCaseId()!, nextPending);
     this.retryCounts[field] = 0;
 
-    this.saveSubject.next({ field, value });
+    this.saveSubject.next({ field, value: normalized });
     this.saveStatus.set('saving');
+  }
+
+  private valuesMatch(field: string, a: any, b: any): boolean {
+    if (this.isMultiValueField(field)) {
+      const aa = TestCaseService.mvArray(a);
+      const bb = TestCaseService.mvArray(b);
+      return aa.length === bb.length && aa.every((v, i) => v === bb[i]);
+    }
+    return (a ?? '') === (b ?? '');
+  }
+
+  private handleSaveFailure(field: string, err: any) {
+    console.error('Error saving field:', err);
+    this.saveStatus.set('error');
+    this.error.set(`Failed to save ${field}: ${err?.message || err}`);
+    this.isSaving.set(false);
+
+    const attempt = (this.retryCounts[field] || 0) + 1;
+    this.retryCounts[field] = attempt;
+    if (attempt < this.MAX_RETRIES) {
+      const delayMs = Math.pow(2, attempt - 1) * 1000;
+      setTimeout(() => {
+        const latest = this.pendingFields()[field];
+        if (latest === undefined) return;
+        this.saveSubject.next({ field, value: latest });
+      }, delayMs);
+    } else {
+      setTimeout(() => {
+        if (this.saveStatus() === 'error') this.error.set(null);
+      }, 6000);
+    }
   }
 
   private saveField(field: string, value: any) {
     if (!this.testCaseId() || !this.testCase()) return;
 
+    const normalized = this.normalizeFieldValue(field, value);
     this.isSaving.set(true);
     this.saveStatus.set('saving');
 
-    const updateData: any = {};
-    updateData[field] = value;
+    const updateData: Record<string, any> = { [field]: normalized };
 
     this.testCaseService.updateTestCase(this.testCaseId()!, updateData).subscribe({
       next: (updatedTestCase) => {
-        if (updatedTestCase) {
-          // Keep any newer pending edits (typed while the request was in
-          // flight) so they aren't clobbered by the server response.
-          const stillPending = { ...this.pendingFields() };
-          delete stillPending[field];
-          const merged: TestCase = { ...this.testCase()!, ...updatedTestCase };
-          for (const f of Object.keys(stillPending)) {
-            (merged as any)[f] = stillPending[f];
-          }
-          this.testCase.set(merged);
-          this.pendingFields.set(stillPending);
-          if (this.testCaseId()) writeTcPending(this.testCaseId()!, stillPending);
-          this.retryCounts[field] = 0;
+        const serverValue = (updatedTestCase as any)?.[field];
+        if (!this.valuesMatch(field, normalized, serverValue)) {
+          // Server echo doesn't match what we sent — keep local + pending.
+          console.warn(`Save echo mismatch for ${field}; keeping local value`);
+          this.handleSaveFailure(field, new Error('Server returned unexpected value'));
+          return;
+        }
 
-          if (Object.keys(stillPending).length === 0) {
-            this.saveStatus.set('saved');
-            setTimeout(() => {
-              if (this.saveStatus() === 'saved') this.saveStatus.set('idle');
-            }, 2000);
-          } else {
-            this.saveStatus.set('saving');
-          }
+        const stillPending = { ...this.pendingFields() };
+        delete stillPending[field];
+        const merged: TestCase = { ...this.testCase()!, ...updatedTestCase };
+        for (const f of Object.keys(stillPending)) {
+          (merged as any)[f] = stillPending[f];
+        }
+        this.testCase.set(merged);
+        this.pendingFields.set(stillPending);
+        if (this.testCaseId()) writeTcPending(this.testCaseId()!, stillPending);
+        this.retryCounts[field] = 0;
+
+        if (Object.keys(stillPending).length === 0) {
+          this.saveStatus.set('saved');
+          setTimeout(() => {
+            if (this.saveStatus() === 'saved') this.saveStatus.set('idle');
+          }, 2000);
+        } else {
+          this.saveStatus.set('saving');
         }
         this.isSaving.set(false);
       },
-      error: (err) => {
-        console.error('Error saving field:', err);
-        this.saveStatus.set('error');
-        this.error.set(`Failed to save ${field}: ${err?.message || err}`);
-        this.isSaving.set(false);
-
-        // DO NOT reload the test case on error — that would overwrite the
-        // value the user just typed. Keep it local + retry instead.
-        const attempt = (this.retryCounts[field] || 0) + 1;
-        this.retryCounts[field] = attempt;
-        if (attempt < this.MAX_RETRIES) {
-          const delayMs = Math.pow(2, attempt - 1) * 1000;
-          setTimeout(() => {
-            const latest = this.pendingFields()[field];
-            if (latest === undefined) return;
-            this.saveSubject.next({ field, value: latest });
-          }, delayMs);
-        } else {
-          setTimeout(() => {
-            if (this.saveStatus() === 'error') this.error.set(null);
-          }, 6000);
-        }
-      }
+      error: (err) => this.handleSaveFailure(field, err),
     });
   }
 }

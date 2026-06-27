@@ -210,6 +210,13 @@ class TestCaseRepository(ITestCaseRepository):
         except Exception as e:
             raise Exception(f"Failed to fetch test cases for feature {feature}: {str(e)}")
 
+    def _fetch_row(self, conn, test_case_id: str) -> Optional[Dict[str, Any]]:
+        row = conn.execute(
+            f"SELECT * FROM {self.table_name} WHERE test_case_id = ?",
+            (test_case_id,),
+        ).fetchone()
+        return _hydrate_row(dict(row)) if row else None
+
     def create(self, test_case_data: TestCaseCreateSchema) -> Dict[str, Any]:
         try:
             test_case_dict = test_case_data.model_dump()
@@ -232,29 +239,20 @@ class TestCaseRepository(ITestCaseRepository):
             params = tuple(payload.values())
 
             query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders})"
-            result = self.database_service.execute_query(query, "default", params=params)
+            tc_id = test_case_data.test_case_id
+            user = self._current_user()
+            act = self._get_activity_log()
 
-            if not result.get("success"):
-                raise Exception(f"Insert failed: {result.get('error', 'Unknown error')}")
-
-            created = self.find_by_id(test_case_data.test_case_id) or {}
-            if not created:
-                # Fallback (DB without RETURNING) — re-hydrate from the input.
-                hydrated = test_case_dict.copy()
-                for field in MULTI_VALUE_FIELDS:
-                    hydrated[field] = _deserialize_multi(hydrated.get(field))
-                hydrated["id"] = result.get("lastrowid")
-                hydrated["created_at"] = result.get("created_at")
-                hydrated["updated_at"] = result.get("updated_at")
-                created = hydrated
-
-            try:
-                act = self._get_activity_log()
+            def _write(conn):
+                conn.execute(query, params)
+                created = self._fetch_row(conn, tc_id)
+                if not created:
+                    raise Exception("Insert succeeded but row not found")
                 if act:
-                    user = self._current_user()
-                    act.record_change(
+                    act.record_change_on_connection(
+                        conn,
                         entity_type="test_case",
-                        entity_id=created.get("test_case_id") or test_case_data.test_case_id,
+                        entity_id=created.get("test_case_id") or tc_id,
                         entity_pk=created.get("id"),
                         action="create",
                         before=None,
@@ -262,10 +260,12 @@ class TestCaseRepository(ITestCaseRepository):
                         author_username=user["username"],
                         author_id=user.get("id"),
                     )
-            except Exception:  # noqa: BLE001
-                pass
+                return created
 
-            return created
+            tx = self.database_service.execute_in_transaction(_write)
+            if not tx.get("success"):
+                raise Exception(f"Insert failed: {tx.get('error', 'Unknown error')}")
+            return tx.get("result") or {}
         except Exception as e:
             raise Exception(f"Failed to create test case: {str(e)}")
 
@@ -292,18 +292,15 @@ class TestCaseRepository(ITestCaseRepository):
                 f"UPDATE {self.table_name} SET {set_clause}, "
                 f"updated_at = CURRENT_TIMESTAMP WHERE test_case_id = ?"
             )
-            result = self.database_service.execute_query(query, "default", params=params)
+            user = self._current_user()
+            act = self._get_activity_log()
 
-            if not result.get("success"):
-                raise Exception(f"Update failed: {result.get('error', 'Unknown error')}")
-
-            after = self.find_by_id(test_case_id)
-
-            try:
-                act = self._get_activity_log()
+            def _write(conn):
+                conn.execute(query, params)
+                after = self._fetch_row(conn, test_case_id)
                 if act and after:
-                    user = self._current_user()
-                    act.record_change(
+                    act.record_change_on_connection(
+                        conn,
                         entity_type="test_case",
                         entity_id=test_case_id,
                         entity_pk=after.get("id"),
@@ -313,10 +310,12 @@ class TestCaseRepository(ITestCaseRepository):
                         author_username=user["username"],
                         author_id=user.get("id"),
                     )
-            except Exception:  # noqa: BLE001
-                pass
+                return after
 
-            return after
+            tx = self.database_service.execute_in_transaction(_write)
+            if not tx.get("success"):
+                raise Exception(f"Update failed: {tx.get('error', 'Unknown error')}")
+            return tx.get("result")
         except Exception as e:
             raise Exception(f"Failed to update test case {test_case_id}: {str(e)}")
 
@@ -324,27 +323,26 @@ class TestCaseRepository(ITestCaseRepository):
         try:
             before = self.find_by_id(test_case_id)
             query = f"DELETE FROM {self.table_name} WHERE test_case_id = ?"
-            result = self.database_service.execute_query(query, "default", params=(test_case_id,))
-            success = result.get("success", False)
+            user = self._current_user()
+            act = self._get_activity_log()
 
-            if success and before:
-                try:
-                    act = self._get_activity_log()
-                    if act:
-                        user = self._current_user()
-                        act.record_change(
-                            entity_type="test_case",
-                            entity_id=test_case_id,
-                            entity_pk=before.get("id"),
-                            action="delete",
-                            before=before,
-                            after=None,
-                            author_username=user["username"],
-                            author_id=user.get("id"),
-                        )
-                except Exception:  # noqa: BLE001
-                    pass
+            def _write(conn):
+                if act and before:
+                    act.record_change_on_connection(
+                        conn,
+                        entity_type="test_case",
+                        entity_id=test_case_id,
+                        entity_pk=before.get("id"),
+                        action="delete",
+                        before=before,
+                        after=None,
+                        author_username=user["username"],
+                        author_id=user.get("id"),
+                    )
+                conn.execute(query, (test_case_id,))
+                return True
 
-            return success
+            tx = self.database_service.execute_in_transaction(_write)
+            return bool(tx.get("success"))
         except Exception as e:
             raise Exception(f"Failed to delete test case {test_case_id}: {str(e)}")

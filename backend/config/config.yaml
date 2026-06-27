@@ -107,6 +107,7 @@ parsing:
   tmp_dir: data/tmp/parsing
   spatial_radius: 4
   vlm:
+    allow_remote_providers: false
     default_provider: ollama
     providers:
       ollama:

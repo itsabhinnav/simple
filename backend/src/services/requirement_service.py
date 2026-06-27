@@ -53,7 +53,7 @@ def _column_for(field: str) -> str:
 # experimental columns never leak into responses.
 _SELECT_COLUMNS = (
     "id, requirement_id, srs_id, title, description, requirement_type, given, "
-    "when_action, then_result, priority, status, assignee, tags, feature, "
+    "when_action, then_result, priority, tags, feature, "
     "region, brand, reference_spec_id, reference_spec_version, "
     "requirement_version, verification_method, linked_epic_jira_id, "
     "linked_test_case_ids, linked_design_ids, design_ticket_id, "
@@ -180,33 +180,34 @@ class RequirementService(IRequirementService):
             params = tuple(payload.values())
 
             query = f"INSERT INTO requirements ({columns}) VALUES ({placeholders})"
-            result = self.database_service.execute_query(query, "default", params=params)
+            act = self._get_activity_log()
 
-            if not result.get("success"):
-                raise Exception(f"Insert failed: {result.get('error', 'Unknown error')}")
-
-            new_pk = result.get("lastrowid")
-            created = self.get_requirement_by_id(new_pk) if new_pk else None
-            created_payload = created or {**payload, "id": new_pk}
-
-            # Activity log: record creation with the full initial snapshot.
-            try:
-                act = self._get_activity_log()
+            def _write(conn):
+                cursor = conn.execute(query, params)
+                new_pk = cursor.lastrowid
+                row = conn.execute(
+                    f"SELECT {_SELECT_COLUMNS} FROM requirements WHERE id = ?",
+                    (new_pk,),
+                ).fetchone()
+                created = dict(row) if row else {**payload, "id": new_pk}
                 if act:
-                    act.record_change(
+                    act.record_change_on_connection(
+                        conn,
                         entity_type="requirement",
-                        entity_id=created_payload.get("requirement_id") or str(new_pk),
+                        entity_id=created.get("requirement_id") or str(new_pk),
                         entity_pk=new_pk,
                         action="create",
                         before=None,
-                        after=created_payload,
+                        after=created,
                         author_username=created_by,
                         author_id=user.get("id"),
                     )
-            except Exception as log_exc:  # noqa: BLE001
-                logger.warning(f"Activity log (create) failed: {log_exc}")
+                return created
 
-            return created_payload
+            tx = self.database_service.execute_in_transaction(_write)
+            if not tx.get("success"):
+                raise Exception(f"Insert failed: {tx.get('error', 'Unknown error')}")
+            return tx.get("result") or {}
         except Exception as e:
             logger.error(f"Failed to create requirement: {e}", exc_info=True)
             raise Exception(f"Service error: Failed to create requirement - {str(e)}")
@@ -241,21 +242,19 @@ class RequirementService(IRequirementService):
 
             query = f"UPDATE requirements SET {set_clause} WHERE id = ?"
             params.append(req_id)
+            user = self._current_user()
+            act = self._get_activity_log()
 
-            result = self.database_service.execute_query(
-                query, "default", params=tuple(params)
-            )
-            if not result.get("success"):
-                raise Exception(f"Update failed: {result.get('error', 'Unknown error')}")
-
-            after = self.get_requirement_by_id(req_id)
-
-            # Activity log: capture the diff in git-style commit form.
-            try:
-                act = self._get_activity_log()
+            def _write(conn):
+                conn.execute(query, tuple(params))
+                row = conn.execute(
+                    f"SELECT {_SELECT_COLUMNS} FROM requirements WHERE id = ?",
+                    (req_id,),
+                ).fetchone()
+                after = dict(row) if row else None
                 if act and after:
-                    user = self._current_user()
-                    act.record_change(
+                    act.record_change_on_connection(
+                        conn,
                         entity_type="requirement",
                         entity_id=after.get("requirement_id") or str(req_id),
                         entity_pk=req_id,
@@ -265,10 +264,12 @@ class RequirementService(IRequirementService):
                         author_username=user["username"],
                         author_id=user.get("id"),
                     )
-            except Exception as log_exc:  # noqa: BLE001
-                logger.warning(f"Activity log (update) failed: {log_exc}")
+                return after
 
-            return after
+            tx = self.database_service.execute_in_transaction(_write)
+            if not tx.get("success"):
+                raise Exception(f"Update failed: {tx.get('error', 'Unknown error')}")
+            return tx.get("result")
         except ValueError:
             raise
         except Exception as e:
@@ -285,15 +286,13 @@ class RequirementService(IRequirementService):
                 return False
 
             query = "DELETE FROM requirements WHERE id = ?"
-            result = self.database_service.execute_query(query, "default", params=(req_id,))
-            if not result.get("success"):
-                raise Exception(result.get("error", "Unknown DB error"))
+            user = self._current_user()
+            act = self._get_activity_log()
 
-            try:
-                act = self._get_activity_log()
+            def _write(conn):
                 if act:
-                    user = self._current_user()
-                    act.record_change(
+                    act.record_change_on_connection(
+                        conn,
                         entity_type="requirement",
                         entity_id=before.get("requirement_id") or str(req_id),
                         entity_pk=req_id,
@@ -303,9 +302,12 @@ class RequirementService(IRequirementService):
                         author_username=user["username"],
                         author_id=user.get("id"),
                     )
-            except Exception as log_exc:  # noqa: BLE001
-                logger.warning(f"Activity log (delete) failed: {log_exc}")
+                conn.execute(query, (req_id,))
+                return True
 
+            tx = self.database_service.execute_in_transaction(_write)
+            if not tx.get("success"):
+                raise Exception(tx.get("error", "Unknown DB error"))
             return True
         except ValueError:
             raise

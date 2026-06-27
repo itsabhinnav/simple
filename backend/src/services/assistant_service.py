@@ -146,7 +146,7 @@ class AssistantService:
         source_meta = {
             "requirements": dict(
                 list_fn=self._requirements.get_all_requirements,
-                fields=["requirement_id", "title", "description", "tags", "given", "when_action", "then_result", "status", "priority"],
+                fields=["requirement_id", "title", "description", "tags", "given", "when_action", "then_result", "priority"],
                 kind="requirement", id_field="requirement_id", title_field="title",
                 route_fn=lambda r: f"/requirements/{r.get('id')}" if r.get("id") else "/requirements",
             ),
@@ -298,7 +298,7 @@ class AssistantService:
     def _build_prompt(self, ctx: AssistantContext) -> Tuple[str, Dict[str, Any]]:
         payload = {
             "requirements": [
-                self._slim(r, ["requirement_id", "title", "description", "priority", "status", "tags", "given", "when_action", "then_result"])
+                self._slim(r, ["requirement_id", "title", "description", "priority", "tags", "given", "when_action", "then_result"])
                 for r in ctx.requirements
             ],
             "test_cases": [
@@ -315,7 +315,7 @@ class AssistantService:
             ],
         }
         system = (
-            "You are Sakura AI, the QA knowledge assistant for Sakura. Answer the user's question using ONLY the JSON facts "
+            "You are Sakura Search, the QA knowledge assistant for Sakura. Answer the user's question using ONLY the JSON facts "
             "provided in the next user message. If the answer is not supported by the data, say so explicitly. "
             "When you reference an item, cite its ID inline in square brackets (e.g. [REQ-014], [TC-007]). "
             "Be concise: 1-2 short paragraphs, then optionally a bullet list of the matching items. "
@@ -338,7 +338,22 @@ class AssistantService:
             return self._registry.get(provider_name)
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Falling back to default provider — requested '{provider_name}' failed: {exc}")
-            return self._registry.get(None)
+            try:
+                return self._registry.get(None)
+            except Exception as inner:  # noqa: BLE001
+                logger.warning(f"No LLM provider available: {inner}")
+                return None
+
+    @staticmethod
+    def _retrieval_only_answer(ctx: AssistantContext) -> str:
+        if not ctx.citations:
+            return "No matching items were found in the selected sources."
+        lines = ["Here are the matching items I found:"]
+        for citation in ctx.citations[:12]:
+            lines.append(f"- [{citation.id}] {citation.title}")
+        if len(ctx.citations) > 12:
+            lines.append(f"- …and {len(ctx.citations) - 12} more (see Sources below)")
+        return "\n".join(lines)
 
     def answer(
         self,
@@ -355,6 +370,7 @@ class AssistantService:
         ctx = self._collect(question, self._normalize_kinds(kinds))
         system, facts = self._build_prompt(ctx)
         prov = self._resolve_provider(provider)
+        provider_name = prov.name() if prov is not None else "retrieval"
 
         messages: List[Dict[str, Any]] = []
         for turn in (history or [])[-6:]:
@@ -371,15 +387,18 @@ class AssistantService:
             ),
         })
 
-        try:
-            answer = prov.chat_text(messages, system=system)
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"LLM chat_text failed via {prov.name()}: {exc}")
-            answer = f"(LLM provider '{prov.name()}' unavailable: {exc}). Showing matching items only."
+        if prov is None:
+            answer = self._retrieval_only_answer(ctx)
+        else:
+            try:
+                answer = prov.chat_text(messages, system=system)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"LLM chat_text failed via {prov.name()}: {exc}")
+                answer = self._retrieval_only_answer(ctx)
 
         return {
             "answer": answer.strip() if isinstance(answer, str) else str(answer),
-            "provider": prov.name(),
+            "provider": provider_name,
             "retrieval_mode": getattr(ctx, "retrieval_mode", "lexical"),
             "citations": [c.__dict__ for c in ctx.citations],
             "matched_terms": ctx.matched_terms,
@@ -413,9 +432,10 @@ class AssistantService:
         ctx = self._collect(question, self._normalize_kinds(kinds))
         system, facts = self._build_prompt(ctx)
         prov = self._resolve_provider(provider)
+        provider_name = prov.name() if prov is not None else "retrieval"
 
         yield "meta", {
-            "provider": prov.name(),
+            "provider": provider_name,
             "retrieval_mode": getattr(ctx, "retrieval_mode", "lexical"),
             "citations": [c.__dict__ for c in ctx.citations],
             "matched_terms": ctx.matched_terms,
@@ -442,12 +462,15 @@ class AssistantService:
             ),
         })
 
-        try:
-            for chunk in prov.chat_text_stream(messages, system=system):
-                if chunk:
-                    yield "token", {"text": chunk}
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"LLM stream failed via {prov.name()}: {exc}")
-            yield "token", {"text": f"\n\n[provider '{prov.name()}' error: {exc}]"}
+        if prov is None:
+            yield "token", {"text": self._retrieval_only_answer(ctx)}
+        else:
+            try:
+                for chunk in prov.chat_text_stream(messages, system=system):
+                    if chunk:
+                        yield "token", {"text": chunk}
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"LLM stream failed via {prov.name()}: {exc}")
+                yield "token", {"text": self._retrieval_only_answer(ctx)}
 
         yield "done", {}

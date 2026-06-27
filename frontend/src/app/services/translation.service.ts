@@ -502,9 +502,197 @@ export class TranslationService {
     'Assignee:': '担当者:',
     'From:': '開始:',
     'To:': '終了:',
+
+    // App chrome (header / assistant / dashboard)
+    'Language': '言語',
+    'Sakura Search': 'さくら検索',
+    'Admin Settings': '管理者設定',
+    'New chat': '新しいチャット',
+    'Clear all': 'すべてクリア',
+    'Search in': '検索対象',
+    'Model': 'モデル',
+    'Knowledge index': 'ナレッジインデックス',
+    'Reindex': '再インデックス',
+    'Indexing…': 'インデックス作成中…',
+    'Force': '強制',
+    'default': 'デフォルト',
+    'none registered': '登録なし',
+    'Ask anything about your requirements, test cases, and specs.': '要件・テストケース・仕様書について何でも質問できます。',
+    'Where would you like to start?': 'どこから始めますか？',
+    'Pick a starter prompt or type your own. Answers cite the matching records, and you can re-open every chat later from the History panel.': 'サンプルプロンプトを選ぶか、自由に入力してください。回答には該当レコードへの引用が含まれ、過去のチャットは履歴から再開できます。',
+    'You': 'あなた',
+    'Regenerate': '再生成',
+    'Stop': '停止',
+    'Copy': 'コピー',
+    'Rename': '名前変更',
+    'Show history': '履歴を表示',
+    'Hide history': '履歴を非表示',
+    'Regenerate last answer': '最後の回答を再生成',
+    'Re-embed every row from scratch': '全行を最初から再埋め込み',
+    'Send (↵)': '送信 (↵)',
+    'Sources': 'ソース',
+    'Show less': '折りたたむ',
+    'Show all': 'すべて表示',
+    'matched:': '一致:',
+    'just now': 'たった今',
+    'msg': '件',
+    'Past conversations will appear here.': '過去の会話がここに表示されます。',
+    'Ask anything…': '何でも質問…',
+    'index: loading…': 'インデックス: 読み込み中…',
+    'index: disabled': 'インデックス: 無効',
+    'index: reindexing…': 'インデックス: 再構築中…',
+    'not yet built': '未構築',
+    'vectors': 'ベクトル',
+    'synced': '同期',
+    'ago': '前',
+
+    // Dashboard
+    'Welcome back,': 'おかえりなさい、',
+    'Your engineering workspace at a glance — coverage, workflow health, and recent activity.': 'カバレッジ・ワークフロー状況・最近のアクティビティを一覧で確認できます。',
+    'Total artifacts': 'アーティファクト総数',
+    'Requirements covered': 'カバー済み要件',
+    'Quality score': '品質スコア',
+    'Source docs': 'ソース文書',
+    'covered': 'カバー済み',
+    'tests': 'テスト',
+    'Traceability & Coverage': 'トレーサビリティとカバレッジ',
+    'View matrix →': 'マトリクスを表示 →',
+    'Requirements ↔ Tests': '要件 ↔ テスト',
+    'Linked via test associations': 'テスト関連付けによるリンク',
+    'Verification mix': '検証の内訳',
+    'No test cases yet.': 'テストケースはまだありません。',
+    'Project Quality': 'プロジェクト品質',
+    'live': 'ライブ',
+    'out of 100': '/ 100',
+    'Coverage': 'カバレッジ',
+    'Test Types': 'テスト種別',
+    'Test types': 'テスト種別',
+    'No data yet': 'データなし',
+    'Priority Mix': '優先度の内訳',
+    'Reqs vs Tests': '要件 vs テスト',
+    'Verification scenarios': '検証シナリオ',
+    '% covered': '% カバー済み',
+
+    // Detail / create pages
+    'Discard': '破棄',
+    'Retry now': '今すぐ再試行',
+    'Retry pending edits': '保留中の編集を再試行',
+    'Discard local edits': 'ローカル編集を破棄',
+    'Stop editing': '編集を終了',
+    'Enable editing': '編集を有効化',
+    'Delete test case': 'テストケースを削除',
+    'Loading test case': 'テストケースを読み込み中',
+    'Loading requirement': '要件を読み込み中',
+    'Loading dashboard': 'ダッシュボードを読み込み中',
+    'Click to edit': 'クリックして編集',
+    'View requirement details': '要件の詳細を表示',
+    'TEST CASE': 'テストケース',
+    'REQUIREMENT': '要件',
+    'Pickers · Linked Requirement · Classification · Scope': 'ピッカー · 関連要件 · 分類 · スコープ',
+    'Classification · Identification · References · Links': '分類 · 識別 · 参照 · リンク',
+    'Classification': '分類',
+    'Identification': '識別',
+    'References': '参照',
+    'Links': 'リンク',
+    'Linked Requirement': '関連要件',
+    'What this test aims to validate': 'このテストで検証する内容',
+    'State and setup required before execution': '実行前に必要な状態とセットアップ',
+    'Step-by-step actions to perform': '実行する手順',
+    'What should happen if the test passes': 'テスト合格時に期待される結果',
+    'Plain-language summary of the requirement': '要件の平易な説明',
+    'Given · When · Then — conditions for passing': '前提 · 操作 · 結果 — 合格条件',
+    'Acceptance Criteria': '受け入れ基準',
+    'Linked Test Cases': '関連テストケース',
+    'People': '関係者',
+    'Timeline': 'タイムライン',
+    'Last updated': '最終更新',
+    'Untitled test case': '無題のテストケース',
+    'Could not create requirement': '要件を作成できませんでした',
+    'Could not create test case': 'テストケースを作成できませんでした',
+    'Create requirement': '要件を作成',
+    'Create test case': 'テストケースを作成',
+    'New': '新規',
+    'Reference Specification': '参照仕様',
+    'Spec Project': '仕様プロジェクト',
+    'Spec Version': '仕様バージョン',
+    'All projects': 'すべてのプロジェクト',
+    'Verification Method': '検証方法',
+    'Linked Items': '関連項目',
+    'Epic JIRA ID': 'エピック JIRA ID',
+    'SRS ID': 'SRS ID',
+    'Requirement Version': '要件バージョン',
+    'Requirement title': '要件タイトル',
+    'Document file': '文書ファイル',
+    'Project & identity': 'プロジェクトと識別情報',
+    'Upload file': 'ファイルをアップロード',
+    'SharePoint / link': 'SharePoint / リンク',
+    'New document': '新規文書',
+    'New version': '新規バージョン',
+    'Browse all': 'すべて閲覧',
+    'By project': 'プロジェクト別',
+    'All versions': 'すべてのバージョン',
+    'Projects': 'プロジェクト',
+    'Click a project to manage its specs': 'プロジェクトをクリックして仕様を管理',
+    'Upload a spec and name the project': '仕様をアップロードしてプロジェクト名を設定',
+    'Upload spec': '仕様をアップロード',
+    'Upload first spec': '最初の仕様をアップロード',
+    'Open link': 'リンクを開く',
+    'Official': '公式',
+    'Inspection': '検査',
+    'Analysis': '分析',
+    'Demonstration': '実証',
+    'Test': 'テスト',
+    'P1 · Critical': 'P1 · 最重要',
+    'P2 · High': 'P2 · 高',
+    'P3 · Medium': 'P3 · 中',
+    'P4 · Low': 'P4 · 低',
+    'GIVEN': '前提',
+    'WHEN': '操作',
+    'THEN': '結果',
+    'Toggle advanced filters': '詳細フィルタの切替',
+    'Items per page': 'ページあたりの件数',
+    'Previous page': '前のページ',
+    'Next page': '次のページ',
+    'Breadcrumb': 'パンくずリスト',
+    'No file': 'ファイルなし',
+
+    // Smart import
+    'Map columns': '列をマッピング',
+    'Review': '確認',
+    'Drop files here': 'ファイルをここにドロップ',
+    'Add more files': 'ファイルを追加',
+    'Queued': '待機中',
+    'Reading': '読み込み中',
+    'sheet': 'シート',
+    'sheets': 'シート',
+    'Smart parse with AI': 'AIによるスマート解析',
+    'Provider': 'プロバイダー',
+    'Local model': 'ローカルモデル',
+    'Quality': '品質',
+    'Speed': '速度',
+    'Render page snapshots (LibreOffice)': 'ページスナップショットを生成 (LibreOffice)',
+    'Run VLM extraction': 'VLM抽出を実行',
+    'Filter columns': '列をフィルタ',
+    'Preset name': 'プリセット名',
+    'Required field': '必須フィールド',
+    'Skip mapping and trust auto-detection.': 'マッピングをスキップして自動検出を信頼',
+
+    // Auth / misc placeholders
+    'Enter your username': 'ユーザー名を入力',
+    'Enter your password': 'パスワードを入力',
+    'Enter your secret key': '秘密鍵を入力',
+    'Enter description…': '説明を入力…',
+    'comma, separated, tags': 'カンマ区切りのタグ',
+    'Given…': '前提…',
+    'When…': '操作…',
+    'Then…': '結果…',
   };
 
+  private literalEnToJaLower: Record<string, string> = {};
+  private phrasePatterns: { pattern: RegExp; ja: string }[] = [];
+
   constructor() {
+    this.buildPhrasePatterns();
     if (typeof window !== 'undefined') {
       const savedLang = localStorage.getItem('lang') as Lang;
       if (savedLang === 'en' || savedLang === 'ja') {
@@ -513,11 +701,27 @@ export class TranslationService {
     }
   }
 
+  private buildPhrasePatterns(): void {
+    const entries = Object.entries(this.literalEnToJa);
+    entries.sort((a, b) => b[0].length - a[0].length);
+    this.phrasePatterns = entries.map(([en, ja]) => ({
+      pattern: new RegExp(en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+      ja,
+    }));
+    this.literalEnToJaLower = {};
+    for (const [en, ja] of entries) {
+      this.literalEnToJaLower[en.toLowerCase()] = ja;
+    }
+  }
+
   setLanguage(lang: Lang) {
-    this.currentLang.set(lang);
+    if (this.currentLang() === lang) return;
     if (typeof window !== 'undefined') {
       localStorage.setItem('lang', lang);
+      window.location.reload();
+      return;
     }
+    this.currentLang.set(lang);
   }
 
   /** Translate by slug (legacy keys) or fall back to literal text. */
@@ -525,37 +729,49 @@ export class TranslationService {
     const lang = this.currentLang();
     const fromSlug = this.translations[lang]?.[key];
     if (fromSlug) return fromSlug;
-    if (lang === 'ja') {
-      const lit = this.literalEnToJa[key];
-      if (lit) return lit;
-    }
+    if (lang === 'ja') return this.translateLiteral(key);
     return key;
   }
 
-  /** Translate a literal piece of English UI text to Japanese (or return
-   * the input unchanged for English / unknown strings). Used by the
-   * AutoTranslate directive that walks the DOM. */
+  /** Offline literal translation for DOM text and dynamic UI strings. */
   translateLiteral(text: string): string {
-    if (this.currentLang() !== 'ja') return text;
-    if (!text) return text;
-    const direct = this.literalEnToJa[text];
+    if (this.currentLang() !== 'ja' || !text) return text;
+
+    const lookup = (s: string) =>
+      this.literalEnToJa[s] ?? this.literalEnToJaLower[s.toLowerCase()];
+
+    const direct = lookup(text);
     if (direct) return direct;
-    // Try case-normalised lookup
+
     const trimmed = text.trim();
     if (trimmed !== text) {
-      const t = this.literalEnToJa[trimmed];
-      if (t) return text.replace(trimmed, t);
+      const inner = lookup(trimmed);
+      if (inner) {
+        const lead = text.match(/^\s*/)?.[0] ?? '';
+        const trail = text.match(/\s*$/)?.[0] ?? '';
+        return lead + inner + trail;
+      }
     }
-    // Tokenised fallback for compound strings like "Status: Approved" or
-    // "All Test Cases (12)". We replace English tokens that exist in our
-    // dictionary while leaving punctuation / numbers / katakana intact.
-    if (/[A-Za-z]/.test(text)) {
-      const replaced = text.replace(/[A-Za-z][A-Za-z\s\-_/]+[A-Za-z]/g, (frag) => {
-        const norm = frag.trim();
-        return this.literalEnToJa[norm] || frag;
-      });
-      if (replaced !== text) return replaced;
+
+    if (!/[A-Za-z]/.test(text)) return text;
+
+    let result = text;
+    for (const { pattern, ja } of this.phrasePatterns) {
+      if (pattern.test(result)) {
+        result = result.replace(pattern, ja);
+      }
     }
-    return text;
+
+    result = result
+      .replace(/(\d+)m ago/g, '$1分前')
+      .replace(/(\d+)h ago/g, '$1時間前')
+      .replace(/(\d+)s ago/g, '$1秒前')
+      .replace(/(\d+)d ago/g, '$1日前')
+      .replace(/(\d+)mo ago/g, '$1ヶ月前')
+      .replace(/(\d+)y ago/g, '$1年前')
+      .replace(/ · synced /g, ' · 同期 ')
+      .replace(/ vectors · /g, ' ベクトル · ');
+
+    return result;
   }
 }

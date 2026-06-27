@@ -94,7 +94,6 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
               <div class="item-title">{{ req.title }}</div>
               <div class="item-meta">
                 <span class="badge" [class]="getPriorityClass(req.priority)">{{ req.priority }}</span>
-                <span class="badge" [class]="getStatusClass(req.status)">{{ req.status }}</span>
               </div>
             </div>
           </div>
@@ -170,9 +169,6 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
                     <span class="priority-badge" [class]="getPriorityClass(selectedRequirement()!.priority)">
                       {{ selectedRequirement()!.priority }}
                     </span>
-                    <span class="status-badge" [class]="getStatusClass(selectedRequirement()!.status)">
-                      {{ selectedRequirement()!.status }}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -187,10 +183,6 @@ import { TestCaseService, TestCase } from '../services/test-case.service';
                   <div class="meta-item" *ngIf="selectedRequirement()!.requirement_type">
                     <span class="meta-label">Type:</span>
                     <span class="meta-value">{{ selectedRequirement()!.requirement_type }}</span>
-                  </div>
-                  <div class="meta-item" *ngIf="selectedRequirement()!.assignee">
-                    <span class="meta-label">Assignee:</span>
-                    <span class="meta-value">{{ selectedRequirement()!.assignee }}</span>
                   </div>
                   <div class="meta-item" *ngIf="selectedRequirement()!.tags">
                     <span class="meta-label">Tags:</span>
@@ -1083,17 +1075,6 @@ export class SplitViewComponent implements OnInit {
 
   selectTestCase(tc: TestCase) {
     this.selectedTestCase.set(tc);
-  }
-
-  getStatusClass(status: string): string {
-    const map: { [key: string]: string } = {
-      'Draft': 'status-draft',
-      'Approved': 'status-active',
-      'Implemented': 'status-progress',
-      'Tested': 'status-review',
-      'Closed': 'status-completed'
-    };
-    return map[status] || 'status-default';
   }
 
   getPriorityClass(priority: string | undefined): string {

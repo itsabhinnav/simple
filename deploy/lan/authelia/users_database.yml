@@ -1,0 +1,9 @@
+# Authelia user database — replace with LDAP / file sync in production.
+# Generate password hash: docker run authelia/authelia authelia crypto hash generate argon2 --password 'YourPassword'
+users:
+  admin:
+    displayname: "Sakura Admin"
+    password: "$argon2id$v=19$m=65536,t=3,p=4$REPLACE_ME"
+    email: admin@sakura.local
+    groups:
+      - admins

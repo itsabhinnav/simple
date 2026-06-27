@@ -1,0 +1,7 @@
+# Place TLS material here before `docker compose up`:
+#   sakura.crt
+#   sakura.key
+#
+# Generate with:
+#   ./deploy/lan/scripts/generate-tls.sh
+#   ./deploy/lan/scripts/generate-tls.ps1

@@ -19,12 +19,9 @@
             <div class="result-item-header" *ngFor="let item of searchResults()" (mousedown)="navigateToItem(item, $event)">
               <div class="result-type" *ngIf="'requirement_id' in item">{{ 'nav.search_result_req' | translate }}</div>
               <div class="result-type" *ngIf="'test_case_id' in item">{{ 'nav.search_result_tc' | translate }}</div>
-              <div class="result-type" *ngIf="'design_ticket_id' in item">{{ 'nav.search_result_design' | translate }}</div>
-              
               <div class="result-content">
                 <div class="result-id" *ngIf="'requirement_id' in item">{{ item.requirement_id }}</div>
                 <div class="result-id" *ngIf="'test_case_id' in item">{{ item.test_case_id }}</div>
-                <div class="result-id" *ngIf="'design_ticket_id' in item">{{ item.design_ticket_id }}</div>
                 <div class="result-title" *ngIf="'title' in item">{{ item.title }}</div>
                 <div class="result-objective" *ngIf="'test_objective' in item">{{ item.test_objective }}</div>
               </div>
@@ -60,13 +57,6 @@
                   <small>{{ 'nav.testcase_desc' | translate }}</small>
                 </span>
               </button>
-              <button class="menu-item" (click)="createDesignTicket()">
-                <span class="menu-icon">🎨</span>
-                <span class="menu-text">
-                  <strong>{{ 'nav.design' | translate }}</strong>
-                  <small>{{ 'nav.design_desc' | translate }}</small>
-                </span>
-              </button>
               <a class="menu-item" routerLink="/specs" (click)="closeCreateMenu()">
                 <span class="menu-icon">📑</span>
                 <span class="menu-text">
@@ -76,9 +66,9 @@
               </a>
             </div>
           </div>
-          <a *ngIf="currentUser()" routerLink="/assistant" class="admin-link-header" title="Sakura AI">
+          <a *ngIf="currentUser()" routerLink="/assistant" class="admin-link-header" title="Sakura Search">
             <span class="admin-icon">💬</span>
-            <span>Sakura AI</span>
+            <span>Sakura Search</span>
           </a>
           <a *ngIf="isAdmin()" routerLink="/users" class="admin-link-header" title="User Management">
             <span class="admin-icon">👥</span>

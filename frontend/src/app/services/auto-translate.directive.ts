@@ -84,6 +84,10 @@ export class AutoTranslateDirective implements OnInit, OnDestroy {
     });
   }
 
+  private shouldSkip(el: HTMLElement): boolean {
+    return el.hasAttribute('data-no-translate') || el.classList.contains('no-translate');
+  }
+
   private walk(node: Node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const original = node.textContent ?? '';
@@ -99,6 +103,7 @@ export class AutoTranslateDirective implements OnInit, OnDestroy {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const el = node as HTMLElement;
+    if (this.shouldSkip(el)) return;
     const tag = el.tagName?.toLowerCase();
     if (
       tag === 'script' ||

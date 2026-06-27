@@ -1,21 +1,34 @@
-﻿# =============================================================================
-# Sakura - docker-compose stack
-#
-# Single-image deployment: a Flask backend (Gunicorn) that ALSO serves the
-# prebuilt Angular SPA at /, with the API at /api/*. SQLite + the RAG vector
-# sidecar + uploaded specs live in the `sakura-data` and `sakura-uploads`
-# named volumes so they survive container recreation.
-#
-# The legacy `postgres` profile + remote/Git database mirror were removed —
-# the app runs in local-only SQLite mode (see backend/AGENTS.md).
-#
-# Corporate proxy support:
-#   1. Put HTTPS_PROXY=... HTTP_PROXY=... NO_PROXY=... in .env at the repo
-#      root (the same .env Flask reads).
-#   2. They are forwarded to the build (apt/pip/npm pull through them) and
-#      to the running container (so any future outbound calls honour the
-#      same proxy as the build phase).
 # =============================================================================
+# Sakura - hardened LAN enterprise stack (Docker Compose)
+#
+# Default topology:
+#   [LAN clients] -> nginx:443 (TLS) -> backend:5000 (internal network only)
+#                    -> redis (Celery broker, internal only, parsing profile)
+#
+# Profiles:
+#   legacy-direct  - expose backend :5000 to the host (dev / migration only)
+#   iam            - self-hosted Keycloak OIDC broker on the internal network
+#   edge-auth      - Authelia forward-auth in front of nginx
+#   parsing        - Redis for async document parsing workers
+#
+# Quick start (Linux LAN host):
+#   deploy/linux/prerequisites.sh
+#   ./bootstrap.sh                          # interactive wizard
+#   ./deploy/linux/deploy.sh --quick        # existing .env, build + start
+#   ./deploy/linux/docker-stack.sh health
+#
+# Manual:
+#   ./deploy/lan/scripts/generate-tls.sh
+#   docker compose --profile parsing up -d --build
+#   open https://<lan-ip>/
+# =============================================================================
+
+networks:
+  sakura-internal:
+    driver: bridge
+    internal: true
+  sakura-edge:
+    driver: bridge
 
 services:
   backend:
@@ -27,46 +40,33 @@ services:
         HTTPS_PROXY: ${HTTPS_PROXY-}
         NO_PROXY:    ${NO_PROXY-}
     image: sakura-backend:latest
+    networks:
+      - sakura-internal
     environment:
-      # --- runtime mode ---
       ENVIRONMENT: production
       FLASK_ENV:   production
       HOST: 0.0.0.0
       PORT: 5000
-      # --- required secrets ---
       JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in .env}
       ENCRYPTION_KEY:  ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
-      # --- CORS / TLS ---
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5000}
-      FORCE_HTTPS:     ${FORCE_HTTPS:-false}
-      # --- network egress sandbox ---
-      # strict (default, loopback only) | allow_lan (loopback + RFC-1918) | off
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://localhost}
+      FORCE_HTTPS:     ${FORCE_HTTPS:-true}
       ENABLE_NETWORK_RESTRICTIONS: ${ENABLE_NETWORK_RESTRICTIONS:-strict}
-      # --- AI / assistant feature flags ---
-      # External LLM providers (OpenAI / Anthropic) are refused unless this is
-      # flipped on AND the corresponding API key is exported. Local Ollama is
-      # unaffected by this flag.
       SAKURA_LLM_ALLOW_EXTERNAL:      ${SAKURA_LLM_ALLOW_EXTERNAL:-false}
       SAKURA_LLM_ALLOW_REMOTE_OLLAMA: ${SAKURA_LLM_ALLOW_REMOTE_OLLAMA:-false}
-      # The bundled Ollama daemon is shipped with the desktop installer, not
-      # with the container image (the GGUF blobs are multi-GB). Keep the
-      # sidecar disabled by default; flip to "false" and mount the model
-      # blobs into /app/data/ollama/models if you want in-container VLM.
+      SAKURA_REQUIRE_AUTH:            ${SAKURA_REQUIRE_AUTH:-true}
+      SAKURA_ENABLE_OBSERVABILITY:    ${SAKURA_ENABLE_OBSERVABILITY:-true}
       SAKURA_DISABLE_OLLAMA_SIDECAR:  ${SAKURA_DISABLE_OLLAMA_SIDECAR:-true}
       SAKURA_DISABLE_LIVE_INDEXER:    ${SAKURA_DISABLE_LIVE_INDEXER:-false}
-      # --- proxy passthrough ---
-      HTTP_PROXY:  ${HTTP_PROXY-}
-      HTTPS_PROXY: ${HTTPS_PROXY-}
-      NO_PROXY:    ${NO_PROXY-}
-    ports:
-      - "${PORT:-5000}:5000"
+      CELERY_BROKER_URL:              redis://redis:6379/0
+      CELERY_RESULT_BACKEND:          redis://redis:6379/1
     volumes:
-      # SQLite primary DB + RAG vector sidecar + (optional) Ollama models live
-      # under /app/data; uploaded spec files live under /app/uploads. Both
-      # survive container recreation via named volumes.
       - sakura-data:/app/data
       - sakura-uploads:/app/uploads
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5000/health"]
       interval: 30s
@@ -74,6 +74,69 @@ services:
       retries: 3
       start_period: 30s
 
+  nginx:
+    image: nginx:1.27-alpine
+    networks:
+      - sakura-internal
+      - sakura-edge
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/lan/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/lan/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - sakura-internal
+    command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "yes", "--appendonly", "yes"]
+    volumes:
+      - sakura-redis:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  keycloak:
+    profiles: [iam]
+    image: quay.io/keycloak/keycloak:26.0.7
+    networks:
+      - sakura-internal
+    environment:
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-keycloak}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme-set-in-env-for-iam-profile}
+    command: ["start-dev", "--import-realm"]
+    volumes:
+      - ./deploy/lan/keycloak/realm-sakura.json:/opt/keycloak/data/import/realm-sakura.json:ro
+    restart: unless-stopped
+
+  authelia:
+    profiles: [edge-auth]
+    image: authelia/authelia:4.38
+    networks:
+      - sakura-internal
+    volumes:
+      - ./deploy/lan/authelia:/config:ro
+    restart: unless-stopped
+    depends_on:
+      - nginx
+
 volumes:
   sakura-data:
   sakura-uploads:
+  sakura-redis:

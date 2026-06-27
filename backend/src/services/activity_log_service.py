@@ -114,61 +114,132 @@ class ActivityLogService:
     ) -> Optional[Dict[str, Any]]:
         """Persist one activity row. Returns the inserted row dict or None."""
         try:
-            entity_type = str(entity_type)
-            entity_id = str(entity_id)
-            action = str(action).lower()
-
-            diff = _compute_diff(before, after) if action in ("update", "restore") else {}
-            if action == "create":
-                # On create, treat every present field as a "new" entry.
-                diff = {
-                    k: {"old": None, "new": _normalise(v)}
-                    for k, v in (after or {}).items()
-                    if k not in _NOISY_COLUMNS and v not in (None, "", [])
-                }
-            elif action == "delete":
-                diff = {
-                    k: {"old": _normalise(v), "new": None}
-                    for k, v in (before or {}).items()
-                    if k not in _NOISY_COLUMNS
-                }
-
-            commit_hash = uuid.uuid4().hex[:12]
-            parent_hash = self._latest_commit_hash_for(entity_type, entity_id)
-
-            summary_text = summary or _summarise(action, entity_type, entity_id, diff)
-
-            query = (
-                "INSERT INTO activity_log "
-                "(commit_hash, parent_hash, entity_type, entity_id, entity_pk, "
-                " action, field_changes, snapshot_before, snapshot_after, "
-                " summary, author_username, author_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            payload = self._build_change_payload(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                action=action,
+                before=before,
+                after=after,
+                author_username=author_username,
+                author_id=author_id,
+                entity_pk=entity_pk,
+                summary=summary,
             )
-            params = (
-                commit_hash,
-                parent_hash,
-                entity_type,
-                entity_id,
-                entity_pk,
-                action,
-                json.dumps(diff, ensure_ascii=False),
-                json.dumps(_normalise(before or {}), ensure_ascii=False) if before else None,
-                json.dumps(_normalise(after or {}), ensure_ascii=False) if after else None,
-                summary_text,
-                author_username or "system",
-                author_id,
-            )
-
-            result = self.database_service.execute_query(query, "default", params=params)
-            if not result.get("success"):
-                logger.warning(
-                    f"Activity log write failed for {entity_type}/{entity_id}: "
-                    f"{result.get('error')}"
-                )
+            if payload is None:
                 return None
 
-            return {
+            result = self.database_service.execute_query(
+                payload["query"], "default", params=payload["params"]
+            )
+            if not result.get("success"):
+                logger.warning(
+                    "Activity log write failed for %s/%s: %s",
+                    entity_type, entity_id, result.get("error"),
+                )
+                return None
+            return payload["meta"]
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Activity log error: %s", exc)
+            return None
+
+    def record_change_on_connection(
+        self,
+        conn,
+        *,
+        entity_type: str,
+        entity_id: str,
+        action: str,
+        before: Optional[Dict[str, Any]] = None,
+        after: Optional[Dict[str, Any]] = None,
+        author_username: Optional[str] = None,
+        author_id: Optional[int] = None,
+        entity_pk: Optional[int] = None,
+        summary: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Insert an activity row using an open SQLite connection (same transaction)."""
+        try:
+            payload = self._build_change_payload(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                action=action,
+                before=before,
+                after=after,
+                author_username=author_username,
+                author_id=author_id,
+                entity_pk=entity_pk,
+                summary=summary,
+                parent_hash=self._latest_commit_hash_for(entity_type, entity_id),
+            )
+            if payload is None:
+                return None
+            conn.execute(payload["query"], payload["params"])
+            return payload["meta"]
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Activity log (transaction) error: %s", exc)
+            raise
+
+    def _build_change_payload(
+        self,
+        *,
+        entity_type: str,
+        entity_id: str,
+        action: str,
+        before: Optional[Dict[str, Any]] = None,
+        after: Optional[Dict[str, Any]] = None,
+        author_username: Optional[str] = None,
+        author_id: Optional[int] = None,
+        entity_pk: Optional[int] = None,
+        summary: Optional[str] = None,
+        parent_hash: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        entity_type = str(entity_type)
+        entity_id = str(entity_id)
+        action = str(action).lower()
+
+        diff = _compute_diff(before, after) if action in ("update", "restore") else {}
+        if action == "create":
+            diff = {
+                k: {"old": None, "new": _normalise(v)}
+                for k, v in (after or {}).items()
+                if k not in _NOISY_COLUMNS and v not in (None, "", [])
+            }
+        elif action == "delete":
+            diff = {
+                k: {"old": _normalise(v), "new": None}
+                for k, v in (before or {}).items()
+                if k not in _NOISY_COLUMNS
+            }
+
+        commit_hash = uuid.uuid4().hex[:12]
+        if parent_hash is None:
+            parent_hash = self._latest_commit_hash_for(entity_type, entity_id)
+
+        summary_text = summary or _summarise(action, entity_type, entity_id, diff)
+        query = (
+            "INSERT INTO activity_log "
+            "(commit_hash, parent_hash, entity_type, entity_id, entity_pk, "
+            " action, field_changes, snapshot_before, snapshot_after, "
+            " summary, author_username, author_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        params = (
+            commit_hash,
+            parent_hash,
+            entity_type,
+            entity_id,
+            entity_pk,
+            action,
+            json.dumps(diff, ensure_ascii=False),
+            json.dumps(_normalise(before or {}), ensure_ascii=False) if before else None,
+            json.dumps(_normalise(after or {}), ensure_ascii=False) if after else None,
+            summary_text,
+            author_username or "system",
+            author_id,
+        )
+        return {
+            "query": query,
+            "params": params,
+            "meta": {
                 "commit_hash": commit_hash,
                 "parent_hash": parent_hash,
                 "entity_type": entity_type,
@@ -178,10 +249,8 @@ class ActivityLogService:
                 "field_changes": diff,
                 "author_username": author_username or "system",
                 "author_id": author_id,
-            }
-        except Exception as exc:  # noqa: BLE001
-            logger.exception(f"Activity log error: {exc}")
-            return None
+            },
+        }
 
     # ------------------------------------------------------------------
     # Reads

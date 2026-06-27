@@ -2,14 +2,35 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, FrozenSet, List, Optional
 
 from src.infrastructure.logging_config import get_logger
 from src.services.parsing.models import VLMError, VLMRequest, VLMResponse, VLMUsage
 
 logger = get_logger(__name__)
+
+_REMOTE_PROVIDERS: FrozenSet[str] = frozenset({"openai", "anthropic"})
+
+
+def is_remote_provider(name: str) -> bool:
+    return (name or "").lower() in _REMOTE_PROVIDERS
+
+
+def remote_providers_allowed() -> bool:
+    """True when cloud LLM providers may be registered, listed, or invoked."""
+    if os.environ.get("ENVIRONMENT", "production").lower() == "production":
+        return False
+    if os.environ.get("SAKURA_LLM_ALLOW_EXTERNAL", "false").lower() == "true":
+        return True
+    try:
+        from src.infrastructure.configuration_manager import get_config_manager
+
+        return bool(get_config_manager().get_config("parsing.vlm.allow_remote_providers", False))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 __all__ = [
@@ -21,6 +42,8 @@ __all__ = [
     "VLMError",
     "VLMUsage",
     "get_vlm_registry",
+    "is_remote_provider",
+    "remote_providers_allowed",
 ]
 
 
@@ -143,7 +166,10 @@ class VLMRegistry:
         logger.info(f"Registered VLM provider: {key}")
 
     def list_providers(self) -> List[str]:
-        return sorted(self._factories.keys())
+        names = sorted(self._factories.keys())
+        if remote_providers_allowed():
+            return names
+        return [n for n in names if not is_remote_provider(n)]
 
     def has(self, name: str) -> bool:
         return name.lower() in self._factories
@@ -161,6 +187,8 @@ class VLMRegistry:
         key = (name or self._default or "").lower()
         if not key:
             raise VLMProviderError("registry", "No default VLM provider configured")
+        if not remote_providers_allowed() and is_remote_provider(key):
+            raise VLMProviderError(key, f"Remote VLM provider '{name}' is disabled")
         if key not in self._factories:
             raise VLMProviderError(key, f"Unknown VLM provider '{name}'")
         if key not in self._cache:
@@ -173,8 +201,15 @@ class VLMRegistry:
             return
         default = config_manager.get_config("parsing.vlm.default_provider", "ollama")
         try:
-            if default and default.lower() in self._factories:
-                self.set_default(default)
+            default_key = (default or "").lower()
+            if (
+                default_key
+                and default_key in self._factories
+                and (remote_providers_allowed() or not is_remote_provider(default_key))
+            ):
+                self.set_default(default_key)
+            elif self.list_providers():
+                self.set_default(self.list_providers()[0])
             elif self._factories:
                 self.set_default(next(iter(sorted(self._factories.keys()))))
         except VLMProviderError as exc:

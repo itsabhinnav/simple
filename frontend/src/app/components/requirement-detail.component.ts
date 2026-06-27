@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { RequirementService, Requirement } from '../services/requirement.service';
 import { TestCaseService, TestCase } from '../services/test-case.service';
-import { DesignTicketService, DesignTicket } from '../services/design-ticket.service';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { ActivityHistoryComponent } from './activity-history.component';
@@ -56,16 +55,13 @@ function writePending(id: number, fields: Record<string, any>) {
 export class RequirementDetailComponent implements OnInit, OnDestroy {
   private requirementService = inject(RequirementService);
   private testCaseService = inject(TestCaseService);
-  private designTicketService = inject(DesignTicketService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
   requirement = signal<Requirement | null>(null);
   linkedTestCases = signal<TestCase[]>([]);
-  linkedDesigns = signal<DesignTicket[]>([]);
   isLoading = signal(false);
   isLoadingTestCases = signal(false);
-  isLoadingDesigns = signal(false);
   error = signal<string | null>(null);
   requirementId = signal<number | null>(null);
   isSaving = signal(false);
@@ -151,8 +147,7 @@ export class RequirementDetailComponent implements OnInit, OnDestroy {
             this.pendingFields.set({});
             this.requirement.set(requirement);
           }
-          this.loadLinkedTestCases(requirement.requirement_id);
-          this.loadLinkedDesigns(requirement.requirement_id);
+          this.loadLinkedTestCases(requirement.requirement_id, requirement.linked_test_case_ids);
         } else {
           this.error.set('Requirement not found');
         }
@@ -166,11 +161,19 @@ export class RequirementDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadLinkedTestCases(requirementId: string) {
+  loadLinkedTestCases(requirementId: string, linkedTestCaseIds?: string) {
     this.isLoadingTestCases.set(true);
+    const fromReqField = (linkedTestCaseIds || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     this.testCaseService.getTestCases().subscribe({
       next: (testCases) => {
-        const linked = testCases.filter(tc => tc.associated_requirement_id === requirementId);
+        const linked = testCases.filter((tc) =>
+          TestCaseService.mvArray(tc.associated_requirement_id).includes(requirementId) ||
+          fromReqField.includes(tc.test_case_id)
+        );
         this.linkedTestCases.set(linked);
         this.isLoadingTestCases.set(false);
       },
@@ -181,38 +184,8 @@ export class RequirementDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadLinkedDesigns(requirementId: string) {
-    this.isLoadingDesigns.set(true);
-    this.designTicketService.getDesignTickets().subscribe({
-      next: (designs) => {
-        const linked = designs.filter(d => d.linked_requirement_id === requirementId);
-        this.linkedDesigns.set(linked);
-        this.isLoadingDesigns.set(false);
-      },
-      error: () => {
-        this.linkedDesigns.set([]);
-        this.isLoadingDesigns.set(false);
-      }
-    });
-  }
-
   navigateToTestCase(testCaseId: string) {
     this.router.navigate(['/test-cases', testCaseId]);
-  }
-
-  navigateToDesign(designTicketId: string) {
-    this.router.navigate(['/design-tickets', designTicketId]);
-  }
-
-  getStatusClass(status: string): string {
-    const statusMap: { [key: string]: string } = {
-      'Draft': 'status-draft',
-      'Approved': 'status-active',
-      'Implemented': 'status-progress',
-      'Tested': 'status-review',
-      'Closed': 'status-completed'
-    };
-    return statusMap[status] || 'status-default';
   }
 
   getPriorityClass(priority: string): string {

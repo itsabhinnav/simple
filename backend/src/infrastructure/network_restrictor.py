@@ -20,20 +20,21 @@ DEFAULT_ALLOWED_HOSTS: Set[str] = {
     'localhost',
     '127.0.0.1',
     '::1',
-    '0.0.0.0',
 }
 
 # Allowed hosts loaded from configuration
 ALLOWED_HOSTS: Set[str] = set(DEFAULT_ALLOWED_HOSTS)
 
-# Allowed ports for specific hosts
-ALLOWED_PORTS: Set[int] = {
-    80,      # HTTP
-    443,     # HTTPS
-    22,      # SSH (Git)
-    5000,    # Backend API
-    4200,    # Frontend Dev Server
-    8080,    # Alternative backend (if used)
+# Allowed ports for loopback services only (Ollama, Redis, Flask, etc.)
+LOOPBACK_ALLOWED_PORTS: Set[int] = {
+    80,
+    443,
+    5000,
+    4200,
+    6379,    # Redis / Celery broker
+    8080,
+    8765,   # local test-automation sidecar
+    11434,   # Ollama
 }
 
 # Restricted modules that should not make external calls
@@ -73,7 +74,7 @@ def is_host_allowed(host: str) -> bool:
     ``ENABLE_NETWORK_RESTRICTIONS=allow_lan``.
     """
     if not host:
-        return True
+        return False
 
     host_lower = host.lower()
 
@@ -101,17 +102,27 @@ def is_host_allowed(host: str) -> bool:
     return False
 
 
+def _is_loopback_host(host: str) -> bool:
+    host_lower = (host or "").lower()
+    if host_lower in ('localhost', '127.0.0.1', '::1', '0::1'):
+        return True
+    try:
+        import ipaddress
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def is_port_allowed(host: str, port: int) -> bool:
-    """Check if port is allowed for the given host"""
-    # Allow specific ports for any host
-    if port in ALLOWED_PORTS:
+    """Check if port is allowed for the given host."""
+    if not port:
         return True
-    
-    # Localhost can use any port
-    if host in ['localhost', '127.0.0.1', '::1']:
-        return True
-    
-    return False
+    if _is_loopback_host(host):
+        return port in LOOPBACK_ALLOWED_PORTS
+    # Non-loopback hosts (only reachable in allow_lan mode) — block high-risk ports.
+    if port in (22, 23, 25, 53, 110, 143, 445, 3389):
+        return False
+    return port in (80, 443)
 
 
 def log_connection(host: str, port: int, allowed: bool, method: str = ""):
@@ -155,8 +166,10 @@ def restrict_socket():
                 )
             
             if port and not is_port_allowed(host, port):
-                logger.warning(f"Port {port} not allowed for host {host}")
-                # Don't block, just log for now
+                logger.error(f"Blocked connection to disallowed port: {host}:{port}")
+                raise ConnectionRefusedError(
+                    f"Connection to {host}:{port} is not allowed (port blocked)."
+                )
             
             log_connection(host, port, True, "socket.connect")
             return original_connect(self, address)
@@ -232,6 +245,7 @@ def clear_connection_log():
 def enable_network_restrictions():
     """Enable all network restrictions (socket connect + DNS resolution)."""
     logger.info(f"Enabling network restrictions (mode={_restrictor_mode()})...")
+    load_allowed_hosts_from_config()
 
     try:
         restrict_socket()
@@ -286,36 +300,29 @@ def remove_allowed_host(host: str):
 
 
 def verify_network_isolation():
-    """Verify that network isolation is working"""
+    """Verify that network isolation is working without contacting external hosts."""
     logger.info("Verifying network isolation...")
-    
-    # Test allowed connection
+
     try:
         test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         test_socket.settimeout(1)
-        result = test_socket.connect_ex(('localhost', 5000))
+        result = test_socket.connect_ex(('127.0.0.1', 5000))
         test_socket.close()
         if result == 0:
-            logger.info("✓ Localhost connection allowed")
+            logger.info("✓ Loopback connection allowed")
         else:
-            logger.info("ℹ Localhost port 5000 not responding (expected if backend not running)")
+            logger.info("ℹ Loopback port 5000 not responding (expected if backend not running)")
     except Exception as e:
-        logger.debug(f"Localhost test: {e}")
-    
-    # Test blocked connection
+        logger.debug(f"Loopback test: {e}")
+
+    # Attempt DNS resolution of a hostname that must never be allowed.
     try:
-        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        test_socket.settimeout(1)
-        result = test_socket.connect_ex(('www.google.com', 80))
-        test_socket.close()
-        if result == 0:
-            logger.warning("✗ Could connect to unauthorized host - restrictions may not be active")
-        else:
-            logger.info("✓ Unauthorized host blocked successfully")
-    except socket.error:
-        logger.info("✓ Unauthorized host blocked successfully")
+        socket.getaddrinfo('egress-probe.invalid', 80)
+        logger.warning("✗ DNS resolution succeeded for blocked probe host")
+    except socket.gaierror:
+        logger.info("✓ DNS resolution blocked for unauthorized host")
     except Exception as e:
-        logger.debug(f"Block test: {e}")
+        logger.debug(f"DNS block test: {e}")
 
 
 # NOTE: do NOT auto-enable restrictions on import. ``main.py`` is the single

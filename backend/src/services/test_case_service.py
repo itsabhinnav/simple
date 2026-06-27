@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-from src.schemas.test_case_schema import TestCaseSchema, TestCaseCreateSchema
+from src.schemas.test_case_schema import TestCaseSchema, TestCaseCreateSchema, TestCaseUpdateSchema
 from src.repositories.test_case_repository import ITestCaseRepository
 from src.infrastructure.configuration_manager import get_config_manager
+from pydantic import ValidationError
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -148,25 +149,29 @@ class TestCaseService(ITestCaseService):
         try:
             if not test_case_id or not isinstance(test_case_id, str):
                 raise ValueError("Invalid test case ID")
-            
-            # Check if test case exists
+
             existing_test_case = self.test_case_repository.find_by_id(test_case_id)
             if not existing_test_case:
                 raise ValueError(f"Test case with ID {test_case_id} not found")
-            
-            # Business logic validation
-            self._validate_test_case_update(test_case_data)
-            
-            # Update test case
-            test_case = self.test_case_repository.update(test_case_id, test_case_data)
-            
-            # Apply business logic transformations
+
+            normalized = self._normalize_update_payload(test_case_data)
+            if not normalized:
+                return existing_test_case
+
+            self._validate_test_case_update(normalized)
+
+            test_case = self.test_case_repository.update(test_case_id, normalized)
+
             if test_case:
                 test_case['is_high_priority'] = test_case.get('priority') == 'P1'
                 test_case['has_requirements'] = bool(test_case.get('associated_requirement_id'))
                 test_case['test_complexity'] = self._calculate_test_complexity(test_case)
 
             return test_case
+        except ValueError:
+            raise
+        except ValidationError as exc:
+            raise ValueError(str(exc)) from exc
         except Exception as e:
             raise Exception(f"Service error: Failed to update test case {test_case_id} - {str(e)}")
     
@@ -214,6 +219,15 @@ class TestCaseService(ITestCaseService):
 
         if test_case_data.regulation and test_case_data.regulation not in regulations:
             raise ValueError(f"Regulation must be one of: {', '.join(regulations)}")
+
+    def _normalize_update_payload(self, test_case_data: dict) -> dict:
+        """Coerce partial update dict through Pydantic so multi-value fields,
+        legacy aliases (``vehicle_mode``, ``description``), and type shapes
+        are normalised before they hit the repository."""
+        if not test_case_data:
+            return {}
+        validated = TestCaseUpdateSchema.model_validate(test_case_data)
+        return validated.model_dump(exclude_unset=True)
 
     def _validate_test_case_update(self, test_case_data: dict) -> None:
         """Validate test case update business rules — config-driven."""

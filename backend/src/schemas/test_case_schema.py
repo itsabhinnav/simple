@@ -168,3 +168,13 @@ class TestCaseCreateSchema(_TestCaseFieldsMixin):
     """Payload accepted by ``POST /api/test-cases``."""
 
     test_case_id: str = Field(..., min_length=1, max_length=100)
+
+
+class TestCaseUpdateSchema(_TestCaseFieldsMixin):
+    """Partial payload accepted by ``PUT /api/test-cases/<id>``.
+
+    Every field is optional; only keys present in the inbound JSON are
+    validated and forwarded to the repository.
+    """
+
+    model_config = {"extra": "ignore"}

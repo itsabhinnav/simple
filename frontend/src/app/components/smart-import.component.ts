@@ -722,8 +722,6 @@ export class SmartImportComponent implements OnInit {
           'when_action',
           'then_result',
           'priority',
-          'status',
-          'assignee',
           'tags',
         ];
       case 'design_tickets':

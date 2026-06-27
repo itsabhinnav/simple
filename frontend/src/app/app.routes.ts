@@ -11,8 +11,6 @@ import { SmartImportComponent } from './components/smart-import.component';
 import { RequirementDetailComponent } from './components/requirement-detail.component';
 import { TestCaseDetailComponent } from './components/test-case-detail.component';
 import { SplitViewComponent } from './components/split-view.component';
-import { DesignTicketManagementComponent } from './components/design-ticket-management/design-ticket-management';
-import { CreateDesignTicket } from './components/create-design-ticket/create-design-ticket';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { SpecManagementComponent } from './components/spec-management.component';
@@ -54,10 +52,6 @@ export const routes: Routes = [
   { path: 'test-cases/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'test_cases' } },
   { path: 'test-cases/import/legacy', component: ImportTestCasesComponent, canActivate: [AuthGuard] },
   { path: 'test-cases/:id', component: TestCaseDetailComponent, canActivate: [AuthGuard] },
-  { path: 'design-tickets', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
-  { path: 'design-tickets/create', component: CreateDesignTicket, canActivate: [AuthGuard] },
-  { path: 'design-tickets/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'design_tickets' } },
-  { path: 'design-tickets/:id', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'specs', component: SpecManagementComponent, canActivate: [AuthGuard] },
   { path: 'specs/project/:project', component: SpecProjectDetailComponent, canActivate: [AuthGuard] },
   { path: 'specs/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'specifications' } },

@@ -16,8 +16,6 @@ export interface Requirement {
   when_action?: string;
   then_result?: string;
   priority: string;
-  status: string;
-  assignee?: string;
   tags?: string;
   feature?: string;
   region?: string;
@@ -44,8 +42,6 @@ export interface RequirementCreateRequest {
   when?: string;
   then?: string;
   priority: string;
-  status: string;
-  assignee?: string;
   tags?: string;
   feature?: string;
   region?: string;
@@ -68,8 +64,6 @@ export interface RequirementUpdateRequest {
   when?: string;
   then?: string;
   priority?: string;
-  status?: string;
-  assignee?: string;
   tags?: string;
   feature?: string;
   region?: string;

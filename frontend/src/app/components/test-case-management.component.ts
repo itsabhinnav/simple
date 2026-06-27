@@ -10,7 +10,10 @@ import {
   TestCaseImportPreview,
   TestCaseImportSheetPreview,
   TestCaseImportResult,
-  TestCaseImportDuplicateStrategy
+  TestCaseImportDuplicateStrategy,
+  TestCaseFilterState,
+  TestSuitePreset,
+  TestAutomationStatus,
 } from '../services/test-case.service';
 import { SplitViewComponent } from './split-view.component';
 
@@ -156,6 +159,23 @@ import { SplitViewComponent } from './split-view.component';
             <span *ngIf="advancedFilterCount() > 0" class="filter-count">+{{ advancedFilterCount() }}</span>
           </button>
           <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearAllFilters()">Clear filters</button>
+          <div class="suite-toolbar" (click)="$event.stopPropagation()">
+            <select class="suite-select" [ngModel]="activeSuiteId()" (ngModelChange)="onSuiteSelected($event)">
+              <option [ngValue]="null">Test suites…</option>
+              <option *ngFor="let s of testSuites()" [ngValue]="s.id">{{ s.name }}</option>
+            </select>
+            <button class="suite-btn" type="button" (click)="openSaveSuiteModal()" title="Save current filters as a test suite">Save suite</button>
+            <button class="suite-btn" type="button" [disabled]="!activeSuiteId()" (click)="deleteActiveSuite()">Delete</button>
+            <button
+              class="execute-btn"
+              type="button"
+              [disabled]="!automationEnabled() || filteredTestCases().length === 0 || isExecuting()"
+              (click)="executeFiltered()"
+              [title]="automationEnabled() ? 'Run automation for filtered test cases' : 'Enable test_automation in config.yaml'">
+              <span *ngIf="isExecuting()" class="spinner-small"></span>
+              Execute ({{ filteredTestCases().length }})
+            </button>
+          </div>
         </div>
 
         <!-- Advanced filters row -->
@@ -204,6 +224,10 @@ import { SplitViewComponent } from './split-view.component';
               </div>
             </label>
           </div>
+        </div>
+
+        <div *ngIf="executionMessage()" class="execution-banner" [class.is-error]="executionError()">
+          {{ executionMessage() }}
         </div>
 
         <!-- Active filter chips -->
@@ -491,6 +515,11 @@ import { SplitViewComponent } from './split-view.component';
                 </td>
                 <td (click)="$event.stopPropagation()">
                   <div class="actions">
+                    <button class="btn-execute" (click)="executeOne(tc)" [disabled]="!automationEnabled() || isExecutingId() === tc.test_case_id" title="Execute test case" aria-label="Execute">
+                      <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    </button>
                     <button class="btn-edit" (click)="navigateToDetailEdit(tc.test_case_id)" title="Edit" aria-label="Edit">
                       <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16"
                            fill="none" stroke="currentColor" stroke-width="2"
@@ -538,6 +567,11 @@ import { SplitViewComponent } from './split-view.component';
               <span class="assignee" *ngIf="mv(tc.feature, '') as f">{{ f }}</span>
             </div>
             <div class="card-actions" (click)="$event.stopPropagation()">
+              <button class="btn-execute" (click)="executeOne(tc)" [disabled]="!automationEnabled() || isExecutingId() === tc.test_case_id" title="Execute test case" aria-label="Execute">
+                <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </button>
               <button class="btn-edit" (click)="navigateToDetailEdit(tc.test_case_id)" title="Edit" aria-label="Edit">
                 <svg class="action-icon" viewBox="0 0 24 24" width="16" height="16"
                      fill="none" stroke="currentColor" stroke-width="2"
@@ -767,6 +801,35 @@ import { SplitViewComponent } from './split-view.component';
                 <button type="button" class="btn-cancel" (click)="backToSelect()">Import more</button>
                 <button type="button" class="btn-submit" (click)="closeImportModal()">Done</button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Test Suite Modal -->
+      <div *ngIf="showSaveSuiteModal()" class="modal-overlay" (click)="closeSaveSuiteModal()">
+        <div class="modal-content delete-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Save Test Suite</h2>
+            <button class="close-btn" (click)="closeSaveSuiteModal()"><i class="icon-close"></i></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-group">
+              <span>Name</span>
+              <input class="form-input" [ngModel]="suiteNameDraft()" (ngModelChange)="suiteNameDraft.set($event)" placeholder="e.g. Smoke — HVAC P1">
+            </label>
+            <label class="form-group">
+              <span>Description (optional)</span>
+              <input class="form-input" [ngModel]="suiteDescriptionDraft()" (ngModelChange)="suiteDescriptionDraft.set($event)">
+            </label>
+            <p class="import-hint">Captures the current search, filters, and sort order ({{ filteredTestCases().length }} matching cases).</p>
+            <p class="import-error" *ngIf="suiteSaveError()">{{ suiteSaveError() }}</p>
+            <div class="form-actions">
+              <button type="button" class="btn-cancel" (click)="closeSaveSuiteModal()">Cancel</button>
+              <button type="button" class="btn-submit" [disabled]="!suiteNameDraft().trim() || isSavingSuite()" (click)="saveCurrentSuite()">
+                <span *ngIf="isSavingSuite()" class="spinner-small"></span>
+                Save preset
+              </button>
             </div>
           </div>
         </div>
@@ -1088,7 +1151,7 @@ import { SplitViewComponent } from './split-view.component';
       gap: 8px;
     }
 
-    .btn-edit, .btn-delete {
+    .btn-edit, .btn-delete, .btn-execute {
       padding: 6px 8px;
       border: none;
       border-radius: 4px;
@@ -1101,6 +1164,71 @@ import { SplitViewComponent } from './split-view.component';
       width: 32px;
       height: 32px;
       line-height: 1;
+    }
+
+    .btn-execute {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .btn-execute:hover:not(:disabled) {
+      background: #c8e6c9;
+    }
+    .btn-execute:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .suite-toolbar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+    .suite-select {
+      min-width: 160px;
+      padding: 7px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+      background: #fff;
+    }
+    .suite-btn {
+      padding: 7px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: #fff;
+      color: #1a73e8;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .suite-btn:hover:not(:disabled) { background: #e8f0fe; }
+    .suite-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .execute-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 4px;
+      background: #2e7d32;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .execute-btn:hover:not(:disabled) { background: #1b5e20; }
+    .execute-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+    .execution-banner {
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #e8f5e9;
+      color: #1b5e20;
+      font-size: 13px;
+    }
+    .execution-banner.is-error {
+      background: #fce8e6;
+      color: #b00020;
     }
 
     .btn-edit {
@@ -2316,6 +2444,19 @@ export class TestCaseManagementComponent implements OnInit {
   isImporting = signal(false);
   importError = signal<string | null>(null);
 
+  testSuites = signal<TestSuitePreset[]>([]);
+  activeSuiteId = signal<number | null>(null);
+  automationEnabled = signal(false);
+  showSaveSuiteModal = signal(false);
+  suiteNameDraft = signal('');
+  suiteDescriptionDraft = signal('');
+  suiteSaveError = signal<string | null>(null);
+  isSavingSuite = signal(false);
+  isExecuting = signal(false);
+  isExecutingId = signal<string | null>(null);
+  executionMessage = signal<string | null>(null);
+  executionError = signal(false);
+
   testCaseForm: FormGroup;
 
   constructor() {
@@ -2391,6 +2532,8 @@ export class TestCaseManagementComponent implements OnInit {
     
     // Load initial data
     this.loadTestCases();
+    this.loadTestSuites();
+    this.loadAutomationStatus();
 
     // Honor a `?view=grid|table|browse` query param so other pages can
     // deep-link into the user's preferred layout (e.g. the old /split-view
@@ -2428,6 +2571,168 @@ export class TestCaseManagementComponent implements OnInit {
         this.isLoading.set(false);
         console.error('Error loading test cases:', err);
       }
+    });
+  }
+
+  loadTestSuites() {
+    this.testCaseService.listTestSuites().subscribe({
+      next: (suites) => this.testSuites.set(suites),
+      error: () => this.testSuites.set([]),
+    });
+  }
+
+  loadAutomationStatus() {
+    this.testCaseService.getAutomationStatus().subscribe({
+      next: (status) => this.automationEnabled.set(!!status.enabled),
+      error: () => this.automationEnabled.set(false),
+    });
+  }
+
+  currentFilterSnapshot(): TestCaseFilterState {
+    return TestCaseService.snapshotFilters({
+      searchTerm: this.searchTerm(),
+      selectedTypes: this.selectedTypes(),
+      selectedPriorities: this.selectedPriorities(),
+      selectedFeatures: this.selectedFeatures(),
+      selectedScreenIds: this.selectedScreenIds(),
+      selectedTestSuiteTypes: this.selectedTestSuiteTypes(),
+      selectedRequirementTypes: this.selectedRequirementTypes(),
+      selectedSeverities: this.selectedSeverities(),
+      selectedVehicleModels: this.selectedVehicleModels(),
+      selectedRegions: this.selectedRegions(),
+      selectedBrands: this.selectedBrands(),
+      dateFrom: this.dateFrom(),
+      dateTo: this.dateTo(),
+      sortBy: this.sortBy(),
+      sortDir: this.sortDir(),
+    });
+  }
+
+  applyFilterState(filters: TestCaseFilterState) {
+    this.searchTerm.set(filters.searchTerm ?? '');
+    this.selectedTypes.set([...(filters.selectedTypes ?? [])]);
+    this.selectedPriorities.set([...(filters.selectedPriorities ?? [])]);
+    this.selectedFeatures.set([...(filters.selectedFeatures ?? [])]);
+    this.selectedScreenIds.set([...(filters.selectedScreenIds ?? [])]);
+    this.selectedTestSuiteTypes.set([...(filters.selectedTestSuiteTypes ?? [])]);
+    this.selectedRequirementTypes.set([...(filters.selectedRequirementTypes ?? [])]);
+    this.selectedSeverities.set([...(filters.selectedSeverities ?? [])]);
+    this.selectedVehicleModels.set([...(filters.selectedVehicleModels ?? [])]);
+    this.selectedRegions.set([...(filters.selectedRegions ?? [])]);
+    this.selectedBrands.set([...(filters.selectedBrands ?? [])]);
+    this.dateFrom.set(filters.dateFrom ?? '');
+    this.dateTo.set(filters.dateTo ?? '');
+    const allowedSort = ['updated_at', 'created_at', 'test_case_id', 'priority', 'severity', 'title'] as const;
+    const nextSort = filters.sortBy as typeof allowedSort[number] | undefined;
+    if (nextSort && (allowedSort as readonly string[]).includes(nextSort)) {
+      this.sortBy.set(nextSort);
+    }
+    if (filters.sortDir === 'asc' || filters.sortDir === 'desc') this.sortDir.set(filters.sortDir);
+  }
+
+  onSuiteSelected(id: number | null) {
+    this.activeSuiteId.set(id);
+    if (id == null) return;
+    const suite = this.testSuites().find(s => s.id === id);
+    if (suite?.filters) this.applyFilterState(suite.filters);
+  }
+
+  openSaveSuiteModal() {
+    this.suiteNameDraft.set('');
+    this.suiteDescriptionDraft.set('');
+    this.suiteSaveError.set(null);
+    this.showSaveSuiteModal.set(true);
+  }
+
+  closeSaveSuiteModal() {
+    this.showSaveSuiteModal.set(false);
+    this.suiteSaveError.set(null);
+  }
+
+  saveCurrentSuite() {
+    const name = this.suiteNameDraft().trim();
+    if (!name) return;
+    this.isSavingSuite.set(true);
+    this.suiteSaveError.set(null);
+    this.testCaseService.saveTestSuite(name, this.currentFilterSnapshot(), this.suiteDescriptionDraft().trim()).subscribe({
+      next: (suite) => {
+        this.testSuites.set([suite, ...this.testSuites().filter(s => s.id !== suite.id)]);
+        this.activeSuiteId.set(suite.id);
+        this.isSavingSuite.set(false);
+        this.closeSaveSuiteModal();
+      },
+      error: (err) => {
+        this.suiteSaveError.set(err?.message || 'Failed to save test suite');
+        this.isSavingSuite.set(false);
+      },
+    });
+  }
+
+  deleteActiveSuite() {
+    const id = this.activeSuiteId();
+    if (id == null) return;
+    this.testCaseService.deleteTestSuite(id).subscribe({
+      next: (ok) => {
+        if (ok) {
+          this.testSuites.set(this.testSuites().filter(s => s.id !== id));
+          this.activeSuiteId.set(null);
+        }
+      },
+    });
+  }
+
+  private showExecutionResult(message: string, isError = false) {
+    this.executionMessage.set(message);
+    this.executionError.set(isError);
+    if (this.isBrowser) {
+      setTimeout(() => {
+        if (this.executionMessage() === message) this.executionMessage.set(null);
+      }, 8000);
+    }
+  }
+
+  executeOne(tc: TestCase) {
+    if (!this.automationEnabled()) {
+      this.showExecutionResult('Test automation is disabled in server config.', true);
+      return;
+    }
+    this.isExecuting.set(true);
+    this.isExecutingId.set(tc.test_case_id);
+    this.testCaseService.executeTestCase(tc.test_case_id).subscribe({
+      next: (result) => {
+        this.showExecutionResult(result.message || `Executed ${tc.test_case_id}`, !result.success);
+        this.isExecuting.set(false);
+        this.isExecutingId.set(null);
+      },
+      error: (err) => {
+        this.showExecutionResult(err?.message || 'Execution failed', true);
+        this.isExecuting.set(false);
+        this.isExecutingId.set(null);
+      },
+    });
+  }
+
+  executeFiltered() {
+    const ids = this.filteredTestCases().map(tc => tc.test_case_id);
+    if (!ids.length) return;
+    if (!this.automationEnabled()) {
+      this.showExecutionResult('Test automation is disabled in server config.', true);
+      return;
+    }
+    const suite = this.testSuites().find(s => s.id === this.activeSuiteId());
+    this.isExecuting.set(true);
+    this.testCaseService.executeTestCases(ids, { suiteName: suite?.name }).subscribe({
+      next: (result) => {
+        this.showExecutionResult(
+          result.message || `Queued ${ids.length} test case(s)`,
+          !result.success
+        );
+        this.isExecuting.set(false);
+      },
+      error: (err) => {
+        this.showExecutionResult(err?.message || 'Execution failed', true);
+        this.isExecuting.set(false);
+      },
     });
   }
 

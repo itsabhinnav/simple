@@ -53,9 +53,13 @@ if ENABLE_NETWORK_RESTRICTIONS:
     try:
         from src.infrastructure.network_restrictor import enable_network_restrictions, verify_network_isolation
         enable_network_restrictions()
+        verify_network_isolation()
     except Exception as e:
         # Use stderr because the structured logger isn't configured yet at module load time.
         sys.stderr.write(f"[WARNING] Could not enable network restrictions: {e}\n")
+
+from src.infrastructure.security_posture import validate_production_security_posture
+validate_production_security_posture(_RESTRICTOR_MODE)
 
 from src.infrastructure.dependency_injection import (
     get_user_service, get_test_case_service, get_hybrid_database_service,
@@ -77,6 +81,7 @@ from src.middleware.error_handlers import (
     setup_cors_headers, setup_request_validation, setup_api_documentation,
     setup_security_headers, setup_rate_limiting
 )
+from src.middleware.observability_middleware import setup_observability
 from src.middleware.auth_middleware import get_current_username
 from src.infrastructure.logging_config import get_logger
 
@@ -129,13 +134,17 @@ def create_app() -> Flask:
     setup_api_documentation(app)
     setup_security_headers(app)
     setup_rate_limiting(app)
+    setup_observability(app)
     
     @app.before_request
     def inject_current_user():
         from flask import g
-        from src.middleware.auth_middleware import get_current_user
+        from src.middleware.auth_middleware import get_current_user, enforce_authentication
         g.current_user = get_current_user()
         g.current_username = g.current_user.get('username') if g.current_user else None
+        auth_response = enforce_authentication()
+        if auth_response is not None:
+            return auth_response
     
     # Register API blueprints
     register_api_routes(app)
@@ -223,11 +232,29 @@ def register_legacy_routes(app: Flask) -> None:
     @app.route('/health')
     def health_check():
         """Health check endpoint."""
-        return {
+        payload = {
             "status": "healthy",
             "message": "Sakura API is running",
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
+        try:
+            from src.infrastructure.dependency_injection import get_database_backup_service
+            db_status = get_database_backup_service().get_status()
+            payload["database"] = {
+                "healthy": db_status.get("healthy"),
+                "schema_version": db_status.get("schema_version"),
+                "data_version": db_status.get("data_version"),
+                "last_backup_at": (db_status.get("last_backup") or {}).get("created_at"),
+            }
+            if db_status.get("healthy") is False:
+                payload["status"] = "degraded"
+                payload["message"] = "API running but database integrity check failed"
+        except RuntimeError:
+            payload["database"] = {"healthy": None, "note": "backup service unavailable (non-sqlite mode)"}
+        except Exception:
+            logger.exception("health database probe failed")
+            payload["database"] = {"healthy": None, "note": "probe failed"}
+        return payload
     
     # SAK-003: the legacy /api/all/ endpoint dumped every table including
     # users.password_hash, secret_key_hash, and git_token_encrypted with no
@@ -388,6 +415,15 @@ def main():
                 logger.info("Assistant live indexer disabled (assistant.rag.enabled=false)")
         except Exception:
             logger.exception("Live indexer not started")
+
+    if os.environ.get("SAKURA_DISABLE_DB_BACKUP", "false").lower() != "true":
+        try:
+            from src.infrastructure.dependency_injection import get_periodic_backup_worker
+            backup_worker = get_periodic_backup_worker()
+            backup_worker.start()
+            logger.info("Periodic database backup worker started")
+        except Exception:
+            logger.exception("Periodic database backup worker not started")
 
     host = os.environ.get('HOST', '127.0.0.1')
     port = int(os.environ.get('PORT', 5000))

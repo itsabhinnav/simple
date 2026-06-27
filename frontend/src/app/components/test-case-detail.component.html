@@ -28,6 +28,17 @@
       </button>
       <button
         type="button"
+        class="btn btn-execute"
+        [disabled]="!automationEnabled() || isExecuting()"
+        (click)="executeTestCase()"
+        title="Run this test case via local automation">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <span>{{ isExecuting() ? 'Running…' : 'Execute' }}</span>
+      </button>
+      <button
+        type="button"
         class="btn btn-edit"
         [class.btn-edit--active]="editMode()"
         (click)="toggleEditMode()"
@@ -55,6 +66,8 @@
       </button>
     </div>
   </header>
+
+  <div *ngIf="executionNotice()" class="execution-notice" role="status">{{ executionNotice() }}</div>
 
   <div *ngIf="hasPendingEdits() && saveStatus() !== 'saving'" class="pending-banner" role="status">
     <span class="pending-banner-icon">⏳</span>
@@ -121,12 +134,12 @@
             <label class="hero-badge-label">Priority</label>
             <select
               class="hero-badge editable-select"
-              [value]="testCase()?.priority || ''"
-              (change)="onFieldChange('priority', $any($event.target).value)"
+              [ngModel]="testCase()?.priority ?? ''"
+              (ngModelChange)="onFieldChange('priority', $event)"
               [class]="getPriorityClass(testCase()?.priority || '')"
               [disabled]="!editMode()">
               <option value="">—</option>
-              <option *ngFor="let p of dropdowns()?.priority || []" [value]="p">{{ p }}</option>
+              <option *ngFor="let p of dropdownOptions('priority', testCase()?.priority)" [value]="p">{{ p }}</option>
             </select>
           </div>
 
@@ -134,12 +147,12 @@
             <label class="hero-badge-label">Test Type</label>
             <select
               class="hero-badge editable-select"
-              [value]="testCase()?.test_type || ''"
-              (change)="onFieldChange('test_type', $any($event.target).value)"
+              [ngModel]="testCase()?.test_type ?? ''"
+              (ngModelChange)="onFieldChange('test_type', $event)"
               [class]="getTypeClass(testCase()?.test_type || '')"
               [disabled]="!editMode()">
               <option value="">—</option>
-              <option *ngFor="let t of dropdowns()?.test_type || []" [value]="t">{{ t }}</option>
+              <option *ngFor="let t of dropdownOptions('test_type', testCase()?.test_type)" [value]="t">{{ t }}</option>
             </select>
           </div>
 
@@ -147,11 +160,11 @@
             <label class="hero-badge-label">Regulation</label>
             <select
               class="hero-badge editable-select"
-              [value]="testCase()?.regulation || ''"
-              (change)="onFieldChange('regulation', $any($event.target).value)"
+              [ngModel]="testCase()?.regulation ?? ''"
+              (ngModelChange)="onFieldChange('regulation', $event)"
               [disabled]="!editMode()">
               <option value="">—</option>
-              <option *ngFor="let r of dropdowns()?.regulation || []" [value]="r">{{ r }}</option>
+              <option *ngFor="let r of dropdownOptions('regulation', testCase()?.regulation)" [value]="r">{{ r }}</option>
             </select>
           </div>
 
@@ -159,8 +172,8 @@
             <label class="hero-badge-label">Severity</label>
             <select
               class="hero-badge editable-select severity-select"
-              [value]="testCase()?.severity || ''"
-              (change)="onFieldChange('severity', $any($event.target).value)"
+              [ngModel]="testCase()?.severity ?? ''"
+              (ngModelChange)="onFieldChange('severity', $event)"
               [attr.data-severity]="testCase()?.severity || ''"
               [disabled]="!editMode()">
               <option value="">—</option>
@@ -201,30 +214,15 @@
         </ng-template>
       </div>
 
-      <div class="hero-quick-facts">
-        <div class="quick-fact" *ngIf="testCase()?.feature">
+      <div class="hero-quick-facts"
+           *ngIf="mvArray(testCase()?.feature).length || mvArray(testCase()?.associated_requirement_id).length">
+        <div class="quick-fact" *ngIf="mvArray(testCase()?.feature).length">
           <span class="qf-icon">🎯</span>
           <span class="qf-label">Feature</span>
-          <span class="qf-value">{{ testCase()?.feature }}</span>
-        </div>
-        <div class="quick-fact" *ngIf="testCase()?.vehicle_model">
-          <span class="qf-icon">🚗</span>
-          <span class="qf-label">Vehicle</span>
-          <span class="qf-value">{{ testCase()?.vehicle_model }}</span>
-        </div>
-        <div class="quick-fact" *ngIf="mvArray(testCase()?.region).length">
-          <span class="qf-icon">🌍</span>
-          <span class="qf-label">Region</span>
-          <span class="qf-value">{{ mvArray(testCase()?.region).join(', ') }}</span>
-        </div>
-        <div class="quick-fact" *ngIf="mvArray(testCase()?.brand).length">
-          <span class="qf-icon">🏷️</span>
-          <span class="qf-label">Brand</span>
-          <span class="qf-value">{{ mvArray(testCase()?.brand).join(', ') }}</span>
+          <span class="qf-value">{{ mvDisplay(testCase()?.feature) }}</span>
         </div>
         <ng-container *ngIf="mvArray(testCase()?.associated_requirement_id) as reqIds">
-          <div class="quick-fact quick-fact--link"
-               *ngFor="let rid of reqIds">
+          <div class="quick-fact quick-fact--link" *ngFor="let rid of reqIds">
             <span class="qf-icon">📋</span>
             <span class="qf-label">Requirement</span>
             <a (click)="navigateToRequirement(rid)"
@@ -234,21 +232,6 @@
             </a>
           </div>
         </ng-container>
-        <div class="quick-fact" *ngIf="testCase()?.screen_id">
-          <span class="qf-icon">📱</span>
-          <span class="qf-label">Screen</span>
-          <span class="qf-value">{{ testCase()?.screen_id }}</span>
-        </div>
-        <div class="quick-fact" *ngIf="testCase()?.dr_id">
-          <span class="qf-icon">🔖</span>
-          <span class="qf-label">DR</span>
-          <span class="qf-value">{{ testCase()?.dr_id }}</span>
-        </div>
-        <div class="quick-fact" *ngIf="testCase()?.updated_at">
-          <span class="qf-icon">🕒</span>
-          <span class="qf-label">Updated</span>
-          <span class="qf-value">{{ testCase()?.updated_at }}</span>
-        </div>
       </div>
     </section>
 
@@ -376,13 +359,13 @@
                    class="side-view inline-edit-view"
                    (click)="startEdit('feature')"
                    title="Click to edit">
-                <span *ngIf="testCase()?.feature; else emptyFeatureDg">{{ testCase()?.feature }}</span>
+                <span *ngIf="mvArray(testCase()?.feature).length; else emptyFeatureDg">{{ mvDisplay(testCase()?.feature) }}</span>
                 <ng-template #emptyFeatureDg><span class="inline-edit-placeholder">Add feature…</span></ng-template>
                 <span class="inline-edit-pencil">✎</span>
               </div>
               <ng-template #editFeatureDg>
                 <input type="text" data-edit-field="feature" class="side-input"
-                  [value]="testCase()?.feature || ''"
+                  [value]="mvDisplay(testCase()?.feature)"
                   (input)="onFieldChange('feature', $any($event.target).value)"
                   (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
                   placeholder="Feature">
@@ -395,13 +378,13 @@
                    class="side-view inline-edit-view"
                    (click)="startEdit('screen_id')"
                    title="Click to edit">
-                <span *ngIf="testCase()?.screen_id; else emptyScreenDg">{{ testCase()?.screen_id }}</span>
+                <span *ngIf="mvArray(testCase()?.screen_id).length; else emptyScreenDg">{{ mvDisplay(testCase()?.screen_id) }}</span>
                 <ng-template #emptyScreenDg><span class="inline-edit-placeholder">Add screen ID…</span></ng-template>
                 <span class="inline-edit-pencil">✎</span>
               </div>
               <ng-template #editScreenDg>
                 <input type="text" data-edit-field="screen_id" class="side-input"
-                  [value]="testCase()?.screen_id || ''"
+                  [value]="mvDisplay(testCase()?.screen_id)"
                   (input)="onFieldChange('screen_id', $any($event.target).value)"
                   (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
                   placeholder="Screen ID">
@@ -414,13 +397,13 @@
                    class="side-view inline-edit-view"
                    (click)="startEdit('region')"
                    title="Click to edit">
-                <span *ngIf="testCase()?.region; else emptyRegionDg">{{ testCase()?.region }}</span>
+                <span *ngIf="mvArray(testCase()?.region).length; else emptyRegionDg">{{ mvDisplay(testCase()?.region) }}</span>
                 <ng-template #emptyRegionDg><span class="inline-edit-placeholder">Add region…</span></ng-template>
                 <span class="inline-edit-pencil">✎</span>
               </div>
               <ng-template #editRegionDg>
                 <input type="text" data-edit-field="region" class="side-input"
-                  [value]="testCase()?.region || ''"
+                  [value]="mvDisplay(testCase()?.region)"
                   (input)="onFieldChange('region', $any($event.target).value)"
                   (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
                   placeholder="Region">
@@ -433,13 +416,13 @@
                    class="side-view inline-edit-view"
                    (click)="startEdit('brand')"
                    title="Click to edit">
-                <span *ngIf="testCase()?.brand; else emptyBrandDg">{{ testCase()?.brand }}</span>
+                <span *ngIf="mvArray(testCase()?.brand).length; else emptyBrandDg">{{ mvDisplay(testCase()?.brand) }}</span>
                 <ng-template #emptyBrandDg><span class="inline-edit-placeholder">Add brand…</span></ng-template>
                 <span class="inline-edit-pencil">✎</span>
               </div>
               <ng-template #editBrandDg>
                 <input type="text" data-edit-field="brand" class="side-input"
-                  [value]="testCase()?.brand || ''"
+                  [value]="mvDisplay(testCase()?.brand)"
                   (input)="onFieldChange('brand', $any($event.target).value)"
                   (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
                   placeholder="Brand">
@@ -448,11 +431,21 @@
 
             <div class="side-field">
               <label class="side-label">🔖 DR ID</label>
-              <input type="text" class="side-input"
-                     [value]="testCase()?.dr_id || ''"
-                     (input)="onFieldChange('dr_id', $any($event.target).value)"
-                     placeholder="e.g. DR_1234"
-                     [readonly]="!editMode()">
+              <div *ngIf="!isEditing('dr_id'); else editDrIdDg"
+                   class="side-view inline-edit-view"
+                   (click)="startEdit('dr_id')"
+                   title="Click to edit">
+                <span *ngIf="testCase()?.dr_id; else emptyDrIdDg">{{ testCase()?.dr_id }}</span>
+                <ng-template #emptyDrIdDg><span class="inline-edit-placeholder">Add DR ID…</span></ng-template>
+                <span class="inline-edit-pencil">✎</span>
+              </div>
+              <ng-template #editDrIdDg>
+                <input type="text" data-edit-field="dr_id" class="side-input"
+                  [value]="testCase()?.dr_id || ''"
+                  (input)="onFieldChange('dr_id', $any($event.target).value)"
+                  (blur)="stopEdit()" (keydown)="onEditKeydown($event, false)"
+                  placeholder="e.g. DR_1234">
+              </ng-template>
             </div>
           </div>
         </article>

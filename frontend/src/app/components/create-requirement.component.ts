@@ -62,9 +62,7 @@ export class CreateRequirementComponent implements OnInit {
       when_action: [''],
       then_result: [''],
       priority: ['', [Validators.required]],
-      status: ['Draft', [Validators.required]],
       requirement_type: [''],
-      assignee: [''],
       tags: [''],
       feature: [''],
       region: [''],
@@ -74,8 +72,7 @@ export class CreateRequirementComponent implements OnInit {
       requirement_version: [''],
       verification_method: [''],
       linked_epic_jira_id: [''],
-      linked_test_case_ids: [''],
-      linked_design_ids: ['']
+      linked_test_case_ids: ['']
     });
   }
 
@@ -113,17 +110,6 @@ export class CreateRequirementComponent implements OnInit {
     });
   }
 
-  getStatusClass(status: string): string {
-    const statusMap: { [key: string]: string } = {
-      'Draft': 'status-draft',
-      'Approved': 'status-active',
-      'Implemented': 'status-progress',
-      'Tested': 'status-review',
-      'Closed': 'status-completed'
-    };
-    return statusMap[status] || 'status-default';
-  }
-
   getPriorityClass(priority: string): string {
     const priorityMap: { [key: string]: string } = {
       'P4': 'priority-low',
@@ -154,8 +140,6 @@ export class CreateRequirementComponent implements OnInit {
       when: formValue.when_action,
       then: formValue.then_result,
       priority: formValue.priority,
-      status: formValue.status,
-      assignee: formValue.assignee,
       tags: formValue.tags,
       feature: formValue.feature,
       region: formValue.region,
@@ -165,8 +149,7 @@ export class CreateRequirementComponent implements OnInit {
       requirement_version: formValue.requirement_version,
       verification_method: formValue.verification_method,
       linked_epic_jira_id: formValue.linked_epic_jira_id,
-      linked_test_case_ids: formValue.linked_test_case_ids,
-      linked_design_ids: formValue.linked_design_ids
+      linked_test_case_ids: formValue.linked_test_case_ids
     };
 
     console.log('Creating requirement with data:', createRequest);

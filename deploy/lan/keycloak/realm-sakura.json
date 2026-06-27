@@ -1,0 +1,19 @@
+﻿{
+  "realm": "sakura",
+  "enabled": true,
+  "displayName": "Sakura Enterprise LAN",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "sakura-app",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "REPLACE_WITH_CLIENT_SECRET",
+      "redirectUris": ["https://*/api/auth/oidc/callback"],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "protocol": "openid-connect"
+    }
+  ]
+}

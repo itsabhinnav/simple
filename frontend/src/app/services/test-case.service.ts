@@ -107,6 +107,52 @@ export interface TestCaseCreateRequest {
 
 export type TestCaseUpdateRequest = Partial<TestCaseCreateRequest>;
 
+/** Saved filter preset for the test-case management page. */
+export interface TestCaseFilterState {
+  searchTerm?: string;
+  selectedTypes?: string[];
+  selectedPriorities?: string[];
+  selectedFeatures?: string[];
+  selectedScreenIds?: string[];
+  selectedTestSuiteTypes?: string[];
+  selectedRequirementTypes?: string[];
+  selectedSeverities?: string[];
+  selectedVehicleModels?: string[];
+  selectedRegions?: string[];
+  selectedBrands?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+}
+
+export interface TestSuitePreset {
+  id: number;
+  name: string;
+  description?: string;
+  filters: TestCaseFilterState;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TestAutomationStatus {
+  enabled: boolean;
+  mode: 'subprocess' | 'http' | string;
+}
+
+export interface TestExecutionResult {
+  success: boolean;
+  mode?: string;
+  exit_code?: number;
+  http_status?: number;
+  stdout?: string;
+  stderr?: string;
+  response?: unknown;
+  message?: string;
+  test_case_ids?: string[];
+}
+
 /**
  * Shape of GET /api/test-cases/dropdowns. Each option list is configurable
  * via `config.yaml > test_case_dropdowns`. `multi_value_fields` echoes
@@ -331,24 +377,24 @@ export class TestCaseService {
   /**
    * Update an existing test case
    */
-  updateTestCase(id: string, testCaseData: TestCaseUpdateRequest): Observable<TestCase | null> {
+  updateTestCase(id: string, testCaseData: TestCaseUpdateRequest): Observable<TestCase> {
     return this.http.put<ApiResponse<TestCase>>(`${this.baseUrl}/test-cases/${id}`, testCaseData)
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            // Update local cache
             const currentTestCases = this.testCasesSubject.value;
-            const updatedTestCases = currentTestCases.map(testCase => 
+            const updatedTestCases = currentTestCases.map(testCase =>
               testCase.test_case_id === id ? response.data! : testCase
             );
             this.testCasesSubject.next(updatedTestCases);
             return response.data;
           }
-          return null;
+          throw new Error(response.message || response.error || 'Failed to update test case');
         }),
         catchError(error => {
           console.error('Error updating test case:', error);
-          return of(null);
+          const msg = error?.error?.message || error?.error?.error || error?.message || 'Failed to update test case';
+          return throwError(() => new Error(msg));
         })
       );
   }
@@ -473,6 +519,101 @@ export class TestCaseService {
         }),
         catchError(() => of(false))
       );
+  }
+
+  getAutomationStatus(): Observable<TestAutomationStatus> {
+    return this.http
+      .get<ApiResponse<TestAutomationStatus>>(`${this.baseUrl}/test-cases/automation/status`)
+      .pipe(
+        map(response => response.data ?? { enabled: false, mode: 'subprocess' }),
+        catchError(() => of({ enabled: false, mode: 'subprocess' }))
+      );
+  }
+
+  listTestSuites(): Observable<TestSuitePreset[]> {
+    return this.http
+      .get<ApiResponse<TestSuitePreset[]>>(`${this.baseUrl}/test-cases/suites`)
+      .pipe(
+        map(response => response.data ?? []),
+        catchError(() => of([]))
+      );
+  }
+
+  saveTestSuite(name: string, filters: TestCaseFilterState, description = ''): Observable<TestSuitePreset> {
+    return this.http
+      .post<ApiResponse<TestSuitePreset>>(`${this.baseUrl}/test-cases/suites`, { name, filters, description })
+      .pipe(
+        map(response => {
+          if (!response.success || !response.data) {
+            throw new Error(response.message || response.error || 'Failed to save test suite');
+          }
+          return response.data;
+        })
+      );
+  }
+
+  deleteTestSuite(id: number): Observable<boolean> {
+    return this.http
+      .delete<ApiResponse<any>>(`${this.baseUrl}/test-cases/suites/${id}`)
+      .pipe(
+        map(response => !!response.success),
+        catchError(() => of(false))
+      );
+  }
+
+  executeTestCases(
+    testCaseIds: string[],
+    options?: { suiteName?: string; extra?: Record<string, unknown> }
+  ): Observable<TestExecutionResult> {
+    return this.http
+      .post<ApiResponse<TestExecutionResult>>(`${this.baseUrl}/test-cases/execute`, {
+        test_case_ids: testCaseIds,
+        suite_name: options?.suiteName,
+        extra: options?.extra,
+      })
+      .pipe(
+        map(response => {
+          const data = response.data ?? { success: !!response.success, message: response.message };
+          if (!response.success && !data.message) {
+            throw new Error(response.message || response.error || 'Execution failed');
+          }
+          return data;
+        })
+      );
+  }
+
+  executeTestCase(testCaseId: string): Observable<TestExecutionResult> {
+    return this.http
+      .post<ApiResponse<TestExecutionResult>>(`${this.baseUrl}/test-cases/${encodeURIComponent(testCaseId)}/execute`, {})
+      .pipe(
+        map(response => {
+          const data = response.data ?? { success: !!response.success, message: response.message };
+          if (!response.success && !data.message) {
+            throw new Error(response.message || response.error || 'Execution failed');
+          }
+          return data;
+        })
+      );
+  }
+
+  static snapshotFilters(input: TestCaseFilterState): TestCaseFilterState {
+    return {
+      searchTerm: input.searchTerm ?? '',
+      selectedTypes: [...(input.selectedTypes ?? [])],
+      selectedPriorities: [...(input.selectedPriorities ?? [])],
+      selectedFeatures: [...(input.selectedFeatures ?? [])],
+      selectedScreenIds: [...(input.selectedScreenIds ?? [])],
+      selectedTestSuiteTypes: [...(input.selectedTestSuiteTypes ?? [])],
+      selectedRequirementTypes: [...(input.selectedRequirementTypes ?? [])],
+      selectedSeverities: [...(input.selectedSeverities ?? [])],
+      selectedVehicleModels: [...(input.selectedVehicleModels ?? [])],
+      selectedRegions: [...(input.selectedRegions ?? [])],
+      selectedBrands: [...(input.selectedBrands ?? [])],
+      dateFrom: input.dateFrom ?? '',
+      dateTo: input.dateTo ?? '',
+      sortBy: input.sortBy ?? 'updated_at',
+      sortDir: input.sortDir ?? 'desc',
+    };
   }
 
   /**

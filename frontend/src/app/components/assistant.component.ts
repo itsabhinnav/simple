@@ -23,6 +23,7 @@ import {
   ConversationStore,
   StoredChatMessage,
 } from '../services/conversation-store.service';
+import { TranslationService } from '../services/translation.service';
 
 interface ChatMessage extends StoredChatMessage {
   streaming?: boolean;
@@ -30,13 +31,12 @@ interface ChatMessage extends StoredChatMessage {
   citationsExpanded?: boolean;
 }
 
-const ALL_KINDS: AssistantKind[] = ['requirements', 'test_cases', 'design_tickets', 'specs'];
+const ALL_KINDS: AssistantKind[] = ['requirements', 'test_cases', 'specs'];
 
 const SUGGESTED_PROMPTS = [
   'Is there any requirement and test cases for BT disconnection?',
   'Which P1 requirements are still in Draft?',
   'List negative test cases for the login feature.',
-  'Show design tickets linked to requirement REQ-001.',
   'Summarize the latest specification changes.',
 ];
 
@@ -51,6 +51,7 @@ export class AssistantComponent implements OnInit, OnDestroy {
   private assistant = inject(AssistantService);
   private store = inject(ConversationStore);
   private router = inject(Router);
+  private i18n = inject(TranslationService);
 
   @ViewChild('scrollEnd') private scrollEnd?: ElementRef<HTMLDivElement>;
   @ViewChild('composerInput') private composerInput?: ElementRef<HTMLTextAreaElement>;
@@ -76,7 +77,7 @@ export class AssistantComponent implements OnInit, OnDestroy {
   kindFilters = signal<Record<AssistantKind, boolean>>({
     requirements: true,
     test_cases: true,
-    design_tickets: true,
+    design_tickets: false,
     specs: true,
   });
 
@@ -101,6 +102,8 @@ export class AssistantComponent implements OnInit, OnDestroy {
     specs: '📑',
   };
 
+  readonly visibleKinds = ALL_KINDS;
+
   readonly citationLimit = 6;
 
   hasMessages = computed(() => this.messages().length > 0);
@@ -114,14 +117,17 @@ export class AssistantComponent implements OnInit, OnDestroy {
   );
 
   indexFreshnessLabel = computed(() => {
+    this.i18n.currentLang();
     const st = this.indexStatus();
-    if (!st) return 'index: loading…';
-    if (!st.enabled) return 'index: disabled';
-    if (st.in_progress) return 'index: reindexing…';
-    if (!st.last_indexed_at) return `${st.backend} · not yet built`;
+    if (!st) return this.i18n.translateLiteral('index: loading…');
+    if (!st.enabled) return this.i18n.translateLiteral('index: disabled');
+    if (st.in_progress) return this.i18n.translateLiteral('index: reindexing…');
+    if (!st.last_indexed_at) {
+      return this.i18n.translateLiteral(`${st.backend} · not yet built`);
+    }
     const seconds = Math.round(Date.now() / 1000 - st.last_indexed_at);
     const age = seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.round(seconds / 60)}m` : `${Math.round(seconds / 3600)}h`;
-    return `${st.backend} · ${st.total_vectors} vectors · synced ${age} ago`;
+    return this.i18n.translateLiteral(`${st.backend} · ${st.total_vectors} vectors · synced ${age} ago`);
   });
 
   // ---- Internals ----------------------------------------------------------
@@ -293,8 +299,7 @@ export class AssistantComponent implements OnInit, OnDestroy {
         this.reindexMsg.set(`+${created} added · ${updated} updated · ${deleted} removed`);
         this.reindexing.set(false);
       },
-      error: err => {
-        this.reindexMsg.set(`Reindex failed: ${err?.message || 'unknown error'}`);
+      error: () => {
         this.reindexing.set(false);
       },
     });
@@ -378,14 +383,12 @@ export class AssistantComponent implements OnInit, OnDestroy {
           this.cancelStream = null;
           this.persistCurrent();
         },
-        onError: msg => {
+        onError: () => {
           this.patchAssistant(assistantMsg.id, m => ({
             ...m,
             streaming: false,
-            error: true,
-            content: m.content ? `${m.content}\n\n[error: ${msg}]` : `Error: ${msg}`,
+            content: m.content || this.retrievalFallback(m),
           }));
-          this.error.set(msg);
           this.isStreaming.set(false);
           this.cancelStream = null;
           this.persistCurrent();
@@ -521,11 +524,20 @@ export class AssistantComponent implements OnInit, OnDestroy {
   }
 
   relativeTime(ts: number): string {
+    this.i18n.currentLang();
     const diff = Date.now() - ts;
-    if (diff < 60_000) return 'just now';
-    if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-    if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
-    return new Date(ts).toLocaleDateString();
+    if (diff < 60_000) return this.i18n.translateLiteral('just now');
+    if (diff < 3_600_000) return this.i18n.translateLiteral(`${Math.round(diff / 60_000)}m ago`);
+    if (diff < 86_400_000) return this.i18n.translateLiteral(`${Math.round(diff / 3_600_000)}h ago`);
+    return new Date(ts).toLocaleDateString(this.i18n.currentLang() === 'ja' ? 'ja-JP' : undefined);
+  }
+
+  private retrievalFallback(m: ChatMessage): string {
+    const cites = m.citations;
+    if (!cites?.length) return 'No matching items were found in the selected sources.';
+    const lines = cites.slice(0, 12).map(c => `- [${c.id}] ${c.title}`);
+    const tail = cites.length > 12 ? `\n- …and ${cites.length - 12} more (see Sources below)` : '';
+    return `Here are the matching items I found:\n${lines.join('\n')}${tail}`;
   }
 
   private escapeHtml(s: string): string {

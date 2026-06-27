@@ -14,7 +14,7 @@ from src.services.bulk_import_service import (
 )
 from src.services.schema_service import SchemaError
 from src.infrastructure.configuration_manager import get_config_manager
-from src.infrastructure.dependency_injection import get_schema_service
+from src.infrastructure.dependency_injection import get_schema_service, get_database_backup_service
 from src.infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -54,17 +54,23 @@ def _validate_provider_config(name: str, cfg: dict) -> None:
     if not isinstance(base_url, str) or not base_url.strip():
         return
     if name in ("ollama", "ollama-lite"):
-        allow_remote = os.environ.get("SAKURA_LLM_ALLOW_REMOTE_OLLAMA", "false").lower() == "true"
+        allow_remote = (
+            os.environ.get("SAKURA_LLM_ALLOW_REMOTE_OLLAMA", "false").lower() == "true"
+            and os.environ.get("ENVIRONMENT", "production").lower() != "production"
+        )
         if not allow_remote and not _is_loopback_url(base_url.strip()):
             raise ValueError(
                 f"Ollama base_url must be a loopback URL (e.g. http://127.0.0.1:11434); "
                 f"got {base_url!r}. Set SAKURA_LLM_ALLOW_REMOTE_OLLAMA=true to opt out."
             )
     if name in ("openai", "anthropic"):
-        if os.environ.get("SAKURA_LLM_ALLOW_EXTERNAL", "false").lower() != "true":
+        from src.interfaces.llm_provider import remote_providers_allowed
+
+        if not remote_providers_allowed():
             raise ValueError(
-                f"External LLM provider {name!r} is disabled on this build. "
-                "Set SAKURA_LLM_ALLOW_EXTERNAL=true to enable."
+                f"External LLM provider {name!r} is disabled. "
+                "Set parsing.vlm.allow_remote_providers: true in config.yaml "
+                "or SAKURA_LLM_ALLOW_EXTERNAL=true to enable."
             )
 
 
@@ -606,6 +612,73 @@ class AdminController:
             return jsonify({"success": False, "error": "Backup failed", "message": str(e)}), 500
 
     @require_admin
+    def get_db_status(self) -> Dict[str, Any]:
+        try:
+            status = get_database_backup_service().get_status()
+            try:
+                from src.infrastructure.dependency_injection import get_hybrid_database_service
+                db = get_hybrid_database_service().local_db.execute_query(
+                    "SELECT version, name, applied_at FROM app_migrations ORDER BY version",
+                    "default",
+                )
+                if db.get("success"):
+                    status["app_migrations"] = db.get("data") or []
+                else:
+                    status["app_migrations"] = []
+            except Exception:
+                status["app_migrations"] = []
+            return jsonify({"success": True, "data": status}), 200
+        except Exception as e:
+            logger.exception("get_db_status failed")
+            return jsonify({"success": False, "error": "Failed to load database status", "message": str(e)}), 500
+
+    @require_admin
+    def restore_schema_backup(self) -> Dict[str, Any]:
+        try:
+            data = request.get_json() or {}
+            if not data.get("confirm"):
+                return jsonify({
+                    "success": False,
+                    "error": "Confirmation required",
+                    "message": "Set confirm=true in the request body to restore",
+                }), 400
+
+            backup_name = data.get("backup_name") or data.get("name")
+            if not backup_name:
+                return jsonify({
+                    "success": False,
+                    "error": "Missing backup_name",
+                }), 400
+
+            svc = get_database_backup_service()
+            path = svc.resolve_backup_path(str(backup_name))
+            if path is None:
+                return jsonify({
+                    "success": False,
+                    "error": "Backup not found",
+                    "message": f"No verified backup named {backup_name!r}",
+                }), 404
+
+            pre = svc.create_backup(reason="pre_admin_restore")
+            if not svc.restore_from(path):
+                return jsonify({
+                    "success": False,
+                    "error": "Restore failed",
+                }), 500
+
+            return jsonify({
+                "success": True,
+                "message": f"Database restored from {backup_name}",
+                "data": {
+                    "restored_from": str(path),
+                    "pre_restore_snapshot": str(pre) if pre else None,
+                },
+            }), 200
+        except Exception as e:
+            logger.exception("restore_schema_backup failed")
+            return jsonify({"success": False, "error": "Restore failed", "message": str(e)}), 500
+
+    @require_admin
     def get_import_schema(self) -> Dict[str, Any]:
         """GET /api/admin/import-schema — expose the bulk import contract
         (canonical fields per entity + alias dictionary) so the admin UI
@@ -638,6 +711,44 @@ class AdminController:
                 "message": str(e),
             }), 500
 
+    @require_admin
+    def get_observability_summary(self) -> Dict[str, Any]:
+        """GET /api/admin/observability — local request metrics (no external telemetry)."""
+        try:
+            from src.services.observability_service import (
+                get_observability_service,
+                observability_enabled,
+            )
+
+            if not observability_enabled():
+                return jsonify({
+                    "success": False,
+                    "error": "Observability disabled",
+                    "message": "Set SAKURA_ENABLE_OBSERVABILITY=true to enable",
+                }), 503
+
+            return jsonify({
+                "success": True,
+                "data": get_observability_service().summary(),
+            }), 200
+        except Exception as e:
+            logger.exception("get_observability_summary failed")
+            return jsonify({"success": False, "error": "Failed to load observability", "message": str(e)}), 500
+
+    @require_admin
+    def get_egress_log(self) -> Dict[str, Any]:
+        """GET /api/admin/network/egress-log — socket-level connection audit trail."""
+        try:
+            from src.infrastructure.network_restrictor import get_connection_log
+
+            return jsonify({
+                "success": True,
+                "data": get_connection_log()[-500:],
+            }), 200
+        except Exception as e:
+            logger.exception("get_egress_log failed")
+            return jsonify({"success": False, "error": "Failed to load egress log", "message": str(e)}), 500
+
 
 def create_admin_blueprint() -> Blueprint:
     """Create and configure admin blueprint"""
@@ -664,6 +775,10 @@ def create_admin_blueprint() -> Blueprint:
     admin_bp.route('/schema/tables/<table>/columns/<column>', methods=['DELETE'])(controller.drop_schema_column)
     admin_bp.route('/schema/migrations', methods=['GET'])(controller.list_schema_migrations)
     admin_bp.route('/schema/backup', methods=['POST'])(controller.create_schema_backup)
+    admin_bp.route('/schema/restore', methods=['POST'])(controller.restore_schema_backup)
+    admin_bp.route('/db/status', methods=['GET'])(controller.get_db_status)
+    admin_bp.route('/observability', methods=['GET'])(controller.get_observability_summary)
+    admin_bp.route('/network/egress-log', methods=['GET'])(controller.get_egress_log)
 
     return admin_bp
 

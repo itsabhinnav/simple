@@ -3,6 +3,9 @@ from flask import Blueprint, request, jsonify
 from typing import Dict, Any
 from src.services.test_case_service import ITestCaseService
 from src.services.bulk_import_service import BulkImportService
+from src.services.test_automation_service import TestAutomationService
+from src.services.test_suite_preset_service import TestSuitePresetService
+from src.infrastructure.dependency_injection import get_hybrid_database_service
 from src.schemas.test_case_schema import TestCaseCreateSchema
 from src.schemas.api_schema import ErrorResponseSchema, SuccessResponseSchema
 from src.infrastructure.configuration_manager import get_config_manager
@@ -19,6 +22,8 @@ class TestCaseController:
         # Reused for Excel preview + bulk import. BulkImportService is cheap
         # to instantiate (just resolves the hybrid DB service).
         self.bulk_import_service = BulkImportService()
+        self.test_automation_service = TestAutomationService()
+        self.test_suite_preset_service = TestSuitePresetService(get_hybrid_database_service())
     
     def get_all_test_cases(self) -> Dict[str, Any]:
         """GET /api/test-cases - Get all test cases"""
@@ -312,6 +317,195 @@ class TestCaseController:
                 "message": str(e),
             }), 500
 
+    def get_automation_status(self) -> Dict[str, Any]:
+        """GET /api/test-cases/automation/status"""
+        try:
+            return jsonify({
+                "success": True,
+                "data": self.test_automation_service.get_status(),
+            }), 200
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": "Failed to read automation status",
+                "message": str(e),
+            }), 500
+
+    def list_test_suites(self) -> Dict[str, Any]:
+        """GET /api/test-cases/suites"""
+        try:
+            suites = self.test_suite_preset_service.list_presets()
+            return jsonify({
+                "success": True,
+                "data": suites,
+                "count": len(suites),
+            }), 200
+        except Exception as e:
+            logger.error("list_test_suites failed: %s", e, exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to list test suites",
+                "message": str(e),
+            }), 500
+
+    def create_test_suite(self) -> Dict[str, Any]:
+        """POST /api/test-cases/suites"""
+        try:
+            from flask import g
+            data = request.get_json() or {}
+            name = data.get("name")
+            filters = data.get("filters")
+            if not isinstance(filters, dict):
+                return jsonify({
+                    "success": False,
+                    "error": "Validation error",
+                    "message": "filters object is required",
+                }), 400
+            description = data.get("description", "")
+            user = getattr(g, "current_user", None) or {}
+            created_by = user.get("username") or user.get("email")
+            suite = self.test_suite_preset_service.create_preset(
+                name,
+                filters,
+                description=description,
+                created_by=created_by,
+            )
+            return jsonify({
+                "success": True,
+                "message": "Test suite saved",
+                "data": suite,
+            }), 201
+        except ValueError as e:
+            return jsonify({"success": False, "error": "Validation error", "message": str(e)}), 400
+        except Exception as e:
+            logger.error("create_test_suite failed: %s", e, exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to create test suite",
+                "message": str(e),
+            }), 500
+
+    def update_test_suite(self, suite_id: int) -> Dict[str, Any]:
+        """PUT /api/test-cases/suites/<suite_id>"""
+        try:
+            data = request.get_json() or {}
+            suite = self.test_suite_preset_service.update_preset(
+                suite_id,
+                name=data.get("name"),
+                description=data.get("description"),
+                filters=data.get("filters"),
+            )
+            if not suite:
+                return jsonify({
+                    "success": False,
+                    "error": "Not found",
+                    "message": f"Test suite {suite_id} not found",
+                }), 404
+            return jsonify({
+                "success": True,
+                "message": "Test suite updated",
+                "data": suite,
+            }), 200
+        except ValueError as e:
+            return jsonify({"success": False, "error": "Validation error", "message": str(e)}), 400
+        except Exception as e:
+            logger.error("update_test_suite failed: %s", e, exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to update test suite",
+                "message": str(e),
+            }), 500
+
+    def delete_test_suite(self, suite_id: int) -> Dict[str, Any]:
+        """DELETE /api/test-cases/suites/<suite_id>"""
+        try:
+            deleted = self.test_suite_preset_service.delete_preset(suite_id)
+            if not deleted:
+                return jsonify({
+                    "success": False,
+                    "error": "Not found",
+                    "message": f"Test suite {suite_id} not found",
+                }), 404
+            return jsonify({"success": True, "message": "Test suite deleted"}), 200
+        except Exception as e:
+            logger.error("delete_test_suite failed: %s", e, exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Failed to delete test suite",
+                "message": str(e),
+            }), 500
+
+    def execute_test_cases(self) -> Dict[str, Any]:
+        """POST /api/test-cases/execute — run one or more test cases."""
+        try:
+            data = request.get_json() or {}
+            ids = data.get("test_case_ids") or []
+            if not isinstance(ids, list):
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid request",
+                    "message": "test_case_ids must be an array",
+                }), 400
+            from flask import g
+            user = getattr(g, "current_user", None) or {}
+            result = self.test_automation_service.execute(
+                [str(i) for i in ids],
+                suite_name=data.get("suite_name"),
+                triggered_by=user.get("username") or user.get("email"),
+                extra=data.get("extra") if isinstance(data.get("extra"), dict) else None,
+            )
+            status = 200 if result.get("success") else 502
+            return jsonify({
+                "success": bool(result.get("success")),
+                "message": result.get("message") or "Execution finished",
+                "data": result,
+            }), status
+        except ValueError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except TimeoutError as e:
+            return jsonify({"success": False, "error": "Timeout", "message": str(e)}), 504
+        except Exception as e:
+            logger.error("execute_test_cases failed: %s", e, exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Execution failed",
+                "message": str(e),
+            }), 500
+
+    def execute_single_test_case(self, test_case_id: str) -> Dict[str, Any]:
+        """POST /api/test-cases/<test_case_id>/execute"""
+        try:
+            existing = self.test_case_service.get_test_case_by_id(test_case_id)
+            if not existing:
+                return jsonify({
+                    "success": False,
+                    "error": "Not found",
+                    "message": f"Test case {test_case_id} not found",
+                }), 404
+            from flask import g
+            user = getattr(g, "current_user", None) or {}
+            result = self.test_automation_service.execute(
+                [test_case_id],
+                triggered_by=user.get("username") or user.get("email"),
+            )
+            status = 200 if result.get("success") else 502
+            return jsonify({
+                "success": bool(result.get("success")),
+                "message": result.get("message") or "Execution finished",
+                "data": result,
+            }), status
+        except ValueError as e:
+            return jsonify({"success": False, "error": "Invalid request", "message": str(e)}), 400
+        except TimeoutError as e:
+            return jsonify({"success": False, "error": "Timeout", "message": str(e)}), 504
+        except Exception as e:
+            logger.error("execute_single_test_case failed: %s", e, exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": "Execution failed",
+                "message": str(e),
+            }), 500
+
     def delete_test_case(self, test_case_id: str) -> Dict[str, Any]:
         """DELETE /api/test-cases/<test_case_id> - Delete test case"""
         try:
@@ -353,9 +547,16 @@ def create_test_case_blueprint(test_case_service: ITestCaseService) -> Blueprint
     test_case_bp.route('/', methods=['POST'])(controller.create_test_case)
     test_case_bp.route('/feature', methods=['GET'])(controller.get_test_cases_by_feature)
     test_case_bp.route('/dropdowns', methods=['GET'])(controller.get_dropdowns)
+    test_case_bp.route('/automation/status', methods=['GET'])(controller.get_automation_status)
+    test_case_bp.route('/suites', methods=['GET'])(controller.list_test_suites)
+    test_case_bp.route('/suites', methods=['POST'])(controller.create_test_suite)
+    test_case_bp.route('/suites/<int:suite_id>', methods=['PUT'])(controller.update_test_suite)
+    test_case_bp.route('/suites/<int:suite_id>', methods=['DELETE'])(controller.delete_test_suite)
+    test_case_bp.route('/execute', methods=['POST'])(controller.execute_test_cases)
     test_case_bp.route('/import/fields', methods=['GET'])(controller.get_import_fields)
     test_case_bp.route('/import/preview', methods=['POST'])(controller.preview_import)
     test_case_bp.route('/import', methods=['POST'])(controller.import_test_cases)
+    test_case_bp.route('/<test_case_id>/execute', methods=['POST'])(controller.execute_single_test_case)
     test_case_bp.route('/<test_case_id>', methods=['GET'])(controller.get_test_case_by_id)
     test_case_bp.route('/<test_case_id>', methods=['PUT'])(controller.update_test_case)
     test_case_bp.route('/<test_case_id>', methods=['DELETE'])(controller.delete_test_case)

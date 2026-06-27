@@ -44,7 +44,7 @@
         <span class="search-icon">🔍</span>
         <input
           type="text"
-          placeholder="Search by ID, title, description, assignee, tags, GWT..."
+          placeholder="Search by ID, title, description, tags, GWT..."
           [ngModel]="searchTerm()"
           (ngModelChange)="searchTerm.set($event)"
           class="search-input">
@@ -73,17 +73,6 @@
 
     <div class="select-filters">
       <div class="filter-group">
-        <label class="filter-label">Status</label>
-        <select [ngModel]="selectedStatus()" (ngModelChange)="selectedStatus.set($event)" class="filter-select">
-          <option value="all">All Statuses</option>
-          <option value="Draft">Draft</option>
-          <option value="Approved">Approved</option>
-          <option value="Implemented">Implemented</option>
-          <option value="Tested">Tested</option>
-          <option value="Closed">Closed</option>
-        </select>
-      </div>
-      <div class="filter-group">
         <label class="filter-label">Priority</label>
         <select [ngModel]="selectedPriority()" (ngModelChange)="selectedPriority.set($event)" class="filter-select">
           <option value="all">All Priorities</option>
@@ -94,21 +83,12 @@
         </select>
       </div>
       <div class="filter-group">
-        <label class="filter-label">Assignee</label>
-        <select [ngModel]="selectedAssignee()" (ngModelChange)="selectedAssignee.set($event)" class="filter-select">
-          <option value="all">All Assignees</option>
-          <option value="__unassigned__">— Unassigned —</option>
-          <option *ngFor="let assignee of getUniqueAssignees()" [value]="assignee">{{ assignee }}</option>
-        </select>
-      </div>
-      <div class="filter-group">
         <label class="filter-label">Sort By</label>
         <div class="sort-control">
           <select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)" class="filter-select sort-select">
             <option value="updated_at">Last Updated</option>
             <option value="created_at">Created Date</option>
             <option value="priority">Priority</option>
-            <option value="status">Status</option>
             <option value="requirement_id">Requirement ID</option>
             <option value="title">Title</option>
           </select>
@@ -169,17 +149,9 @@
         Search: "{{ searchTerm() }}"
         <button (click)="searchTerm.set('')">✕</button>
       </span>
-      <span *ngIf="selectedStatus() !== 'all'" class="active-chip">
-        Status: {{ selectedStatus() }}
-        <button (click)="selectedStatus.set('all')">✕</button>
-      </span>
       <span *ngIf="selectedPriority() !== 'all'" class="active-chip">
         Priority: {{ selectedPriority() }}
         <button (click)="selectedPriority.set('all')">✕</button>
-      </span>
-      <span *ngIf="selectedAssignee() !== 'all'" class="active-chip">
-        Assignee: {{ selectedAssignee() === '__unassigned__' ? 'Unassigned' : selectedAssignee() }}
-        <button (click)="selectedAssignee.set('all')">✕</button>
       </span>
       <span *ngIf="selectedType() !== 'all'" class="active-chip">
         Type: {{ selectedType() }}
@@ -274,9 +246,7 @@
           <tr>
             <th>ID</th>
             <th>Title</th>
-            <th>Status</th>
             <th>Priority</th>
-            <th>Assignee</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -284,9 +254,7 @@
           <tr *ngFor="let req of filteredRequirements()" (click)="navigateToDetail(req.id)" style="cursor: pointer;">
             <td><strong>{{ req.requirement_id }}</strong></td>
             <td>{{ req.title }}</td>
-            <td><span class="status-badge" [class]="getStatusClass(req.status)">{{ req.status }}</span></td>
             <td><span class="priority-badge" [class]="getPriorityClass(req.priority)">{{ req.priority }}</span></td>
-            <td>{{ req.assignee || '-' }}</td>
             <td (click)="$event.stopPropagation()">
               <button class="btn-edit" (click)="openEditModal(req)">Edit</button>
               <button class="btn-delete" (click)="deleteRequirement(req.id!)">Delete</button>
@@ -309,10 +277,6 @@
         <p class="card-description" *ngIf="req.description">{{ req.description }}</p>
         
         <div class="card-footer">
-          <span class="status-badge" [class]="getStatusClass(req.status)">
-            {{ req.status }}
-          </span>
-          <span class="assignee" *ngIf="req.assignee">👤 {{ req.assignee }}</span>
         </div>
         <div class="card-actions" (click)="$event.stopPropagation()">
           <button class="btn-edit" (click)="openEditModal(req)" title="Edit">

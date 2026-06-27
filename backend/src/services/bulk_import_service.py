@@ -13,6 +13,7 @@ SUPPORTED_SUFFIXES = {".xlsx", ".xlsm", ".csv"}
 
 from src.infrastructure.dependency_injection import get_hybrid_database_service
 from src.infrastructure.logging_config import get_logger
+from src.services.database_guard import backup_before_destructive
 
 logger = get_logger(__name__)
 
@@ -226,10 +227,10 @@ TARGET_CONFIG = {
         "id_field": "requirement_id",
         "prefix": "REQ",
         "required": ["requirement_id", "title"],
-        "defaults": {"priority": "P2", "status": "Draft"},
+        "defaults": {"priority": "P2"},
         "fields": [
             "requirement_id", "title", "description", "requirement_type", "given",
-            "when_action", "then_result", "priority", "status", "assignee", "tags", "created_by",
+            "when_action", "then_result", "priority", "tags", "created_by",
         ],
         "ddl": None,
     },
@@ -479,6 +480,7 @@ class BulkImportService:
         created_by: str = "system",
         duplicate_strategy: str = "skip",
     ) -> Dict[str, Any]:
+        backup_before_destructive("pre_bulk_import")
         """Import a workbook using a user-provided header→field mapping.
 
         `mapping` keys are the raw header strings exactly as they appear in
@@ -547,6 +549,7 @@ class BulkImportService:
         created_by: str = "system",
         duplicate_strategy: str = "skip",
     ) -> Dict[str, Any]:
+        backup_before_destructive("pre_bulk_import")
         normalized_target = self._normalize_target(target)
         if normalized_target is None and target != "auto":
             raise ValueError("Unsupported import type")

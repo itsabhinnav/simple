@@ -14,13 +14,17 @@
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File .\setup.ps1
-#   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -NoStart
+#   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -Interactive
+#   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -NonInteractive -NoStart
+#   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -AuditStrict
 # =============================================================================
 
 [CmdletBinding()]
 param(
     [switch]$NoStart,
     [switch]$SkipFrontendInstall,
+    [switch]$Interactive,
+    [switch]$NonInteractive,
     # Corporate MITM proxies often present a self-signed cert. -InsecureSsl
     # tells pip to add bootstrap-pypa hosts to --trusted-host and tells npm
     # to disable strict-ssl + Node TLS verification for this run.
@@ -28,7 +32,9 @@ param(
     # Force a clean frontend build by wiping frontend\dist and the Angular
     # CLI cache before invoking ng build. Useful when the previous build
     # used a different angular.json (SSR vs SPA).
-    [switch]$CleanBuild
+    [switch]$CleanBuild,
+    [switch]$SkipAudit,
+    [switch]$AuditStrict
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,6 +44,50 @@ Set-Location $RootDir
 function Log     { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Cyan }
 function Warn    { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Yellow }
 function Fail    { param($msg) Write-Host "[sakura] $msg" -ForegroundColor Red; exit 1 }
+
+function Read-YesNoBootstrap {
+    param([string]$Prompt, [bool]$Default = $true)
+    $hint = if ($Default) { "Y/n" } else { "y/N" }
+    $raw = Read-Host "$Prompt [$hint]"
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $Default }
+    return $raw -match '^[yY]'
+}
+
+# ---------------------------------------------------------------------------
+# 0d. Interactive configuration wizard
+# ---------------------------------------------------------------------------
+$EnvFile = Join-Path $RootDir '.env'
+$WizardCfg = $null
+$RunWizard = $Interactive
+if (-not $NonInteractive -and -not $RunWizard -and -not (Test-Path $EnvFile)) {
+    $RunWizard = Read-YesNoBootstrap "No .env found. Run interactive setup wizard?" $true
+}
+
+if ($RunWizard) {
+    . (Join-Path $RootDir 'scripts\setup-wizard.ps1')
+    $WizardCfg = Invoke-SakuraSetupWizard -PythonExe $(if (Test-Path (Join-Path $RootDir '.venv\Scripts\python.exe')) { (Join-Path $RootDir '.venv\Scripts\python.exe') } else { 'python' })
+    if ($null -eq $WizardCfg) { exit 0 }
+    Write-SakuraEnvFile -Path $EnvFile -Lines $WizardCfg.EnvLines
+    foreach ($line in $WizardCfg.EnvLines) {
+        if ($line -match '^([^=+#][^=]*)=(.*)$') {
+            Set-Item -Path "env:$($Matches[1].Trim())" -Value $Matches[2].Trim()
+        }
+    }
+    if ($WizardCfg.DockerMode) {
+        Log "Docker LAN mode selected — building stack via docker compose"
+        $tlsScript = Join-Path $RootDir 'deploy\lan\scripts\generate-tls.ps1'
+        if (Test-Path $tlsScript) { & $tlsScript $WizardCfg.LanIp }
+        if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+            Fail "Docker is required for LAN deployment but was not found in PATH."
+        }
+        $profileArgs = @()
+        foreach ($p in $WizardCfg.ComposeProfiles) { $profileArgs += @('--profile', $p) }
+        docker compose @profileArgs up -d --build
+        if ($LASTEXITCODE -ne 0) { Fail "docker compose failed (exit $LASTEXITCODE)" }
+        Log "Deployment complete: https://$($WizardCfg.LanIp)/"
+        exit 0
+    }
+}
 
 # ---------------------------------------------------------------------------
 # 0. Corporate proxy detection
@@ -297,9 +347,8 @@ if ((-not (Test-Path $indexHtml)) -and (Test-Path $indexCsrHtml)) {
 }
 
 # ---------------------------------------------------------------------------
-# 4. .env bootstrap
+# 4. .env bootstrap (non-interactive fallback)
 # ---------------------------------------------------------------------------
-$EnvFile    = Join-Path $RootDir '.env'
 $EnvExample = Join-Path $RootDir '.env.example'
 
 if (-not (Test-Path $EnvFile)) {
@@ -318,6 +367,27 @@ if (-not (Test-Path $EnvFile)) {
 }
 
 Log "Setup complete"
+
+# ---------------------------------------------------------------------------
+# 4a. Dependency audit (target system)
+# ---------------------------------------------------------------------------
+if (-not $SkipAudit) {
+    Log "Running dependency audit (pip + npm) — reports/security/"
+    $auditScript = Join-Path $RootDir 'scripts\security\audit-dependencies.ps1'
+    if (Test-Path $auditScript) {
+        $auditArgs = @{
+            RootDir     = $RootDir
+            VenvPython  = $VenvPython
+            Strict      = $AuditStrict
+        }
+        & $auditScript @auditArgs
+        if ($LASTEXITCODE -ne 0 -and $AuditStrict) {
+            Fail "Dependency audit failed (-AuditStrict). See reports\security\"
+        }
+    } else {
+        Warn "Audit script not found at $auditScript"
+    }
+}
 
 # ---------------------------------------------------------------------------
 # 4b. Optional runtime deps (Smart Import + local VLM)

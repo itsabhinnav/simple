@@ -84,21 +84,6 @@
               <option value="P4">P4 · Low</option>
             </select>
           </div>
-
-          <div class="hero-badge-group">
-            <label class="hero-badge-label" for="req-status">Status *</label>
-            <select
-              id="req-status"
-              class="hero-badge editable-select"
-              formControlName="status"
-              [class]="getStatusClass(requirementForm.get('status')?.value || '')">
-              <option value="Draft">Draft</option>
-              <option value="Approved">Approved</option>
-              <option value="Implemented">Implemented</option>
-              <option value="Tested">Tested</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -111,7 +96,7 @@
       </div>
 
       <p class="hero-helper">
-        Title, priority and status are required. Use the sections below to capture the
+        Title and priority are required. Use the sections below to capture the
         description and acceptance criteria in Given · When · Then form.
       </p>
     </section>
@@ -338,34 +323,6 @@
                 class="side-input"
                 formControlName="linked_test_case_ids"
                 placeholder="Comma-separated TC IDs">
-            </div>
-            <div class="side-field">
-              <label class="side-label" for="req-designs">Designs</label>
-              <input
-                id="req-designs"
-                type="text"
-                class="side-input"
-                formControlName="linked_design_ids"
-                placeholder="Comma-separated design IDs">
-            </div>
-          </div>
-        </article>
-
-        <!-- People -->
-        <article class="side-card">
-          <header class="side-card-header">
-            <span class="side-icon">👤</span>
-            <h4>Ownership</h4>
-          </header>
-          <div class="side-card-body">
-            <div class="side-field">
-              <label class="side-label" for="req-assignee">Assignee</label>
-              <input
-                id="req-assignee"
-                type="text"
-                class="side-input"
-                formControlName="assignee"
-                placeholder="Person responsible">
             </div>
           </div>
         </article>
