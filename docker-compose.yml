@@ -39,7 +39,7 @@ services:
         HTTP_PROXY:  ${HTTP_PROXY-}
         HTTPS_PROXY: ${HTTPS_PROXY-}
         NO_PROXY:    ${NO_PROXY-}
-    image: sakura-backend:latest
+    image: ${SAKURA_BACKEND_IMAGE:-sakura-backend:latest}
     networks:
       - sakura-internal
     environment:

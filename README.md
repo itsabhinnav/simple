@@ -38,6 +38,8 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
 ```
 
+**New Windows PC (clone → Docker build → test → CI zip):** [`deploy/windows/NEW-PC-SETUP.md`](deploy/windows/NEW-PC-SETUP.md)
+
 | Result | URL |
 |--------|-----|
 | Native setup | `http://<host>:5000/` |

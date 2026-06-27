@@ -9,6 +9,7 @@ For code layout see [`AGENTS.md`](AGENTS.md).
 
 | Goal | Command |
 |------|---------|
+| **New Windows PC after clone** | [`deploy/windows/NEW-PC-SETUP.md`](deploy/windows/NEW-PC-SETUP.md) |
 | First run (interactive wizard) | `./setup.sh` or `.\setup.ps1` |
 | Docker LAN (interactive) | `./bootstrap.sh` or `.\bootstrap.ps1` |
 | Start again after setup | `./start.sh` or `.\start.ps1` |
@@ -148,6 +149,10 @@ powershell -ExecutionPolicy Bypass -File deploy\windows\pack-source-release.ps1 
 
 **CI — after unzip on Linux:** copy `.env.example` → `.env`, fill `JWT_SECRET_KEY` + `ENCRYPTION_KEY`, run the script from the matching runbook.
 
+**Option C — Docker Hub (CI default):** [`deploy/registry/DOCKERHUB.md`](deploy/registry/DOCKERHUB.md) — `sriabhi001/simple:latest`
+
+**Option D — GHCR:** [`deploy/registry/GHCR.md`](deploy/registry/GHCR.md)
+
 ---
 
 ## Docker
@@ -223,6 +228,12 @@ Runtime containers do not use outbound proxies in the default production posture
 | `deploy/linux/build-on-server.sh` | Option B: `compose build` + `up` on Linux |
 | `deploy/ci/RUNBOOK-OPTION-A.md` | Ops runbook — pre-built images |
 | `deploy/ci/RUNBOOK-OPTION-B.md` | Ops runbook — build on server |
+| `deploy/windows/push-to-dockerhub.ps1` | Push backend image to Docker Hub |
+| `deploy/windows/pull-from-dockerhub.ps1` | Pull from Docker Hub (Windows) |
+| `deploy/linux/pull-from-dockerhub.sh` | Pull from Docker Hub (Linux) |
+| `deploy/registry/DOCKERHUB.md` | Docker Hub `sriabhi001/simple` — CI + deploy |
+| `deploy/registry/GITHUB-ACTIONS.md` | CI pipeline secrets & behaviour |
+| `deploy/registry/GHCR.md` | GHCR alternative registry |
 
 ```bash
 # Linux Docker deploy (production host)
