@@ -151,6 +151,8 @@ powershell -ExecutionPolicy Bypass -File deploy\windows\pack-source-release.ps1 
 
 **Option C — Docker Hub (CI default):** [`deploy/registry/DOCKERHUB.md`](deploy/registry/DOCKERHUB.md) — `sriabhi001/simple:latest`
 
+Pack minimal CI zip (no source): `powershell -ExecutionPolicy Bypass -File deploy\windows\pack-hub-deploy.ps1 -Version 1.0.0` → [`deploy/ci/HANDOFF-OPTION-C.md`](deploy/ci/HANDOFF-OPTION-C.md) | [`deploy/ci/RUNBOOK-OPTION-C-DOCKERHUB.md`](deploy/ci/RUNBOOK-OPTION-C-DOCKERHUB.md)
+
 **Option D — GHCR:** [`deploy/registry/GHCR.md`](deploy/registry/GHCR.md)
 
 ---

@@ -82,6 +82,21 @@ Docker Hub requires outbound internet at **pull** time. If the LAN server cannot
 
 ---
 
+## Minimal CI handoff (no full repo)
+
+Pack a small zip (~tens of KB) — compose + nginx + scripts, **no source code**:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\pack-hub-deploy.ps1 -Version 1.0.0
+# → dist\release\sakura-hub-deploy-1.0.0.zip
+```
+
+CI runbook: [RUNBOOK-OPTION-C-DOCKERHUB.md](../ci/RUNBOOK-OPTION-C-DOCKERHUB.md) | quick handoff: [HANDOFF-OPTION-C.md](../ci/HANDOFF-OPTION-C.md)
+
+Send CI: **zip +** https://hub.docker.com/r/sriabhi001/simple
+
+---
+
 ## Change repository name
 
 Edit `DOCKERHUB_IMAGE` in [`.github/workflows/main.yml`](../../.github/workflows/main.yml) and `SAKURA_BACKEND_IMAGE` in `.env`.
