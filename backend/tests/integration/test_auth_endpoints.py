@@ -210,8 +210,8 @@ class TestAuthEndpoints:
         signup_data = {
             "username": "existinguser",
             "email": "duplicate@test.com",
-            "password": "password123",
-            "secret_key": "secret123",
+            "password": "password123456",
+            "secret_key": "secret1234567",
             "git_token": "git_token_for_duplicate_user_123456789",
             "first_name": "Duplicate",
             "last_name": "User"
@@ -345,4 +345,3 @@ class TestAuthEndpoints:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
