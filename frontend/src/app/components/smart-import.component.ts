@@ -711,7 +711,7 @@ export class SmartImportComponent implements OnInit {
   private fallbackFields(target: ImportTarget): string[] {
     switch (target) {
       case 'specifications':
-        return ['spec_id', 'title', 'description', 'category', 'version', 'status', 'file_url'];
+        return ['spec_id', 'title', 'project', 'tags', 'category', 'version', 'status', 'file_url', 'file_name', 'source_url'];
       case 'requirements':
         return [
           'requirement_id',

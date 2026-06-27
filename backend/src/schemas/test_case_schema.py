@@ -121,6 +121,8 @@ class _TestCaseFieldsMixin(BaseModel):
     requirement_type: Optional[str] = Field(None, max_length=50)
     regulation: Optional[str] = Field(None, max_length=10)  # "Yes"/"No"
     priority: Optional[str] = Field(None, max_length=10)
+    reference_spec_id: Optional[str] = Field(None, max_length=200)
+    reference_spec_version: Optional[str] = Field(None, max_length=50)
 
     @field_validator(*MULTI_VALUE_FIELDS, mode="before")
     @classmethod

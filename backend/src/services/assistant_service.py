@@ -164,7 +164,7 @@ class AssistantService:
             ),
             "specs": dict(
                 list_fn=self._specs.get_all_specs,
-                fields=["spec_id", "title", "description", "category", "version", "status"],
+                fields=["spec_id", "title", "project", "tags", "category", "version", "status"],
                 kind="spec", id_field="spec_id", title_field="title",
                 route_fn=lambda r: "/specs",
             ),
@@ -310,7 +310,7 @@ class AssistantService:
                 for d in ctx.design_tickets
             ],
             "specs": [
-                self._slim(s, ["spec_id", "title", "description", "category", "version", "status"])
+                self._slim(s, ["spec_id", "title", "tags", "category", "version", "status"])
                 for s in ctx.specs
             ],
         }

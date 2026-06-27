@@ -1,0 +1,65 @@
+<div class="project-page">
+  <header class="project-hero">
+    <div class="project-hero__top">
+      <a routerLink="/specs" class="back-link">← Specifications</a>
+      <div class="project-hero__actions">
+        <button type="button" class="btn-secondary btn-sm" (click)="addSpecToProject('new')">Upload</button>
+      </div>
+    </div>
+    <h1 class="project-hero__title">{{ displayProject() }}</h1>
+    <p class="project-hero__meta">{{ groupedSpecs().length }} documents · {{ totalVersions() }} versions</p>
+    <input class="project-search" type="search" placeholder="Filter documents…"
+      [value]="searchTerm()" (input)="onSearchInput($any($event.target).value)" />
+  </header>
+
+  <ng-container *ngIf="groupedSpecs().length; else emptyTpl">
+    <section class="doc-list">
+      <article class="doc-item" *ngFor="let family of groupedSpecs()"
+        [class.doc-item--open]="isExpanded(family)"
+        [id]="'spec-family-' + family.spec_id">
+
+        <button type="button" class="doc-item__head" (click)="toggleFamily(family)">
+          <span class="doc-item__chevron" [class.doc-item__chevron--open]="isExpanded(family)">›</span>
+          <span class="doc-item__id">{{ family.spec_id }}</span>
+          <span class="doc-item__title">{{ family.title }}</span>
+          <span class="doc-item__count">{{ family.versions.length }} ver.</span>
+        </button>
+
+        <div class="doc-item__body" *ngIf="isExpanded(family)">
+          <div class="version-focus" *ngIf="selectedVersion()?.spec_id === family.spec_id && selectedVersion() as v">
+            <div class="version-focus__main">
+              <span class="version-focus__label">v{{ v.version || '?' }}</span>
+              <span class="spec-meta-pill" [class]="statusClass(v.status)">{{ v.status || 'Draft' }}</span>
+              <span class="version-focus__file">{{ v.file_name || 'No file' }}</span>
+            </div>
+            <div class="version-focus__actions">
+              <button *ngIf="v.file_url" type="button" class="btn-primary btn-sm" (click)="downloadSpec(v)">Download</button>
+              <button *ngIf="v.source_url && !v.file_url" type="button" class="btn-secondary btn-sm" (click)="openSource(v)">Open link</button>
+              <button type="button" class="btn-secondary btn-sm" (click)="addSpecToProject('version', family)">+ Version</button>
+            </div>
+            <p class="version-focus__ref">Link in reqs/tests: <code>{{ v.spec_id }}</code> · v{{ v.version || '?' }}</p>
+          </div>
+
+          <ul class="version-list">
+            <li *ngFor="let v of family.versions">
+              <button type="button" class="version-line"
+                [class.version-line--active]="selectedVersion()?.id === v.id"
+                (click)="selectVersion(v)">
+                <span class="version-line__ver">v{{ v.version || '?' }}</span>
+                <span class="spec-meta-pill version-line__status" [class]="statusClass(v.status)">{{ v.status || 'Draft' }}</span>
+                <span class="version-line__date">{{ formatDate(v.updated_at || v.created_at) }}</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </article>
+    </section>
+  </ng-container>
+
+  <ng-template #emptyTpl>
+    <section class="empty-panel">
+      <p>No specs in this project.</p>
+      <button type="button" class="btn-primary" (click)="addSpecToProject('new')">Upload first spec</button>
+    </section>
+  </ng-template>
+</div>

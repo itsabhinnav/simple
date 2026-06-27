@@ -16,6 +16,7 @@ import { CreateDesignTicket } from './components/create-design-ticket/create-des
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { SpecManagementComponent } from './components/spec-management.component';
+import { SpecProjectDetailComponent } from './components/spec-project-detail.component';
 import { AdminSettingsComponent } from './components/admin-settings.component';
 import { AssistantComponent } from './components/assistant.component';
 import { APP_SETTINGS } from './app-settings';
@@ -58,6 +59,7 @@ export const routes: Routes = [
   { path: 'design-tickets/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'design_tickets' } },
   { path: 'design-tickets/:id', component: DesignTicketManagementComponent, canActivate: [AuthGuard] },
   { path: 'specs', component: SpecManagementComponent, canActivate: [AuthGuard] },
+  { path: 'specs/project/:project', component: SpecProjectDetailComponent, canActivate: [AuthGuard] },
   { path: 'specs/import', component: SmartImportComponent, canActivate: [AuthGuard], data: { target: 'specifications' } },
   { path: 'split-view', component: SplitViewComponent, canActivate: [AuthGuard] },
   { path: 'assistant', component: AssistantComponent, canActivate: [AuthGuard] },

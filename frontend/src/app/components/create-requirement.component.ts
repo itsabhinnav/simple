@@ -1,9 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { RequirementService } from '../services/requirement.service';
 import { IdGeneratorService } from '../services/id-generator.service';
+import { SpecService, Spec } from '../services/spec.service';
 import { RequirementCreateRequest } from './requirements.component';
 
 @Component({
@@ -16,6 +17,7 @@ import { RequirementCreateRequest } from './requirements.component';
 export class CreateRequirementComponent implements OnInit {
   private requirementService = inject(RequirementService);
   private idGenerator = inject(IdGeneratorService);
+  private specService = inject(SpecService);
   private formBuilder = inject(FormBuilder);
   private router = inject(Router);
   private location = inject(Location);
@@ -25,6 +27,26 @@ export class CreateRequirementComponent implements OnInit {
   errorMessage = signal<string | null>(null);
   successMessage = signal<string | null>(null);
   isGeneratingId = signal(false);
+  availableSpecs = signal<Spec[]>([]);
+  specProjectFilter = signal('');
+  selectedSpecRowId = signal('');
+
+  filteredSpecs = computed(() => {
+    const project = this.specProjectFilter();
+    return this.availableSpecs().filter(s => {
+      if (!project) return true;
+      if (project === 'Unassigned') return !s.project?.trim();
+      return (s.project || '') === project;
+    });
+  });
+
+  specProjects = computed(() => {
+    const names = new Set<string>();
+    for (const s of this.availableSpecs()) {
+      if (s.project?.trim()) names.add(s.project.trim());
+    }
+    return Array.from(names).sort();
+  });
 
   goBack() {
     this.location.back();
@@ -58,6 +80,8 @@ export class CreateRequirementComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.specService.getSpecs().subscribe(list => this.availableSpecs.set(list));
+
     // Auto-generate requirement ID
     this.isGeneratingId.set(true);
     this.idGenerator.generateNextRequirementId().subscribe({
@@ -71,6 +95,21 @@ export class CreateRequirementComponent implements OnInit {
         this.requirementForm.patchValue({ requirement_id: 'REQ_0001' });
         this.isGeneratingId.set(false);
       }
+    });
+  }
+
+  onSpecProjectFilterChange(project: string) {
+    this.specProjectFilter.set(project);
+    this.selectedSpecRowId.set('');
+    this.requirementForm.patchValue({ reference_spec_id: '', reference_spec_version: '' });
+  }
+
+  onReferenceSpecVersionChange(specRowId: string) {
+    this.selectedSpecRowId.set(specRowId);
+    const spec = this.availableSpecs().find(s => String(s.id) === specRowId);
+    this.requirementForm.patchValue({
+      reference_spec_id: spec?.spec_id || '',
+      reference_spec_version: spec?.version || ''
     });
   }
 

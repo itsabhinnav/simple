@@ -64,6 +64,8 @@ export interface TestCase {
   /** "Yes" / "No" — single-select dropdown driven by config.yaml. */
   regulation?: string;
   priority?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
 
   created_at?: string;
   updated_at?: string;
@@ -99,6 +101,8 @@ export interface TestCaseCreateRequest {
   requirement_type?: string;
   regulation?: string;
   priority?: string;
+  reference_spec_id?: string;
+  reference_spec_version?: string;
 }
 
 export type TestCaseUpdateRequest = Partial<TestCaseCreateRequest>;

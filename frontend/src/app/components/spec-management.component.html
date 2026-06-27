@@ -2,50 +2,85 @@
   <header class="specs-header">
     <div class="header-left">
       <nav class="breadcrumb">
-        <a routerLink="/" class="breadcrumb-link">
-          <i class="icon-database"></i>
-          Dashboard
-        </a>
+        <a routerLink="/" class="breadcrumb-link"><i class="icon-database"></i> Dashboard</a>
         <span class="breadcrumb-separator">›</span>
         <span class="breadcrumb-current">Specifications</span>
       </nav>
-      <h1 class="page-title">
-        <i class="icon-spec"></i>
-        Specifications
-      </h1>
+      <h1 class="page-title"><i class="icon-spec"></i> Specifications</h1>
+      <p class="page-subtitle">Upload spec documents by project, track versions, and link them from requirements and tests.</p>
     </div>
     <div class="header-actions">
-      <label class="btn-import" [class.disabled]="isImporting()">
-        <input type="file" (change)="onFileSelected($event)" hidden [disabled]="isImporting()" />
-        <i class="icon-upload"></i>
-        {{ isImporting() ? 'Importing...' : 'Import' }}
-      </label>
-      <button type="button" class="btn-primary" (click)="toggleCreateForm()">
-        <i class="icon-plus"></i>
-        {{ showCreateForm() ? 'Close' : 'New Spec' }}
+      <button type="button" class="btn-secondary" (click)="setPageView('browse')">Browse all</button>
+      <button type="button" class="btn-primary" (click)="toggleAddForm()">
+        <i class="icon-plus"></i> {{ showAddForm() ? 'Close' : 'Upload spec' }}
       </button>
     </div>
   </header>
 
-  <div *ngIf="importError()" class="card" style="border-color:#fca5a5;background:#fef2f2;">
-    <div class="card-body" style="color:#991b1b;font-size:13px;">{{ importError() }}</div>
+  <div *ngIf="successMessage()" class="card success-card">
+    <div class="card-body">{{ successMessage() }}</div>
+  </div>
+  <div *ngIf="submitError() && !showAddForm()" class="card alert-card">
+    <div class="card-body">{{ submitError() }}</div>
   </div>
 
-  <section *ngIf="showCreateForm()" class="card">
+  <section class="spec-flow-hint card">
+    <div class="flow-steps">
+      <div class="flow-step"><span class="flow-num">1</span><span>Open a <strong>project</strong></span></div>
+      <div class="flow-step"><span class="flow-num">2</span><span><strong>Upload</strong> a document version</span></div>
+      <div class="flow-step"><span class="flow-num">3</span><span><strong>Link</strong> from reqs &amp; tests</span></div>
+    </div>
+    <div class="stat-chips">
+      <span class="stat-chip">{{ stats().projects }} projects</span>
+      <span class="stat-chip">{{ stats().documents }} documents</span>
+      <span class="stat-chip">{{ stats().versions }} versions</span>
+    </div>
+  </section>
+
+  <section *ngIf="showAddForm()" class="card add-spec-card">
     <div class="card-header">
-      <h3 class="card-title">
-        <i class="icon-plus"></i>
-        Create Specification
-      </h3>
+      <div>
+        <h3 class="card-title">Upload spec</h3>
+        <p class="card-subtitle">Each upload creates a version you can reference by ID + version number.</p>
+      </div>
     </div>
     <div class="card-body">
-      <form [formGroup]="form" (ngSubmit)="onCreate()">
+      <div *ngIf="submitError()" class="inline-alert">{{ submitError() }}</div>
+      <div class="file-mode-tabs add-mode-tabs">
+        <button type="button" class="file-mode-tab" [class.active]="addMode() === 'new'" (click)="setAddMode('new')">New document</button>
+        <button type="button" class="file-mode-tab" [class.active]="addMode() === 'version'" (click)="setAddMode('version')">New version</button>
+      </div>
+      <form [formGroup]="form" (ngSubmit)="onAddSpec()">
+        <div class="form-section-label">Project &amp; identity</div>
         <div class="form-grid">
           <div class="form-field">
-            <label class="form-label">Spec ID *</label>
-            <input class="form-input" formControlName="spec_id" placeholder="SPEC_0001" />
+            <label class="form-label">Project *</label>
+            <input class="form-input" formControlName="project" placeholder="e.g. AAOS" list="spec-project-list"
+              (change)="onProjectOrSpecIdChange()" (blur)="onProjectOrSpecIdChange()" />
+            <datalist id="spec-project-list">
+              <option *ngFor="let p of projects()" [value]="p.project === 'Unassigned' ? '' : p.project"></option>
+            </datalist>
           </div>
           <div class="form-field">
+            <label class="form-label">Spec ID *</label>
+            <input class="form-input" formControlName="spec_id"
+              [placeholder]="addMode() === 'version' ? 'Existing ID' : 'SPEC_0001'"
+              [attr.list]="addMode() === 'version' ? 'spec-id-list' : null"
+              (change)="onProjectOrSpecIdChange()" (blur)="onProjectOrSpecIdChange()" />
+            <datalist id="spec-id-list"><option *ngFor="let id of knownSpecIds()" [value]="id"></option></datalist>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Version *</label>
+            <input class="form-input" formControlName="version" placeholder="1.0" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Status</label>
+            <select class="form-select" formControlName="status">
+              <option value="Draft">Draft</option>
+              <option value="Official">Official</option>
+            </select>
+          </div>
+          <div class="form-field form-field--full">
             <label class="form-label">Title *</label>
             <input class="form-input" formControlName="title" placeholder="Specification title" />
           </div>
@@ -54,81 +89,127 @@
             <input class="form-input" formControlName="category" placeholder="SRS / PRD" />
           </div>
           <div class="form-field">
-            <label class="form-label">Version</label>
-            <input class="form-input" formControlName="version" placeholder="1.0" />
+            <label class="form-label">Tags</label>
+            <input class="form-input" formControlName="tags" placeholder="HVAC, safety" />
           </div>
-          <div class="form-field">
-            <label class="form-label">Status</label>
-            <select class="form-select" formControlName="status">
-              <option value="Draft">Draft</option>
-              <option value="In Review">In Review</option>
-              <option value="Approved">Approved</option>
-              <option value="Archived">Archived</option>
-            </select>
+        </div>
+        <div *ngIf="addMode() === 'version' && existingVersions().length" class="existing-versions">
+          <span class="form-label">Already uploaded:</span>
+          <span class="version-chip" *ngFor="let v of existingVersions()">v{{ v.version || '?' }}</span>
+        </div>
+        <div class="form-section-label">Document file</div>
+        <div class="form-field form-field--full">
+          <div class="file-mode-tabs">
+            <button type="button" class="file-mode-tab" [class.active]="fileInputMode() === 'upload'" (click)="setFileMode('upload')">Upload file</button>
+            <button type="button" class="file-mode-tab" [class.active]="fileInputMode() === 'link'" (click)="setFileMode('link')">SharePoint / link</button>
           </div>
-          <div class="form-field form-field--full">
-            <label class="form-label">Description</label>
-            <textarea class="form-textarea" formControlName="description" placeholder="Describe the scope and intent of this specification..."></textarea>
+          <div *ngIf="fileInputMode() === 'upload'" class="file-upload-zone">
+            <label class="file-upload-label">
+              <input type="file" (change)="onSpecFileSelected($event)" hidden
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.zip,.7z" />
+              <i class="icon-upload"></i>
+              {{ selectedFile()?.name || 'Drop or choose Excel, Word, PDF…' }}
+            </label>
+          </div>
+          <div *ngIf="fileInputMode() === 'link'">
+            <input class="form-input" formControlName="source_url" placeholder="https://…sharepoint.com/…" />
           </div>
         </div>
         <div class="form-actions">
-          <button type="button" class="btn-secondary" (click)="onCancelCreate()">Cancel</button>
+          <button type="button" class="btn-secondary" (click)="onCancelAdd()">Cancel</button>
           <button type="submit" class="btn-primary" [disabled]="form.invalid || isSubmitting()">
-            {{ isSubmitting() ? 'Saving...' : 'Create Spec' }}
+            {{ isSubmitting() ? 'Uploading…' : 'Save & open project' }}
           </button>
         </div>
       </form>
     </div>
   </section>
 
-  <section class="card">
+  <div class="view-tabs">
+    <button type="button" class="view-tab" [class.active]="pageView() === 'projects'" (click)="setPageView('projects')">By project</button>
+    <button type="button" class="view-tab" [class.active]="pageView() === 'browse'" (click)="setPageView('browse')">All versions</button>
+  </div>
+
+  <ng-container *ngIf="pageView() === 'projects'">
+    <section class="card">
+      <div class="card-header">
+        <h3 class="card-title">Projects</h3>
+        <span class="card-subtitle">Click a project to manage its specs</span>
+      </div>
+      <div class="card-body">
+        <div class="project-grid" *ngIf="projects().length; else noProjectsTpl">
+          <button type="button" class="project-card" *ngFor="let p of projects()" (click)="openProject(p.project)">
+            <span class="project-name">{{ p.project }}</span>
+            <span class="project-meta">{{ p.spec_families }} document(s)</span>
+            <span class="project-meta">{{ p.spec_count }} version(s)</span>
+          </button>
+          <button type="button" class="project-card project-card--new" (click)="openAddForm('new')">
+            <span class="project-name">+ New project</span>
+            <span class="project-meta">Upload a spec and name the project</span>
+          </button>
+        </div>
+        <ng-template #noProjectsTpl>
+          <div class="empty-state compact">
+            <button type="button" class="btn-primary" (click)="openAddForm('new')">Upload your first spec</button>
+          </div>
+        </ng-template>
+      </div>
+    </section>
+
+    <section class="card" *ngIf="recentSpecs().length">
+      <div class="card-header">
+        <h3 class="card-title">Recently uploaded</h3>
+      </div>
+      <div class="card-body recent-list">
+        <button type="button" class="recent-item" *ngFor="let s of recentSpecs()" (click)="openSpecRow(s)">
+          <span class="spec-id">{{ s.spec_id }}</span>
+          <span class="recent-title">v{{ s.version || '?' }} · {{ s.title }}</span>
+          <span class="recent-project">{{ s.project || 'Unassigned' }}</span>
+        </button>
+      </div>
+    </section>
+  </ng-container>
+
+  <section class="card" *ngIf="pageView() === 'browse'">
     <div class="card-header">
-      <h3 class="card-title">
-        <i class="icon-requirements"></i>
-        All Specifications
-      </h3>
-      <span class="card-subtitle">{{ totalSpecs() }} total</span>
+      <h3 class="card-title">All versions</h3>
+      <span class="card-subtitle">{{ filteredSpecs().length }} shown · click a row to open its project</span>
     </div>
-    <div class="card-body" style="padding:0;">
-      <ng-container *ngIf="specs().length > 0; else emptyTpl">
+    <div class="card-body specs-list-body">
+      <div class="filters-row">
+        <input class="form-input search-input" type="search" placeholder="Search…"
+          [value]="searchTerm()" (input)="onSearchInput($any($event.target).value)" />
+        <select class="form-select project-filter" [value]="projectFilter()" (change)="onProjectFilterChange($any($event.target).value)">
+          <option value="">All projects</option>
+          <option *ngFor="let p of projects()" [value]="p.project">{{ p.project }}</option>
+        </select>
+      </div>
+      <ng-container *ngIf="filteredSpecs().length; else emptyBrowseTpl">
         <div class="specs-table-wrap">
           <table class="specs-table">
             <thead>
               <tr>
-                <th style="width:140px;">Spec ID</th>
-                <th>Title</th>
-                <th style="width:140px;">Category</th>
-                <th style="width:90px;">Version</th>
-                <th style="width:120px;">Status</th>
+                <th>Project</th><th>Spec ID</th><th>Title</th><th>Ver</th><th>Status</th><th>Updated</th><th></th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let s of specs()">
+              <tr *ngFor="let s of filteredSpecs()" class="spec-row-clickable" (click)="openSpecRow(s, $event)">
+                <td>{{ s.project || 'Unassigned' }}</td>
                 <td><span class="spec-id">{{ s.spec_id }}</span></td>
-                <td><span class="spec-title">{{ s.title }}</span></td>
+                <td>{{ s.title }}</td>
+                <td>v{{ s.version || '?' }}</td>
+                <td><span class="spec-meta-pill" [class]="statusClass(s.status)">{{ s.status || 'Draft' }}</span></td>
+                <td class="muted">{{ formatDate(s.updated_at || s.created_at) }}</td>
                 <td>
-                  <span class="spec-meta-pill" *ngIf="s.category">{{ s.category }}</span>
-                  <span *ngIf="!s.category" style="color:#94a3b8;">—</span>
-                </td>
-                <td>
-                  <span class="spec-meta-pill" *ngIf="s.version">v{{ s.version }}</span>
-                  <span *ngIf="!s.version" style="color:#94a3b8;">—</span>
-                </td>
-                <td>
-                  <span class="spec-meta-pill" [class]="'spec-meta-pill ' + statusClass(s.status)">
-                    {{ s.status || 'Draft' }}
-                  </span>
+                  <button *ngIf="s.file_url" type="button" class="btn-download" (click)="downloadSpec(s, $event)">⬇</button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
       </ng-container>
-      <ng-template #emptyTpl>
-        <div class="empty-state">
-          <span class="empty-icon">📄</span>
-          No specifications yet. Click <strong>New Spec</strong> to create your first one.
-        </div>
+      <ng-template #emptyBrowseTpl>
+        <div class="empty-state compact">No specs match your filters.</div>
       </ng-template>
     </div>
   </section>

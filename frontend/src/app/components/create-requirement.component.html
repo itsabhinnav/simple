@@ -219,22 +219,32 @@
           </header>
           <div class="side-card-body">
             <div class="side-field">
-              <label class="side-label" for="req-spec-id">Spec ID</label>
-              <input
-                id="req-spec-id"
-                type="text"
-                class="side-input"
-                formControlName="reference_spec_id"
-                placeholder="e.g. SPEC_HVAC_01.1.1">
+              <label class="side-label" for="req-spec-project">Spec Project</label>
+              <select id="req-spec-project" class="side-input"
+                [value]="specProjectFilter()"
+                (change)="onSpecProjectFilterChange($any($event.target).value)">
+                <option value="">All projects</option>
+                <option value="Unassigned">Unassigned</option>
+                <option *ngFor="let project of specProjects()" [value]="project">{{ project }}</option>
+              </select>
             </div>
             <div class="side-field">
               <label class="side-label" for="req-spec-version">Spec Version</label>
-              <input
-                id="req-spec-version"
-                type="text"
-                class="side-input"
-                formControlName="reference_spec_version"
-                placeholder="e.g. 2.4">
+              <select id="req-spec-version" class="side-input"
+                [value]="selectedSpecRowId()"
+                (change)="onReferenceSpecVersionChange($any($event.target).value)">
+                <option value="">— Select spec version —</option>
+                <option *ngFor="let spec of filteredSpecs()" [value]="spec.id">
+                  {{ spec.spec_id }} v{{ spec.version || '?' }} — {{ spec.title }}
+                </option>
+              </select>
+            </div>
+            <div class="side-field" *ngIf="requirementForm.get('reference_spec_id')?.value">
+              <label class="side-label">Linked Spec</label>
+              <p class="side-readonly">
+                {{ requirementForm.get('reference_spec_id')?.value }}
+                <span *ngIf="requirementForm.get('reference_spec_version')?.value"> · v{{ requirementForm.get('reference_spec_version')?.value }}</span>
+              </p>
             </div>
           </div>
         </article>

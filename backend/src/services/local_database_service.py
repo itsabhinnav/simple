@@ -343,6 +343,8 @@ class LocalDatabaseService:
                     "vehicle_model": "TEXT",
                     "severity": "TEXT",
                     "vehicle_specification": "TEXT",
+                    "reference_spec_id": "TEXT",
+                    "reference_spec_version": "TEXT",
                 },
             )
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -8,6 +8,7 @@ import {
   TestCaseDropdowns,
 } from '../services/test-case.service';
 import { IdGeneratorService } from '../services/id-generator.service';
+import { SpecService, Spec } from '../services/spec.service';
 
 @Component({
   selector: 'app-create-test-case',
@@ -19,6 +20,7 @@ import { IdGeneratorService } from '../services/id-generator.service';
 export class CreateTestCaseComponent implements OnInit {
   private testCaseService = inject(TestCaseService);
   private idGenerator = inject(IdGeneratorService);
+  private specService = inject(SpecService);
   private formBuilder = inject(FormBuilder);
   private router = inject(Router);
   private location = inject(Location);
@@ -28,6 +30,26 @@ export class CreateTestCaseComponent implements OnInit {
   errorMessage = signal<string | null>(null);
   successMessage = signal<string | null>(null);
   isGeneratingId = signal(false);
+  availableSpecs = signal<Spec[]>([]);
+  specProjectFilter = signal('');
+  selectedSpecRowId = signal('');
+
+  filteredSpecs = computed(() => {
+    const project = this.specProjectFilter();
+    return this.availableSpecs().filter(s => {
+      if (!project) return true;
+      if (project === 'Unassigned') return !s.project?.trim();
+      return (s.project || '') === project;
+    });
+  });
+
+  specProjects = computed(() => {
+    const names = new Set<string>();
+    for (const s of this.availableSpecs()) {
+      if (s.project?.trim()) names.add(s.project.trim());
+    }
+    return Array.from(names).sort();
+  });
 
   /** Dropdown options sourced from `config.yaml > test_case_dropdowns`. */
   dropdowns = signal<TestCaseDropdowns | null>(null);
@@ -79,6 +101,8 @@ export class CreateTestCaseComponent implements OnInit {
       procedure: [''],
       expected_behavior: [''],
       vehicle_model: [''],
+      reference_spec_id: [''],
+      reference_spec_version: [''],
     });
   }
 
@@ -99,6 +123,23 @@ export class CreateTestCaseComponent implements OnInit {
     this.testCaseService.getDropdowns().subscribe({
       next: (data) => this.dropdowns.set(data),
       error: (err) => console.error('Failed to load dropdowns', err),
+    });
+
+    this.specService.getSpecs().subscribe(list => this.availableSpecs.set(list));
+  }
+
+  onSpecProjectFilterChange(project: string) {
+    this.specProjectFilter.set(project);
+    this.selectedSpecRowId.set('');
+    this.testCaseForm.patchValue({ reference_spec_id: '', reference_spec_version: '' });
+  }
+
+  onReferenceSpecVersionChange(specRowId: string) {
+    this.selectedSpecRowId.set(specRowId);
+    const spec = this.availableSpecs().find(s => String(s.id) === specRowId);
+    this.testCaseForm.patchValue({
+      reference_spec_id: spec?.spec_id || '',
+      reference_spec_version: spec?.version || ''
     });
   }
 
@@ -200,6 +241,8 @@ export class CreateTestCaseComponent implements OnInit {
       reference_document: this.selected.reference_document(),
       associated_requirement_id: this.selected.associated_requirement_id(),
       screen_id: this.selected.screen_id(),
+      reference_spec_id: formValue.reference_spec_id,
+      reference_spec_version: formValue.reference_spec_version,
     };
 
     this.testCaseService.createTestCase(createRequest).subscribe({

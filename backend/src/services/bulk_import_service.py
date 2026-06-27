@@ -197,22 +197,27 @@ TARGET_CONFIG = {
         "table": "specifications",
         "id_field": "spec_id",
         "prefix": "SPEC",
-        "required": ["spec_id", "title"],
+        "required": ["spec_id", "title", "version"],
         "defaults": {"status": "Draft"},
-        "fields": ["spec_id", "title", "description", "category", "version", "status", "file_url", "created_by"],
+        "identity_fields": ["spec_id", "project", "version"],
+        "fields": ["spec_id", "title", "project", "tags", "category", "version", "status", "file_url", "file_name", "source_url", "created_by"],
         "ddl": """
             CREATE TABLE IF NOT EXISTS specifications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                spec_id TEXT UNIQUE,
+                spec_id TEXT NOT NULL,
                 title TEXT NOT NULL,
-                description TEXT,
+                project TEXT,
+                tags TEXT,
                 category TEXT,
                 version TEXT,
                 status TEXT,
                 file_url TEXT,
+                file_name TEXT,
+                source_url TEXT,
                 created_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(project, spec_id, version)
             )
         """,
     },
@@ -681,11 +686,24 @@ class BulkImportService:
             table = config["table"]
             id_field = config["id_field"]
             record_id = payload[id_field]
-            existing = self.database_service.execute_query(
-                f"SELECT id FROM {table} WHERE {id_field} = ?",
-                "default",
-                params=(record_id,),
-            )
+            identity_fields = config.get("identity_fields")
+            if identity_fields:
+                where = " AND ".join(
+                    f"COALESCE({field}, '') = ?" if field != "project" else f"COALESCE({field}, '') = ?"
+                    for field in identity_fields
+                )
+                identity_params = tuple(payload.get(field) or "" for field in identity_fields)
+                existing = self.database_service.execute_query(
+                    f"SELECT id FROM {table} WHERE {where}",
+                    "default",
+                    params=identity_params,
+                )
+            else:
+                existing = self.database_service.execute_query(
+                    f"SELECT id FROM {table} WHERE {id_field} = ?",
+                    "default",
+                    params=(record_id,),
+                )
             if existing.get("data"):
                 if duplicate_strategy == "replace":
                     # UPDATE only the non-None payload fields so empty cells in
